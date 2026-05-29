@@ -43,8 +43,12 @@ async function loadAut(path: string): Promise<AUTConfig> {
 function loadScenarios(dir: string): Scenario[] {
   const abs = resolve(process.cwd(), dir);
   const files = readdirSync(abs).filter((f) => f.endsWith(".json")).sort();
-  if (!files.length) throw new Error(`no .json scenarios in ${dir}`);
-  return files.map((f) => JSON.parse(readFileSync(join(abs, f), "utf8")) as Scenario);
+  // Keep only well-formed scenario files (skips rubric.json and any other JSON).
+  const scenarios = files
+    .map((f) => JSON.parse(readFileSync(join(abs, f), "utf8")) as Scenario)
+    .filter((s) => s && typeof s.name === "string" && Array.isArray(s.assert));
+  if (!scenarios.length) throw new Error(`no valid .json scenarios in ${dir}`);
+  return scenarios;
 }
 
 async function cmdRun(positional: string[], opts: Record<string, string | boolean>) {
@@ -143,7 +147,8 @@ async function cmdAuthor(opts: Record<string, string | boolean>) {
   for (const s of suite.scenarios) {
     writeFileSync(resolve(process.cwd(), outDir, `${s.name}.json`), JSON.stringify(s, null, 2) + "\n");
   }
-  console.log(`\nAuthored ${suite.scenarios.length} scenario(s) for "${aut.label}" -> ${outDir}/`);
+  writeFileSync(resolve(process.cwd(), outDir, "rubric.json"), JSON.stringify(suite.rubric, null, 2) + "\n");
+  console.log(`\nAuthored ${suite.scenarios.length} scenario(s) + rubric.json for "${aut.label}" -> ${outDir}/`);
   for (const s of suite.scenarios) console.log(`  • ${s.name} (${s.assert.length} assertions)`);
   if (suite.businessRules.length) {
     console.log(`\nBusiness rules extracted from the spec (add assertions for these):`);

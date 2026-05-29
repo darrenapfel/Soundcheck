@@ -1,9 +1,10 @@
 // Autonomous eval authoring — generate a scenario suite from an agent's spec, no
-// human writing test cases. Deterministic + Deepgram-key-only (no LLM): universal
+// human writing test cases. Deterministic, needs NO API key (no LLM): universal
 // QUALITY gates/rubric are knowledge the tool already has; per-agent SCENARIOS are
-// derived from the tools; BUSINESS RULES are extracted from the system prompt.
-// (LLM-enriched caller phrasing is a tracked enhancement; deterministic is the
-// reliable, testable core — see docs/ROADMAP.md M4.)
+// derived from the tools; BUSINESS RULES are extracted from the system prompt and
+// SURFACED AS HINTS (auto-generating an assertion for an arbitrary domain rule is a
+// tracked enhancement — see docs/ROADMAP.md M4). LLM-enriched caller phrasing is also
+// a tracked enhancement; deterministic is the reliable, testable core.
 
 import type { AssertSpec, Scenario, ToolSchema } from "../types.ts";
 import { DEFAULT_RUBRIC } from "../judge/index.ts";
@@ -23,6 +24,7 @@ export interface AuthoredSuite {
 /** "this Saturday" relative to an ISO `today` (upcoming Sat; if today is Sat, next week). */
 export function nextSaturday(todayIso: string): string {
   const d = new Date(todayIso + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) throw new Error(`nextSaturday: invalid date "${todayIso}" (want YYYY-MM-DD)`);
   const day = d.getUTCDay(); // 0=Sun .. 6=Sat
   let add = (6 - day + 7) % 7;
   if (add === 0) add = 7;
