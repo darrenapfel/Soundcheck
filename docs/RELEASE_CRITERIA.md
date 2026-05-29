@@ -8,7 +8,7 @@
 - [ ] **v0 deterministic core** — regression gates + round-trip oracle (done in PR #1).
 - [ ] **LLM judge** — Deepgram-fronted grader, rubric scores + findings, panel option, pluggable model.
 - [ ] **Autonomous eval authoring** — `author --spec` generates scenarios + assertions + rubric for an unseen agent.
-- [ ] **Genericity** — ≥ 2 `AUTAdapter`s (Deepgram VA + one more), proven against a non-VA target.
+- [x] **Genericity** — 3 `AUTAdapter`s: Deepgram VA + **MockAUT** (creds-free, deterministic — the CI-proven non-Deepgram target) + **OpenAI Realtime** (real second runtime; experimental/opt-in, untested without a key). Same scenarios + gates + report run unchanged across adapters.
 - [ ] **Tuning loop** — `tune` raises a broken agent's *held-out* score and emits a reviewable diff.
 - [ ] **CLI** — `run`, `validate`, `author`, `tune`, `record`/`replay`; `--help` for each; sane exit codes.
 
@@ -21,7 +21,7 @@
 - [ ] Live-nightly workflow exists and is documented (drift detection, separate from logic regressions).
 
 ## Security
-- [ ] **No credential other than `DEEPGRAM_API_KEY`** is ever read, logged, or committed (verified by an automated check + the security review).
+- [ ] **Default + CI operation reads no credential other than `DEEPGRAM_API_KEY`** (verified by an automated check + the security review). The only exception is the **opt-in `openai-realtime` adapter**, which reads `OPENAI_API_KEY` *only when the user explicitly selects it*; the default path and all of CI never touch it.
 - [ ] Cassettes / fixtures / reports contain **no secrets** (scanned in CI).
 - [ ] `.gitignore` covers `.env*`, `node_modules`, run artifacts; a pre-commit/secret-scan guard.
 
