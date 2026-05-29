@@ -1,6 +1,8 @@
 # Soundcheck — v1.0 Release Criteria (the "trustworthy enough to ship publicly" bar)
 
-> Every box must be checked, with evidence, before tagging `v1.0.0`. This is the definition of done for the dream. The final milestone (M8) is gated by a multi-agent review verifying this list.
+> Every box must be checked, with evidence, before tagging `v1.0.0`. This is the definition of done for the dream. The final milestone (M8) is gated by an automated **multi-agent (sub-agent) review** verifying this list.
+>
+> **Autonomy:** the entire build (M0→M8) runs with **zero mid-run human gates** — every check is code, tests, or sub-agents. The **only** human touchpoint is an **optional sign-off *after* the build is complete** (review the open PRs, merge, publish). Reaching this checklist never requires a human.
 
 ## Functionality
 - [ ] **v0 deterministic core** — regression gates + round-trip oracle (done in PR #1).

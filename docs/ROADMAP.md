@@ -8,16 +8,17 @@
 - **v2 — the tuning loop**: agents tuning agents — take a broken voice agent and autonomously make it shippable. *The complete vision.*
 
 ## Non-negotiable principles (apply to every milestone)
-1. **Determinism via record/replay.** Live voice is stochastic (the model varies; audio/STT varies). CI **replays cached conversations** for deterministic gating; **live runs are nightly/manual**. A flaky-by-nature tool earns trust only by separating these. (See `TESTING.md`.)
-2. **Self-evaluation — Soundcheck evaluates Soundcheck.** We may only ask others to trust our tester if it is itself tested to a *higher* bar — including by itself: Evaline-as-AUT, judge calibration vs ground truth, and the bare→grounded golden ladder as a self-regression.
-3. **Independent code review at every milestone.** Each milestone ends with a dedicated code-review sub-agent (correctness · security/no-key-leak · test quality · simplicity). Findings are addressed before proceeding. No milestone is "done" on the builder's say-so alone.
-4. **Deepgram-key-only for everything the user runs.** Non-Deepgram adapters are exercised in CI against a **local mock AUT** (creds-free); a live non-Deepgram run is opt-in with that provider's key.
-5. **Tests are the gate, not vibes.** Every milestone must leave `npm run validate` (typecheck + lint + unit + replay-integration) green, with coverage at/above target.
+1. **Fully autonomous, end to end — ZERO mid-run human gates.** The build runs M0→M8 without ever stopping for a human. Every gate is satisfied by code, tests, or **sub-agents** (the code reviewers, the judge, the fixer, the calibration corpus — all automated). The *only* human touchpoint is an **optional final sign-off** after the build is complete (review the PRs, merge, publish). Nothing — not calibration, not review, not merge — blocks progress mid-run. If a step seems to need a human, automate it (e.g. self-construct the labeled corpus) or branch around it (don't merge mid-run); never wait.
+2. **Determinism via record/replay.** Live voice is stochastic (the model varies; audio/STT varies). CI **replays cached conversations** for deterministic gating; **live runs are nightly/manual**. A flaky-by-nature tool earns trust only by separating these. (See `TESTING.md`.)
+3. **Self-evaluation — Soundcheck evaluates Soundcheck.** We may only ask others to trust our tester if it is itself tested to a *higher* bar — including by itself: Evaline-as-AUT, judge calibration vs ground truth, and the bare→grounded golden ladder as a self-regression.
+4. **Independent code review at every milestone.** Each milestone ends with a dedicated code-review **sub-agent** (correctness · security/no-key-leak · test quality · simplicity). The builder addresses findings autonomously and proceeds — no human in this loop. No milestone is "done" on the builder's say-so alone.
+5. **Deepgram-key-only for everything the user runs.** Non-Deepgram adapters are exercised in CI against a **local mock AUT** (creds-free); a live non-Deepgram run is opt-in with that provider's key.
+6. **Tests are the gate, not vibes.** Every milestone must leave `npm run validate` (typecheck + lint + unit + replay-integration) green, with coverage at/above target.
 
 ## Milestones (each: implement → tests green → independent review → address → commit → proceed)
 
 ### M0 — Foundation & determinism harness
-- Merge v0 (PR #1). Add **record/replay** to the adapter (a live run writes a `cassette`; replay reads it — no socket). CI pipeline: typecheck + lint + unit + replay-integration. Cassettes for the bare/hardened/grounded ladder.
+- **Base on v0 by branching from `feat/v0-deterministic-core`** (do NOT merge mid-run; merges are deferred to the optional final human sign-off). Add **record/replay** to the adapter (a live run writes a `cassette`; replay reads it — no socket). CI pipeline: typecheck + lint + unit + replay-integration. Cassettes for the bare/hardened/grounded ladder (record once, live, then replay).
 - **Proof point:** `npm run validate` is green in CI off replayed cassettes — fully deterministic, no live calls.
 - **Review gate.**
 
@@ -32,7 +33,7 @@
 - **Review gate.**
 
 ### M3 — Judge calibration (self-evaluation, part I)
-- A labeled corpus of transcripts (known-good / known-bad, with the failure tagged) + a **calibration runner** that measures judge agreement with ground truth (precision/recall per dimension).
+- A **self-constructed** labeled corpus: the builder *synthesizes* transcripts with faults injected by construction (so the label is ground-truth without a human — a transcript built with "star star" is labeled symbol-bad; a clean one is good) + a **calibration runner** measuring judge agreement (precision/recall per dimension). Cross-model agreement (a second automated judge) is the diversity check. No human labels required.
 - **Proof point:** judge agreement ≥ target (e.g. ≥ 0.9 on the symbol/grounding classes; documented honest numbers for fuzzy ones). Calibration report committed.
 - **Review gate.**
 
@@ -58,8 +59,8 @@
 
 ### M8 — Release readiness (ship v1.0.0)
 - Docs (README, ARCHITECTURE, TESTING, CONTRIBUTING, LIMITATIONS, examples), CI badges, the **GitHub Action**, semver + CHANGELOG, a final **security review** (no key ever read/logged/committed but Deepgram), and a fresh-clone smoke.
-- **Proof point:** meets every box in [`RELEASE_CRITERIA.md`](RELEASE_CRITERIA.md); a final **multi-agent review** (correctness + security + docs + DX) signs off.
-- **Tag v1.0.0.**
+- **Proof point:** meets every box in [`RELEASE_CRITERIA.md`](RELEASE_CRITERIA.md); a final **multi-agent review panel of sub-agents** (correctness + security + docs + DX) signs off — automated, no human.
+- **Prepare the `v1.0.0` release candidate** (tag candidate, CHANGELOG, final PR) and write a completion report. **This is where — and only where — the optional human sign-off happens:** the build is *complete*; the human reviews the open PRs, merges, and publishes. The build never waited for them to get here.
 
 ## What's *past* the dream (explicitly out of scope for v1.0)
 More adapters (Retell, LiveKit, Pipecat, Twilio/SIP), non-English, a hosted report viewer, an acoustic-robustness corpus at scale. Tracked, not built.
