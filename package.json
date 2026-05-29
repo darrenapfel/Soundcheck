@@ -1,10 +1,13 @@
 {
   "name": "soundcheck",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Voice-agent test & tuning harness — Playwright + an LLM judge + a synthetic caller, for speech. Runs on a single Deepgram key.",
   "type": "module",
   "license": "MIT",
   "author": "Darren Apfel",
+  "repository": { "type": "git", "url": "git+https://github.com/darrenapfel/Soundcheck.git" },
+  "homepage": "https://github.com/darrenapfel/Soundcheck#readme",
+  "bugs": { "url": "https://github.com/darrenapfel/Soundcheck/issues" },
   "engines": {
     "node": ">=22.6"
   },
