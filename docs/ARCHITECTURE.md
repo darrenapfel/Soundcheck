@@ -76,7 +76,7 @@ Soundcheck's authoring agent **defines quality itself.** Universal voice-agent q
 
 The one thing the agent does **not** invent is **domain fact**: "this restaurant is closed Mondays," "never seat parties over 8," "always offer the prix fixe." Those are business truths, not quality judgments, and they come from wherever the spec lives — a product doc, the AUT's system prompt, or a higher-level agent that read them. Soundcheck's eval-authoring step **reads the AUT's spec to derive business-rule assertions**, then layers universal quality on top. Given a spec exists, scenario + rubric generation is fully autonomous.
 
-The remaining guardrail is **methodological, not authority-based**: an optimizer must not grade its own homework on the set it tunes against. Hence held-out evals, judge diversity (judge model ≠ AUT model), and occasional cross-model or human **calibration** (a sanity check on the judge, not the source of truth). This is how you keep the loop from fooling itself — it has nothing to do with a human "knowing better."
+The remaining guardrail is **methodological, not authority-based**: an optimizer must not grade its own homework on the set it tunes against. Hence held-out evals, judge diversity (judge model ≠ AUT model), and **automated cross-model calibration** against a self-constructed labeled corpus (a sanity check on the judge, not the source of truth). All of this is automated — **no human is in this loop**; it keeps the loop from fooling *itself*, and has nothing to do with a human "knowing better." (An optional human sign-off may happen *after* the build is complete, but never gates it.)
 
 ## 6. Deepgram-key-only — why this works {#deepgram-key-only}
 
@@ -155,7 +155,7 @@ rubric:                        # judge dimensions
 - **The judge is non-deterministic** — mitigated by deterministic-gates-first, panels, and calibration; never a hard CI gate.
 - **The tuning loop can overfit** (Goodhart) — mitigated by held-out scenario sets.
 - **Full-duplex barge-in timing** is approximated, not perfectly reproduced.
-- **Non-goals (for now):** load/perf testing at scale; non-English (v0 is English); replacing human QA entirely (it shrinks human QA to calibration, not zero).
+- **Non-goals (for now):** load/perf testing at scale; non-English (v0 is English). (Note: the *build* of Soundcheck is fully autonomous — the only human touchpoint is an optional sign-off after completion. In *use*, Soundcheck shrinks a team's human QA to an optional final review, not zero.)
 
 ## 11. Provenance — what the spike already proved (so this isn't speculative)
 
