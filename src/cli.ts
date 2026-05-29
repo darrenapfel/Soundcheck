@@ -14,6 +14,7 @@ import { runGates } from "./gates/index.ts";
 import { judgeTranscript, mockJudge } from "./judge/index.ts";
 import { deepgramVaJudge } from "./judge/deepgram-va-judge.ts";
 import { calibrate, formatReport } from "./calibration/index.ts";
+import { authorSuite } from "./author/index.ts";
 import { generateReport } from "./report/html.ts";
 import type { AUTConfig, Scenario, ScenarioResult, Transcript } from "./types.ts";
 
@@ -132,6 +133,25 @@ async function cmdCalibrate(opts: Record<string, string | boolean>) {
   }
 }
 
+async function cmdAuthor(opts: Record<string, string | boolean>) {
+  const autPath = (opts.spec as string) ?? (opts.aut as string);
+  if (!autPath) { console.error("usage: soundcheck author --spec <agent-config.ts> [--out <dir>]"); process.exit(2); }
+  const aut = await loadAut(autPath);
+  const suite = authorSuite({ name: aut.label, systemPrompt: aut.systemPrompt, tools: aut.tools });
+  const outDir = (opts.out as string) ?? "scenarios-authored";
+  mkdirSync(resolve(process.cwd(), outDir), { recursive: true });
+  for (const s of suite.scenarios) {
+    writeFileSync(resolve(process.cwd(), outDir, `${s.name}.json`), JSON.stringify(s, null, 2) + "\n");
+  }
+  console.log(`\nAuthored ${suite.scenarios.length} scenario(s) for "${aut.label}" -> ${outDir}/`);
+  for (const s of suite.scenarios) console.log(`  • ${s.name} (${s.assert.length} assertions)`);
+  if (suite.businessRules.length) {
+    console.log(`\nBusiness rules extracted from the spec (add assertions for these):`);
+    for (const r of suite.businessRules) console.log(`  - ${r}`);
+  }
+  console.log();
+}
+
 function help() {
   console.log(`Soundcheck — voice-agent test harness (Deepgram-key-only)
 
@@ -150,6 +170,10 @@ function help() {
       Score the judge against the self-constructed labeled corpus (agreement/precision/recall).
       Default uses the offline mock judge; --judge live uses the Deepgram-fronted grader.
 
+  soundcheck author --spec <agent-config.ts> [--out <dir>]
+      Autonomously generate a scenario suite from an agent's spec (tools + system prompt):
+      scenarios derived from the tools, gates baked in, business rules extracted. No human writes cases.
+
 Requires only DEEPGRAM_API_KEY (env or .env).`);
 }
 
@@ -159,6 +183,7 @@ try {
   if (cmd === "run") await cmdRun(positional, opts);
   else if (cmd === "validate") await cmdValidate(opts);
   else if (cmd === "calibrate") await cmdCalibrate(opts);
+  else if (cmd === "author") await cmdAuthor(opts);
   else help();
 } catch (e) {
   console.error(`\n✖ ${(e as Error).message}\n`);
