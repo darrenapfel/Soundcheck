@@ -6,7 +6,7 @@
 > Regenerate: `soundcheck calibrate --judge live` (live Deepgram-fronted grader) or
 > `soundcheck calibrate` (offline mock judge). See `docs/TESTING.md` §3.2.
 
-## Live judge (`deepgram-va`) — overall agreement 91.7%
+## Live judge (`deepgram-va`) — overall agreement 91.7% (macro-avg over dimensions; sample-weighted = 88.9%)
 
 | Dimension | n | Agreement | Precision (problem class) | Recall (problem class) |
 |---|---|---|---|---|

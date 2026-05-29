@@ -51,6 +51,7 @@ export function parseVerdict(raw: string, rubric: Rubric, backend: string): Verd
       value = dim.kind === "boolean" ? coerceBool(obj[dim.key]) : coerceScore(obj[dim.key]);
     }
     if (value === null) value = fromRaw(raw, dim.key, dim); // regex fallback
+    if (dim.kind === "score" && typeof value === "number") value = Math.max(1, Math.min(5, value)); // clamp to the 1-5 rubric range
     const why = typeof obj?.[`${dim.key}_why`] === "string" ? String(obj[`${dim.key}_why`]) : "";
     return { key: dim.key, value, why };
   });
