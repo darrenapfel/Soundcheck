@@ -191,8 +191,10 @@ async function cmdTune(opts: Record<string, string | boolean>) {
   };
   const evaluate = (prompt: string, set: ScenarioSet) => evalSet(prompt, set === "train" ? train : heldout);
   const propose = async (prompt: string, failures: string[]) => {
-    const res = spawnSync("sh", ["-c", fixerCmd], { input: JSON.stringify({ prompt, failures }), encoding: "utf8", maxBuffer: 1 << 20 });
-    if (res.status !== 0 || !res.stdout?.trim()) throw new Error(`fixer command failed (status ${res.status}): ${res.stderr?.slice(0, 200)}`);
+    // The fixer is the user's own --fixer command (run via `sh -c`, inherits env incl. the
+    // Deepgram key — they're trusting their own tool). A timeout prevents a hung fixer from blocking.
+    const res = spawnSync("sh", ["-c", fixerCmd], { input: JSON.stringify({ prompt, failures }), encoding: "utf8", maxBuffer: 1 << 20, timeout: 180000 });
+    if (res.status !== 0 || !res.stdout?.trim()) throw new Error(`fixer command failed (status ${res.status}${res.signal ? `, signal ${res.signal}` : ""}): ${res.stderr?.slice(0, 200)}`);
     return res.stdout.trim();
   };
 
@@ -232,7 +234,8 @@ function help() {
   soundcheck tune --agent <config.ts> --fixer "<cmd>" [--train <s.json>] [--heldout <s.json>] [--max <n>]
       Agents tuning agents: evaluate live -> a fixer (a coding agent reading {prompt,failures} JSON on
       stdin, writing an improved prompt to stdout) proposes a fix -> KEEP only if the HELD-OUT set improves
-      (Goodhart guard). Writes the tuned prompt to runs/. Exits 0 iff the held-out score improved.
+      (Goodhart guard — use a held-out scenario that is genuinely DIFFERENT from train). Writes the tuned
+      prompt to runs/. Exits 0 iff the held-out score improved. (--fixer runs via 'sh -c' and inherits your env.)
 
 Requires only DEEPGRAM_API_KEY (env or .env).`);
 }

@@ -54,7 +54,8 @@
 
 ### M7 — The tuning loop (v2 — agents tuning agents)
 - `soundcheck tune <agent> --spec <spec>`: failures → a **fixer-agent** (a local coding agent — Claude Code / Codex, subscription, no API key) proposes edits → re-run → keep edits that raise the score on a **held-out** scenario set the tuner never sees (the Goodhart guardrail) → emit a reviewable diff + before/after report. Convergence + iteration caps.
-- **Proof point:** given the **bare** agent + its spec, `tune` raises the held-out score and emits a diff that makes the gates pass — autonomously. Overfitting check: held-out score moves, not just training score.
+- **Proof point:** given the **bare** agent, `tune` raises a **genuinely independent** held-out score (a *different* scenario type, so the guard truly discriminates) and writes a tuned prompt — autonomously. Overfitting check: the held-out score must move, not just training.
+- **Honest scope:** the bundled demo fixer is **rule-based** (deterministic) — the live capstone proves the *loop + Goodhart guard mechanism* end-to-end, not fixer *intelligence*. The intelligent fixer is the **pluggable** drop-in (`--fixer "claude -p …"`); the spike's Stage-2 fork already proved an LLM agent fixes a voice agent to green. Don't claim the demo itself is an LLM reasoning to a fix.
 - **Review gate.**
 
 ### M8 — Release readiness (ship v1.0.0)

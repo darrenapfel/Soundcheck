@@ -54,6 +54,10 @@ export async function tune(
   for (let i = 0; i < max; i++) {
     if (bestTrain.passed === bestTrain.total) break; // converged on training
     const proposed = await propose(bestPrompt, bestTrain.failures);
+    if (proposed === bestPrompt) { // fixer made no change — re-evaluating would waste live iterations
+      iterations.push({ proposedPrompt: proposed, trainAfter: bestTrain, heldoutAfter: null, kept: false, reason: "stopped: fixer proposed no change" });
+      break;
+    }
     const trainAfter = await evaluate(proposed, "train");
 
     let heldoutAfter: TuneScore | null = null;
@@ -67,6 +71,8 @@ export async function tune(
       if (frac(heldoutAfter) > frac(bestHeldout)) {
         bestPrompt = proposed; bestTrain = trainAfter; bestHeldout = heldoutAfter; kept = true;
         reason = "kept: held-out improved";
+      } else if (frac(bestHeldout) >= 1) {
+        reason = "rejected: held-out already at ceiling — cannot prove this edit generalizes";
       } else {
         reason = "rejected: training improved but held-out did not (overfit)";
       }
