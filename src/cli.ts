@@ -11,6 +11,8 @@ import { DeepgramVoiceAgentAdapter } from "./adapters/deepgram-va.ts";
 import { buildTranscript } from "./capture/transcript.ts";
 import { saveCassette, loadCassette } from "./capture/cassette.ts";
 import { runGates } from "./gates/index.ts";
+import { judgeTranscript, mockJudge } from "./judge/index.ts";
+import { deepgramVaJudge } from "./judge/deepgram-va-judge.ts";
 import { generateReport } from "./report/html.ts";
 import type { AUTConfig, Scenario, ScenarioResult, Transcript } from "./types.ts";
 
@@ -73,9 +75,16 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
     }
     const gates = runGates(transcript, scenario);
     const passed = gates.every((g) => g.pass);
-    results.push({ transcript, gates, passed });
+    let verdict;
+    if (opts.judge) {
+      const useMock = opts.judge === "mock";
+      if (!useMock) getKey(); // live judge needs the key (replay path skipped it)
+      verdict = await judgeTranscript(transcript, useMock ? mockJudge : deepgramVaJudge);
+    }
+    results.push({ transcript, gates, passed, verdict });
     console.log(passed ? "PASS" : "FAIL");
     for (const g of gates) console.log(`    ${g.pass ? "✅" : "🚩"} ${g.name} — ${g.detail}`);
+    if (verdict) console.log(`    ⚖ judge(${verdict.backend}): ${verdict.dimensions.map((d) => `${d.key}=${d.value}`).join(", ")}${verdict.findings[0] ? ` | ${verdict.findings[0]}` : ""}`);
   }
 
   mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
@@ -117,6 +126,8 @@ function help() {
       Default --aut: examples/tabletalk/grounded.ts. Exits non-zero iff a gate fails.
       --record : live run, then save a cassette for deterministic replay.
       --replay : offline — load the cassette, run gates, no socket/STT/key needed.
+      --judge  : also run the LLM judge (advisory, not gating). --judge mock = offline rule-based;
+                 otherwise the live Deepgram-fronted grader (needs the key).
 
   soundcheck validate --tts "<text>"     Round-trip text -> TTS -> STT; flag spoken symbols.
   soundcheck validate --stt <file.wav>   Transcribe an audio file.
