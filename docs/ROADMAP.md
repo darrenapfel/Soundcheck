@@ -23,7 +23,7 @@
 - **Review gate.**
 
 ### M1 — Test hardening (the trust foundation)
-- Unit tests: gates (have), normalization, round-trip golden fixtures, adapter over a **mock WebSocket**, capture. Coverage ≥ 85% on `gates/ normalize/ capture/ caller/`. Flakiness controls (replay everywhere in CI).
+- Unit tests: gates (have), normalization, capture (injected transcriber), caller, cassette I/O, and the adapter's **config surface** (`buildSettings`). ESLint added to `validate`. Coverage ≥ 85% on `gates/ normalize/ capture/ caller/`. Flakiness controls (replay everywhere in CI). **Deviation (honest):** a fully-offline adapter *socket-loop* test needs injecting both the WebSocket factory and `synthesize` into the adapter; deferred as a tracked follow-up — the live duplex loop is validated by the M0 cassette recordings + the live-nightly run.
 - **Proof point:** coverage report meets target; CI deterministic across 10 consecutive runs.
 - **Review gate.**
 
