@@ -80,6 +80,7 @@ function valueConsistency(t: Transcript, spec: { spoken: "date"; equalsTool: str
   const m = /^\d{4}-(\d{2})-\d{2}$/.exec(d.date);
   if (!m) return { name, pass: false, detail: `tool date not ISO ("${d.date}") — cannot verify spoken-vs-booked consistency (also caught by tool_arg_iso)` };
   const monthWord = months[Number(m[1]) - 1];
+  if (!monthWord) return { name, pass: false, detail: `tool date has out-of-range month ("${d.date}") — cannot verify spoken-vs-booked consistency (also caught by tool_arg_iso)` };
   const spokeMonth = t.turns.some((turn) => (turn.agentSpokenHeardBack || "").toLowerCase().includes(monthWord));
   return { name, pass: spokeMonth, detail: spokeMonth ? `spoken date references "${monthWord}" matching booked ${d.date}` : `booked ${d.date} but "${monthWord}" never spoken` };
 }

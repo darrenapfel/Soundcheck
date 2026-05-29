@@ -98,3 +98,11 @@ test("value_consistency fails closed on a non-ISO booked date", () => {
   const g = runGates(tx([turn(1, "October seventh", [book("October seventh")])]), scen);
   assert.equal(gate(g, "value_consistency").pass, false);
 });
+
+test("value_consistency fails closed (no crash) on an ISO-shaped date with an out-of-range month", () => {
+  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: [{ value_consistency: { spoken: "date", equalsTool: "bookReservation" } }] };
+  const g = runGates(tx([turn(1, "the thirteenth month", [book("2026-13-02")])]), scen);
+  const r = gate(g, "value_consistency");
+  assert.equal(r.pass, false);
+  assert.ok(!r.detail.includes("undefined"), `detail must not leak "undefined": ${r.detail}`);
+});

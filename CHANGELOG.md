@@ -16,7 +16,7 @@ First public release: a voice-agent test & tuning harness that runs on a single 
 - **Genericity**: Deepgram VA + a creds-free **MockAUT** adapter (CLI-selectable, CI-proven) + an OpenAI Realtime **reference** adapter; `RawTurn.agentSpokenHeardBack` lets text/mock adapters skip STT.
 - **Self-evaluation**: caller self-checks (voice-clean / in-persona / goal-preserving) with a broken-Evaline fixture that must fail.
 - **Tuning loop** (`tune`): a fixer proposes prompt edits, kept only if a **held-out** set improves (Goodhart guard). Live capstone tuned a buggy agent to green, generalization-verified.
-- CI workflow (offline) + nightly live-drift workflow; ESLint; 62 deterministic tests; ≥85% coverage on the core modules.
+- CI workflow (offline) + nightly live-drift workflow; ESLint; 65 deterministic tests; ≥85% coverage on the core modules.
 
 ### Engineering
 - Zero runtime dependencies (Node 22 native TypeScript, built-in `WebSocket`/`fetch`).

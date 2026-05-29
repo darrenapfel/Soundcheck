@@ -1,0 +1,38 @@
+name: "Soundcheck"
+description: "Run Soundcheck voice-agent regression gates against your agent in CI."
+branding:
+  icon: "mic"
+  color: "purple"
+
+inputs:
+  scenarios:
+    description: "Path (in your repo) to a scenarios directory or a recorded cassette directory."
+    required: false
+    default: "scenarios"
+  args:
+    description: >
+      Extra args passed to `soundcheck run`. Default replays recorded cassettes offline
+      (deterministic, no key). For a live run pass e.g. `--aut path/to/agent.ts` and supply
+      `deepgram-api-key`.
+    required: false
+    default: "--replay"
+  deepgram-api-key:
+    description: "DEEPGRAM_API_KEY — only needed for LIVE runs. Omit for the offline `--replay` default."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    # Soundcheck has ZERO runtime dependencies and runs TypeScript natively via Node 22's
+    # --experimental-strip-types, so the consumer needs nothing installed but Node itself.
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+    - name: Run Soundcheck
+      shell: bash
+      env:
+        DEEPGRAM_API_KEY: ${{ inputs.deepgram-api-key }}
+      run: >
+        node --experimental-strip-types "$GITHUB_ACTION_PATH/src/cli.ts"
+        run "${{ inputs.scenarios }}" ${{ inputs.args }}

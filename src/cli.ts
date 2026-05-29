@@ -48,10 +48,16 @@ function loadScenarios(dir: string): Scenario[] {
   const abs = resolve(process.cwd(), dir);
   const files = readdirSync(abs).filter((f) => f.endsWith(".json")).sort();
   // Keep only well-formed scenario files (skips rubric.json and any other JSON).
+  const VALID_PERSONAS = ["cooperative", "impatient"];
   const scenarios = files
     .map((f) => JSON.parse(readFileSync(join(abs, f), "utf8")) as Scenario)
     .filter((s) => s && typeof s.name === "string" && Array.isArray(s.assert));
   if (!scenarios.length) throw new Error(`no valid .json scenarios in ${dir}`);
+  for (const s of scenarios) {
+    if (!VALID_PERSONAS.includes(s.persona)) {
+      throw new Error(`scenario "${s.name}" has unknown persona "${s.persona}" — expected one of: ${VALID_PERSONAS.join(", ")}`);
+    }
+  }
   return scenarios;
 }
 
@@ -163,6 +169,11 @@ async function cmdAuthor(opts: Record<string, string | boolean>) {
 }
 
 async function cmdTune(opts: Record<string, string | boolean>) {
+  const fixerCmd = opts.fixer as string;
+  if (!fixerCmd) {
+    console.error('tune needs --fixer "<cmd>": a coding agent reading {"prompt","failures"} JSON on stdin and writing an improved prompt to stdout (e.g. claude -p, codex exec, or a script).');
+    process.exit(2);
+  }
   getKey();
   const baseAut = await loadAut((opts.agent as string) ?? "examples/tabletalk/bare.ts");
   const trainFile = (opts.train as string) ?? "scenarios/book-modify-confirm.json";
@@ -170,11 +181,6 @@ async function cmdTune(opts: Record<string, string | boolean>) {
   const loadOne = (f: string) => [JSON.parse(readFileSync(resolve(process.cwd(), f), "utf8")) as Scenario];
   const train = loadOne(trainFile);
   const heldout = loadOne(heldoutFile);
-  const fixerCmd = opts.fixer as string;
-  if (!fixerCmd) {
-    console.error('tune needs --fixer "<cmd>": a coding agent reading {"prompt","failures"} JSON on stdin and writing an improved prompt to stdout (e.g. claude -p, codex exec, or a script).');
-    process.exit(2);
-  }
   const adapter = new DeepgramVoiceAgentAdapter();
   const evalSet = async (prompt: string, scenarios: Scenario[]): Promise<TuneScore> => {
     const aut = { ...baseAut, systemPrompt: prompt };
