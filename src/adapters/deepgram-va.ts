@@ -16,7 +16,7 @@ const FRAME = 3200; // 100ms @ 16kHz, 16-bit mono
 const SILENCE = Buffer.alloc(FRAME);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function buildSettings(aut: AUTConfig) {
+export function buildSettings(aut: AUTConfig) {
   const think = aut.think ?? { type: "open_ai", model: "gpt-4o-mini", temperature: 0.5 };
   return {
     type: "Settings",
@@ -43,7 +43,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     ws.binaryType = "arraybuffer";
 
     // Shared turn state.
-    let audioQueue: Buffer[] = []; // caller frames to inject; else silence
+    const audioQueue: Buffer[] = []; // caller frames to inject; else silence (mutated, never reassigned)
     let collecting = false;
     let agentAudio: Buffer[] = [];
     let agentLines: string[] = [];
@@ -86,7 +86,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
         case "FunctionCallRequest": {
           const fns = Array.isArray(m.functions) ? m.functions : [];
           for (const fn of fns) {
-            let args: Record<string, unknown> = {};
+            let args: Record<string, unknown>;
             try { args = fn.arguments ? JSON.parse(fn.arguments) : {}; } catch { args = {}; }
             const stub = aut.toolStubs[fn.name];
             const result = stub ? stub(args) : { ok: true };

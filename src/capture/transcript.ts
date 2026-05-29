@@ -5,15 +5,22 @@ import { transcribe, pcmToWav } from "../deepgram.ts";
 import type { CapturedTurn, Scenario, Transcript } from "../types.ts";
 import type { RawTurn } from "../adapters/types.ts";
 
-export async function buildTranscript(scenario: Scenario, autLabel: string, raw: RawTurn[]): Promise<Transcript> {
+/** Round-trips the AUT's spoken audio back through STT to get the "heard" text.
+ *  `transcribeFn` is injectable so capture is unit-testable without the network. */
+export type TranscribeFn = (pcm: Buffer) => Promise<string>;
+const defaultTranscribe: TranscribeFn = (pcm) =>
+  transcribe(pcm, { encoding: "linear16", sampleRate: 24000, contentType: "audio/l16" });
+
+export async function buildTranscript(
+  scenario: Scenario,
+  autLabel: string,
+  raw: RawTurn[],
+  transcribeFn: TranscribeFn = defaultTranscribe,
+): Promise<Transcript> {
   const turns: CapturedTurn[] = [];
   for (let i = 0; i < raw.length; i++) {
     const r = raw[i];
-    const heard = await transcribe(r.agentAudioPcm, {
-      encoding: "linear16",
-      sampleRate: 24000,
-      contentType: "audio/l16",
-    });
+    const heard = await transcribeFn(r.agentAudioPcm);
     turns.push({
       turn: i + 1,
       callerSaid: r.callerSaid,

@@ -71,3 +71,30 @@ test("latency catches a slow turn", () => {
   const g = runGates(tx([turn(1, "confirmed", [book("2026-05-30")], 99999), turn(2, "ok", [modify()])]), SCENARIO);
   assert.equal(gate(g, "latency").pass, false);
 });
+
+// --- dispatcher + edge coverage ---
+
+test("string-form assertions dispatch (tool_arg_iso, grounding)", () => {
+  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: ["tool_arg_iso", "grounding"], grounding: { today: "2026-05-28", expectedDate: "2026-05-30" } };
+  const g = runGates(tx([turn(1, "confirmed", [book("2026-05-30")])]), scen);
+  assert.equal(gate(g, "tool_arg_iso").pass, true);
+  assert.equal(gate(g, "grounding").pass, true);
+});
+
+test("unknown assertions (string and object) fail closed", () => {
+  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: ["bogus" as unknown as string, { nope: 1 } as unknown as never] as never };
+  const g = runGates(tx([turn(1, "hi", [])]), scen);
+  assert.ok(g.every((x) => x.pass === false && x.detail.includes("unknown assertion")));
+});
+
+test("latency turn_ms threshold is enforced", () => {
+  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: [{ latency: { turn_ms: { max: 100 } } }] };
+  const slow = tx([{ turn: 1, callerSaid: "", agentHeardCallerAs: "", agentText: "", agentSpokenHeardBack: "ok", toolCalls: [], ttfbMs: 50, turnMs: 9999 }]);
+  assert.equal(gate(runGates(slow, scen), "latency").pass, false);
+});
+
+test("value_consistency fails closed on a non-ISO booked date", () => {
+  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: [{ value_consistency: { spoken: "date", equalsTool: "bookReservation" } }] };
+  const g = runGates(tx([turn(1, "October seventh", [book("October seventh")])]), scen);
+  assert.equal(gate(g, "value_consistency").pass, false);
+});
