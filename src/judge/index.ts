@@ -61,7 +61,7 @@ export function aggregateVerdicts(verdicts: Verdict[], rubric: Rubric): Verdict 
     if (vals.length) {
       if (d.kind === "boolean") {
         const trues = vals.filter((x) => x === true).length;
-        value = trues >= vals.length / 2;
+        value = trues > vals.length / 2; // strict majority — ties break toward the PROBLEM polarity (false), so a split panel doesn't bless borderline-bad output
       } else {
         value = (vals as number[]).reduce((a, b) => a + b, 0) / vals.length;
       }

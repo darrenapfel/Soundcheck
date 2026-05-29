@@ -20,7 +20,7 @@ export async function calibrate(
 }
 
 export function formatReport(r: CalibrationReport): string {
-  const lines = [`Judge calibration — backend: ${r.backend}`, `Overall agreement: ${(r.overallAgreement * 100).toFixed(1)}%`, ""];
+  const lines = [`Judge calibration — backend: ${r.backend}`, `Overall agreement (macro-avg over dimensions): ${(r.overallAgreement * 100).toFixed(1)}%`, ""];
   for (const d of r.dimensions) {
     const extra = d.kind === "boolean" ? `precision=${(d.precision! * 100).toFixed(0)}% recall=${(d.recall! * 100).toFixed(0)}%` : `mae=${d.mae!.toFixed(2)}`;
     lines.push(`  ${d.key.padEnd(26)} agreement=${(d.agreement * 100).toFixed(0)}% (n=${d.n}) ${extra}`);

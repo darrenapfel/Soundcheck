@@ -10,7 +10,15 @@ overloaded (HTTP 529) and a sub-agent could not be spawned, the milestone got an
 |---|---|---|---|
 | M0 — record/replay harness | ✅ independent sub-agent | ship after addressing MAJORs | 2 MAJORs (full gate-vector pinning; hardened reframe) + minors — all addressed in commit cab7448 |
 | M1 — test hardening | ✅ independent sub-agent | ship as-is | 1 MINOR (adapter loop untested) — addressed in M2 (offline adapter-loop test) |
-| M2 — LLM judge + adapter DI | ⚠️ self-review (API 529 outage); independent re-review **QUEUED** | self-review: no blocker/major | self-review fixed: judge stream-after-close guard. Re-run independent review when API healthy. |
+| M2 — LLM judge + adapter DI | ✅ independent sub-agent (combined M2+M3, after the 529 outage cleared) | ship as-is | self-review during outage caught the stream-after-close guard; independent review confirmed no blocker/major + found minors (below) |
+| M3 — judge calibration | ✅ independent sub-agent (combined M2+M3) | ship as-is | metric math verified correct; minors addressed (macro-avg label, panel tie→problem, async-listener guard, score clamp) |
 
-## Queued independent re-reviews
-- **M2** (commit `052c10b` + judge guard fix): run an independent sub-agent over the judge + adapter-DI diff on the 4 axes (correctness / test quality / security / simplicity) as soon as sub-agent spawning succeeds.
+## Addressed from the M2+M3 review
+- Panel aggregation ties now break toward the problem polarity (not "true").
+- Live judge: TTS failure in the grader stream is caught → resolves the verdict (no floating rejection).
+- Calibration "overall agreement" is labeled **macro-avg** (sample-weighted also noted: 88.9%).
+- Verdict score values clamped to the 1–5 rubric range.
+
+## Tracked follow-ups (MINOR, both copies currently work)
+- **Extract a shared `va-socket.ts` helper** consumed by BOTH the adapter and the judge (they currently hand-roll the same real-time VA socket plumbing). This also makes the **judge socket loop mockable** → add a judge-loop offline test (timeout/retry/function-call). Scheduled for M8 polish (or earlier if touched).
+- Tighten the two remaining `any` boundary casts in the adapter message handler to `Record<string, unknown>`.
