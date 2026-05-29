@@ -24,7 +24,27 @@ Soundcheck needs **only a `DEEPGRAM_API_KEY`.** Evaline's brain (the Voice Agent
 
 ## Status
 
-**Pre-v0 — architecture & roadmap first, by design.** This work grew out of a validated research spike (a round-trip oracle that reproduced human listening-test verdicts headlessly, a closed-loop fork that tuned itself to green with no guide, and a synthetic-caller-vs-real-agent run scored by a cross-vendor judge). v0 generalizes that spike into a clean, `git clone`-able tool.
+**v0 (deterministic core) is built** — zero runtime dependencies, runs on Node 22's native TypeScript. It drives Evaline against an agent-under-test, captures the call, runs the deterministic voice-safety gates, and writes a self-contained HTML report. The LLM judge (v1) and the tuning loop (v2) are next — see the roadmap.
+
+### Quickstart
+
+```bash
+echo "DEEPGRAM_API_KEY=dg_..." > .env        # the only key you need
+npm install                                   # devDeps only (typescript, @types/node)
+
+# Standalone round-trip: does your text survive being spoken?
+npm run soundcheck -- validate --tts "Your table is **booked** for $14."
+#   heard: "...star star booked star star ... negative fourteen dollars"  -> 🚩 flagged
+
+# Run the golden scenarios against a voice agent (Deepgram VA adapter):
+npm run soundcheck -- run scenarios --aut examples/tabletalk/grounded.ts   # ✅ passes
+npm run soundcheck -- run scenarios --aut examples/tabletalk/bare.ts       # 🚩 fails (exit 1)
+
+npm test            # deterministic gate unit-tests (no network)
+npm run typecheck   # tsc --noEmit
+```
+
+The bundled `examples/tabletalk/` dogfood ships three configs — `bare` (no formatting guidance), `hardened` (no-Markdown prompt), and `grounded` (the fix) — so you can see the deterministic suite catch "STAR STAR", dash-as-negative prices, non-ISO tool dates, and ungrounded dates, then go green.
 
 - 📐 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the complete system design
 - 🗺️ [`docs/ROADMAP.md`](docs/ROADMAP.md) — the phased build plan (v0 → v1 → v2)
