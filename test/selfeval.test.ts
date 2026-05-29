@@ -27,3 +27,17 @@ test("TEETH: a deliberately broken Evaline FAILS the self-suite", () => {
   assert.ok(failed(cs, "caller_speaks_cleanly"), "must catch a caller that speaks markdown/symbols");
   assert.ok(failed(cs, "caller_preserves_goal"), "must catch a caller that drops the goal");
 });
+
+test("TEETH: persona check fails when an impatient caller shows no urgency", () => {
+  const scenario = load("restaurant-info"); // persona: impatient
+  const noUrgency = scenario.turns.map((t) => ({ text: t, voice: "aura-2-orion-en" })); // unstyled = no 'hurry'
+  const cs = checkCaller(scenario, noUrgency);
+  assert.ok(failed(cs, "caller_in_persona"), "impatient persona with no urgency markers must fail");
+});
+
+test("legitimate words like 'five-star' do NOT trip the voice-clean check", () => {
+  const scenario = load("book-modify-confirm");
+  const ok = scenario.turns.map((t, i) => ({ text: i === 0 ? "I heard you have a five-star patio" : t, voice: "aura-2-orion-en" }));
+  const cs = checkCaller(scenario, ok);
+  assert.ok(!failed(cs, "caller_speaks_cleanly"), "'five-star' is legitimate, not spoken markup");
+});

@@ -11,20 +11,24 @@
 
 import type { Scenario } from "../types.ts";
 import type { CallerTurn } from "../adapters/types.ts";
-import { detectArtifacts } from "../normalize.ts";
 import { evalineTurns } from "../caller/evaline.ts";
 
 export interface CallerCheck { name: string; pass: boolean; detail: string; }
 
-const MARKDOWN = /\*\*|`|^#{1,6}\s|\bstar\b|\bpound\b/m;
+// Markup the caller must never emit (it would pollute the very channel it tests).
+// Markdown chars + REPEATED symbol words ("star star"); plain words like "five-star"
+// are legitimate and must NOT trip this.
+const MARKDOWN = /\*\*|`|^#{1,6}\s|\b(star|pound)\s+(star|pound)\b/m;
 
 /** Evaluate Evaline's generated utterances for a scenario. `turns` defaults to the
  *  real caller; pass a broken variant to prove the meta-suite has teeth. */
 export function checkCaller(scenario: Scenario, turns: CallerTurn[] = evalineTurns(scenario)): CallerCheck[] {
   const checks: CallerCheck[] = [];
 
-  // 1. The caller must be voice-clean herself (no markdown/symbols she'd speak at the agent).
-  const dirty = turns.filter((t) => MARKDOWN.test(t.text) || detectArtifacts(t.text).length > 0);
+  // 1. The caller must be voice-clean herself (no markdown/symbols she'd speak at the
+  //    agent). This is the genuinely behavior-constraining check: a caller that emitted
+  //    spoken markup would silently corrupt the no_spoken_symbols gate the tool sells.
+  const dirty = turns.filter((t) => MARKDOWN.test(t.text));
   checks.push({ name: "caller_speaks_cleanly", pass: dirty.length === 0, detail: dirty.length ? `dirty turns: ${dirty.map((t) => JSON.stringify(t.text.slice(0, 40))).join(", ")}` : "all caller turns are plain prose" });
 
   // 2. Persona is actually applied (impatient injects urgency; cooperative does not).
@@ -32,11 +36,13 @@ export function checkCaller(scenario: Scenario, turns: CallerTurn[] = evalineTur
   const personaOk = scenario.persona === "impatient" ? /hurry|quick/.test(joined) : !/hurry|quickly, please/.test(joined);
   checks.push({ name: "caller_in_persona", pass: personaOk, detail: `persona=${scenario.persona} ${personaOk ? "applied" : "NOT reflected in utterances"}` });
 
-  // 3. Goal preserved: styling only ADDS to each scripted turn, never drops/replaces it.
+  // 3 & 4 are CONTRACT GUARDS, not live-goal tests: today's stylize() only appends, so
+  // they hold by construction — that's intentional. They exist to FAIL if a future caller
+  // change drops/replaces/empties a scripted request (the broken-Evaline fixture proves
+  // they catch exactly that). Live goal-PURSUIT is the tracked goal-driven-Evaline work.
   const preserved = scenario.turns.every((orig, i) => turns[i]?.text.includes(orig));
   checks.push({ name: "caller_preserves_goal", pass: preserved && turns.length === scenario.turns.length, detail: preserved ? "every scripted request is intact" : "a scripted request was dropped or replaced" });
 
-  // 4. Non-empty, one per scripted turn.
   checks.push({ name: "caller_well_formed", pass: turns.length === scenario.turns.length && turns.every((t) => t.text.trim().length > 0 && t.voice.length > 0), detail: `${turns.length}/${scenario.turns.length} turns, all non-empty + voiced` });
 
   return checks;

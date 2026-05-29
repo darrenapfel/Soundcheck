@@ -13,16 +13,16 @@ on:
 jobs:
   live:
     runs-on: ubuntu-latest
-    env:
-      DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm ci
+      - run: npm ci # no secret in scope here
       - name: Guard — skip if no key secret
         id: guard
+        env:
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
         run: |
           if [ -z "$DEEPGRAM_API_KEY" ]; then
             echo "No DEEPGRAM_API_KEY secret set — skipping live drift checks."
@@ -32,10 +32,23 @@ jobs:
           fi
       - name: Live ladder — grounded must PASS
         if: steps.guard.outputs.run == 'true'
+        env:
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
         run: npm run soundcheck -- run scenarios --aut examples/tabletalk/grounded.ts
-      - name: Live ladder — bare must FAIL (drift if it suddenly passes)
+      - name: Live ladder — bare must STILL FAIL (assert the failure, don't just invert an exit code)
         if: steps.guard.outputs.run == 'true'
-        run: "! npm run soundcheck -- run scenarios --aut examples/tabletalk/bare.ts --only book-modify-confirm"
+        env:
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
+        run: |
+          out=$(npm run soundcheck -- run scenarios --aut examples/tabletalk/bare.ts --only book-modify-confirm 2>&1 || true)
+          echo "$out"
+          # Positive drift signal: bare must produce gate failures (a renamed path / CLI error
+          # would NOT print this line, so it fails loudly instead of masking).
+          echo "$out" | grep -q "gate failures present" || { echo "::error::DRIFT or ERROR — bare did not produce gate failures"; exit 1; }
+          # And specifically the always-reliable one: bare hallucinates a date -> grounding fails.
+          echo "$out" | grep -q "🚩 grounding" || { echo "::error::DRIFT — bare no longer fails grounding"; exit 1; }
       - name: Live judge calibration (informational)
         if: steps.guard.outputs.run == 'true'
+        env:
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
         run: npm run soundcheck -- calibrate --judge live
