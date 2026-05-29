@@ -13,6 +13,7 @@ import { saveCassette, loadCassette } from "./capture/cassette.ts";
 import { runGates } from "./gates/index.ts";
 import { judgeTranscript, mockJudge } from "./judge/index.ts";
 import { deepgramVaJudge } from "./judge/deepgram-va-judge.ts";
+import { calibrate, formatReport } from "./calibration/index.ts";
 import { generateReport } from "./report/html.ts";
 import type { AUTConfig, Scenario, ScenarioResult, Transcript } from "./types.ts";
 
@@ -118,6 +119,19 @@ async function cmdValidate(opts: Record<string, string | boolean>) {
   process.exit(2);
 }
 
+async function cmdCalibrate(opts: Record<string, string | boolean>) {
+  const live = opts.judge === "live";
+  const backend = live ? deepgramVaJudge : mockJudge;
+  if (live) getKey();
+  const report = await calibrate(backend);
+  console.log("\n" + formatReport(report) + "\n");
+  if (typeof opts.out === "string") {
+    mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
+    writeFileSync(resolve(process.cwd(), opts.out), JSON.stringify(report, null, 2) + "\n");
+    console.log(`report written: ${opts.out}\n`);
+  }
+}
+
 function help() {
   console.log(`Soundcheck — voice-agent test harness (Deepgram-key-only)
 
@@ -132,6 +146,10 @@ function help() {
   soundcheck validate --tts "<text>"     Round-trip text -> TTS -> STT; flag spoken symbols.
   soundcheck validate --stt <file.wav>   Transcribe an audio file.
 
+  soundcheck calibrate [--judge live] [--out <file.json>]
+      Score the judge against the self-constructed labeled corpus (agreement/precision/recall).
+      Default uses the offline mock judge; --judge live uses the Deepgram-fronted grader.
+
 Requires only DEEPGRAM_API_KEY (env or .env).`);
 }
 
@@ -140,6 +158,7 @@ const cmd = positional.shift();
 try {
   if (cmd === "run") await cmdRun(positional, opts);
   else if (cmd === "validate") await cmdValidate(opts);
+  else if (cmd === "calibrate") await cmdCalibrate(opts);
   else help();
 } catch (e) {
   console.error(`\n✖ ${(e as Error).message}\n`);
