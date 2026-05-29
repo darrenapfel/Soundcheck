@@ -1,0 +1,25 @@
+# Secrets — never commit (Soundcheck only ever needs a DEEPGRAM_API_KEY)
+.env
+.env.*
+*.local
+*.key
+secrets/
+
+# Node / build
+node_modules/
+dist/
+build/
+*.log
+
+# Eval run artifacts (audio captures, reports) — large + regenerable
+runs/
+out/
+*.wav
+*.pcm
+*.mp3
+report.html
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
