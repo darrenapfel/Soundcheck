@@ -1,57 +1,68 @@
 # 🎙️ Soundcheck
 
-**The missing test harness for voice agents — Playwright + an LLM judge + a synthetic caller, for speech.**
+[![CI](https://github.com/darrenapfel/Soundcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/darrenapfel/Soundcheck/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Web apps have Playwright: a coding agent can write a test, run it against a real browser, and know it didn't break the UI before shipping. **Voice agents have nothing like it.** A unit test can't *hear* that your agent says "star star confirmed star star," can't tell that it spoke a 24-hour time, can't notice it lost the reservation halfway through the call. So the autonomous "build → test → ship" loop that works for code **breaks for voice** — agents converge on green tests and fail on the first spoken word.
+**The missing test & tuning harness for voice agents — Playwright + an LLM judge + a synthetic caller, for speech. Runs on a single Deepgram key.**
 
-Soundcheck closes that gap. You point it at *any* voice agent and it runs real spoken conversations against it, scores them, and (optionally) **tunes the agent until it passes.**
+Web apps have Playwright: a coding agent writes a test, runs it against a real browser, and knows it didn't break the UI before shipping. **Voice agents have nothing like it.** A unit test can't *hear* that your agent says "star star confirmed star star," can't tell it spoke a 24-hour time, can't notice it lost the reservation halfway through the call. So the autonomous "build → test → ship" loop that works for code **breaks for voice** — agents converge on green tests and fail on the first spoken word.
+
+Soundcheck closes that gap. Point it at *any* voice agent: it runs real spoken conversations, **gates** them deterministically, **scores** them with an LLM judge, and (optionally) **tunes** the agent until it passes.
 
 ## Meet Evaline
 
-**Evaline** is Soundcheck's synthetic caller — a Deepgram Voice Agent that *calls your voice agent like a real customer*, over real audio, with a goal and a persona (calm, impatient, accented, noisy line, changes-their-mind, adversarial). She's the "voice agent that tests other voice agents."
+**Evaline** is Soundcheck's synthetic caller — she phones your voice agent like a real customer, over real audio, with a persona (cooperative, impatient, …). She's the "voice agent that tests other voice agents."
 
-## What it does (three capabilities)
+## What it does
 
-1. **Deterministic regression suite** — the "Playwright for voice." Hard pass/fail assertions you run before every ship: *never speak a symbol*, *the spoken date equals the booked date*, *pass ISO dates to tools*, *time-to-first-byte under 800 ms*, *required tool was actually called*. The voice regression suite you can't run today.
-2. **Evals + tuning** — an LLM judge scores the fuzzy things (natural? completed the goal? confirmed before acting? recovered from an interruption?), and a tuning loop feeds failures back to a fixer-agent that edits and re-runs **until the score goes green.**
-3. **STT ↔ TTS validation** — the round-trip oracle: `text → TTS → STT → compare` (validate your TTS) and `audio → STT → compare` (validate your STT). One primitive, flipped.
+| Capability | Command | What it gives you |
+|---|---|---|
+| **Deterministic regression suite** | `soundcheck run` | Hard pass/fail gates: never speak a symbol, spoken date == booked date, ISO dates to tools, required tool called, TTFB SLO |
+| **STT ↔ TTS round-trip** | `soundcheck validate` | `text → TTS → STT → compare` (test your TTS) / `audio → STT` (test your STT) |
+| **LLM judge (evals)** | `soundcheck run --judge` | Advisory scores for the fuzzy stuff (natural? goal met? confirmed before acting?) on the *heard* audio |
+| **Judge calibration** | `soundcheck calibrate` | How much to trust the judge — agreement vs ground truth (self-constructed corpus) |
+| **Autonomous authoring** | `soundcheck author` | Generates a scenario suite from your agent's spec — no human writes the cases |
+| **Tuning loop** | `soundcheck tune` | Agents tuning agents: a fixer proposes prompt edits, kept only if a **held-out** set improves |
 
-Together: **a coding agent can build, test, and tune a production-grade voice agent with no human babysitting the loop.**
+Determinism is built in: a live run **records a cassette**, and CI **replays** it offline — so a stochastic tool stays a deterministic gate. ([`docs/TESTING.md`](docs/TESTING.md))
+
+## Quickstart
+
+```bash
+echo "DEEPGRAM_API_KEY=dg_..." > .env     # the only key you need
+npm install                                # devDeps only (no runtime deps)
+
+npm test                                   # 62 deterministic tests, no network
+npm run soundcheck -- validate --tts "Your table is **booked** for $14."
+#   heard "...star star booked star star ... negative fourteen dollars"  -> 🚩
+
+npm run soundcheck -- run scenarios --aut examples/tabletalk/grounded.ts   # ✅ live, passes
+npm run soundcheck -- run scenarios --aut examples/tabletalk/bare.ts       # 🚩 live, fails (exit 1)
+npm run soundcheck -- run scenarios --adapter mock                         # creds-free, no network
+```
+
+The bundled `examples/tabletalk/` dogfood ships `bare` / `hardened` / `grounded` configs so you can watch the suite catch "STAR STAR", dash-as-negative prices, non-ISO tool dates, and ungrounded dates — then go green.
 
 ## One key: Deepgram
 
-Soundcheck needs **only a `DEEPGRAM_API_KEY`.** Evaline's brain (the Voice Agent's `think` LLM), the speech (TTS), and the transcription (STT) all run on Deepgram and bill to your Deepgram credit — no OpenAI/Anthropic key required. (The judge runs on the same Deepgram-fronted LLM by default, and is pluggable if you'd rather bring your own.) See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#deepgram-key-only) for why this works.
+Soundcheck's default + CI operation needs **only `DEEPGRAM_API_KEY`**: Evaline's brain (the Voice Agent's `think` LLM), her voice (TTS), the transcription (STT), and the judge (a Deepgram-fronted grader) all run on Deepgram. No OpenAI/Anthropic key. (The optional `openai-realtime` *reference* adapter reads `OPENAI_API_KEY` only if a developer wires it; CI never touches it.) See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#deepgram-key-only).
+
+## Why this exists
+
+Great evals are the moat between a prototype and a shippable agent. That layer exists for text/tool agents and **didn't exist for voice.** Soundcheck is that layer — and because every eval run *consumes* TTS (to speak) and STT (to listen), the harness is itself a meter that runs on speech infrastructure.
+
+## Docs
+- 📐 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design
+- 🗺️ [`docs/ROADMAP.md`](docs/ROADMAP.md) — the milestone build plan (M0–M8)
+- 🧪 [`docs/TESTING.md`](docs/TESTING.md) — how we earn trust (record/replay, self-evaluation, calibration)
+- ⚖️ [`docs/CALIBRATION.md`](docs/CALIBRATION.md) — live judge agreement numbers
+- ⚠️ [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) — honest limits
+- 🔍 [`docs/REVIEW_LOG.md`](docs/REVIEW_LOG.md) — every milestone's independent review
+- 🤝 [`CONTRIBUTING.md`](CONTRIBUTING.md) — add an adapter / scenario / gate
 
 ## Status
 
-**v0 (deterministic core) is built** — zero runtime dependencies, runs on Node 22's native TypeScript. It drives Evaline against an agent-under-test, captures the call, runs the deterministic voice-safety gates, and writes a self-contained HTML report. The LLM judge (v1) and the tuning loop (v2) are next — see the roadmap.
-
-### Quickstart
-
-```bash
-echo "DEEPGRAM_API_KEY=dg_..." > .env        # the only key you need
-npm install                                   # devDeps only (typescript, @types/node)
-
-# Standalone round-trip: does your text survive being spoken?
-npm run soundcheck -- validate --tts "Your table is **booked** for $14."
-#   heard: "...star star booked star star ... negative fourteen dollars"  -> 🚩 flagged
-
-# Run the golden scenarios against a voice agent (Deepgram VA adapter):
-npm run soundcheck -- run scenarios --aut examples/tabletalk/grounded.ts   # ✅ passes
-npm run soundcheck -- run scenarios --aut examples/tabletalk/bare.ts       # 🚩 fails (exit 1)
-
-npm test            # deterministic gate unit-tests (no network)
-npm run typecheck   # tsc --noEmit
-```
-
-The bundled `examples/tabletalk/` dogfood ships three configs — `bare` (no formatting guidance), `hardened` (no-Markdown prompt), and `grounded` (the fix) — so you can see the deterministic suite catch "STAR STAR", dash-as-negative prices, non-ISO tool dates, and ungrounded dates, then go green.
-
-- 📐 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the complete system design
-- 🗺️ [`docs/ROADMAP.md`](docs/ROADMAP.md) — the phased build plan (v0 → v1 → v2)
-
-## Why this exists (the thesis)
-
-Great evals are the moat between a prototype and a shippable agent (cf. Databricks' Costar approach to shipping agents fast without breaking things). That eval layer exists for text/tool agents and **does not exist for voice.** Soundcheck is that layer — and because every eval run *consumes* TTS (to speak) and STT (to listen), the harness is itself a meter that runs on speech infrastructure.
+**v1.0** — deterministic core + judge + calibration + autonomous authoring + genericity (3 adapters) + self-evaluation + the tuning loop. Zero runtime dependencies (Node 22 native TypeScript). Grew out of a validated research spike; each milestone independently reviewed (see `docs/REVIEW_LOG.md`).
 
 ---
 
