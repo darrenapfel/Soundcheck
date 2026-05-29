@@ -20,7 +20,8 @@ export async function buildTranscript(
   const turns: CapturedTurn[] = [];
   for (let i = 0; i < raw.length; i++) {
     const r = raw[i];
-    const heard = await transcribeFn(r.agentAudioPcm);
+    // Audio adapters round-trip through STT; text/mock adapters supply heard text directly.
+    const heard = r.agentSpokenHeardBack ?? (await transcribeFn(r.agentAudioPcm));
     turns.push({
       turn: i + 1,
       callerSaid: r.callerSaid,

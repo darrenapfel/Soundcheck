@@ -11,10 +11,13 @@ export interface RawTurn {
   callerSaid: string;
   agentHeardCallerAs: string;
   agentText: string;
-  agentAudioPcm: Buffer; // the AUT's spoken output, linear16 @ 24kHz
+  agentAudioPcm: Buffer; // the AUT's spoken output, linear16 @ 24kHz (empty for text/mock adapters)
   toolCalls: ToolCall[];
   ttfbMs: number | null;
   turnMs: number | null;
+  /** If an adapter already knows what was "heard" (text/mock adapters, or a runtime
+   *  that returns its own transcript), it sets this and capture SKIPS the STT round-trip. */
+  agentSpokenHeardBack?: string;
 }
 
 /**

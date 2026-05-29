@@ -8,6 +8,7 @@ import { getKey, synthesize, transcribe } from "./deepgram.ts";
 import { detectArtifacts, detectDashAsNegative } from "./normalize.ts";
 import { evalineTurns } from "./caller/evaline.ts";
 import { DeepgramVoiceAgentAdapter } from "./adapters/deepgram-va.ts";
+import { MockAUTAdapter } from "./adapters/mock-aut.ts";
 import { buildTranscript } from "./capture/transcript.ts";
 import { saveCassette, loadCassette } from "./capture/cassette.ts";
 import { runGates } from "./gates/index.ts";
@@ -54,13 +55,14 @@ function loadScenarios(dir: string): Scenario[] {
 async function cmdRun(positional: string[], opts: Record<string, string | boolean>) {
   const replay = opts.replay === true;
   const record = opts.record === true;
-  if (!replay) getKey(); // live/record need the key; replay is fully offline
+  const useMockAdapter = opts.adapter === "mock";
+  if (!replay && !useMockAdapter) getKey(); // live deepgram needs the key; replay + mock are offline
   const dir = positional[0] ?? "scenarios";
   const autPath = (opts.aut as string) ?? "examples/tabletalk/grounded.ts";
   const aut = await loadAut(autPath); // module load only — no network even in replay
   let scenarios = loadScenarios(dir);
   if (typeof opts.only === "string") scenarios = scenarios.filter((s) => s.name.includes(opts.only as string));
-  const adapter = new DeepgramVoiceAgentAdapter();
+  const adapter = useMockAdapter ? new MockAUTAdapter({ buggy: opts.buggy === true }) : new DeepgramVoiceAgentAdapter();
   const mode = replay ? "replay (offline)" : record ? "live + record" : "live";
   console.log(`\nSoundcheck — running ${scenarios.length} scenario(s) against AUT "${aut.label}" — mode: ${mode}\n`);
 
