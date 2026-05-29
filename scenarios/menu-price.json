@@ -1,0 +1,13 @@
+{
+  "name": "menu-price",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, what are tonight's specials?",
+    "And how much is the prix fixe menu?"
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    { "required_tool": "getDailySpecials" },
+    { "latency": { "ttfb_ms": { "max": 12000 } } }
+  ]
+}
