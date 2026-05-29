@@ -76,7 +76,7 @@ Soundcheck's authoring agent **defines quality itself.** Universal voice-agent q
 
 The one thing the agent does **not** invent is **domain fact**: "this restaurant is closed Mondays," "never seat parties over 8," "always offer the prix fixe." Those are business truths, not quality judgments, and they come from wherever the spec lives — a product doc, the AUT's system prompt, or a higher-level agent that read them. Soundcheck's eval-authoring step **reads the AUT's spec to derive business-rule assertions**, then layers universal quality on top. Given a spec exists, scenario + rubric generation is fully autonomous.
 
-The remaining guardrail is **methodological, not authority-based**: an optimizer must not grade its own homework on the set it tunes against. Hence held-out evals, judge diversity (judge model ≠ AUT model), and occasional cross-model or human **calibration** (a sanity check on the judge, not the source of truth). This is how you keep the loop from fooling itself — it has nothing to do with a human "knowing better."
+The remaining guardrail is **methodological, not authority-based**: an optimizer must not grade its own homework on the set it tunes against. Hence held-out evals, judge diversity (judge model ≠ AUT model), and **automated cross-model calibration** against a self-constructed labeled corpus (a sanity check on the judge, not the source of truth). All of this is automated — **no human is in this loop**; it keeps the loop from fooling *itself*, and has nothing to do with a human "knowing better." (An optional human sign-off may happen *after* the build is complete, but never gates it.)
 
 ## 6. Deepgram-key-only — why this works {#deepgram-key-only}
 
@@ -109,6 +109,22 @@ interface AUTAdapter {
 - **v0:** `DeepgramVoiceAgentAdapter` (raw `wss://agent.deepgram.com/v1/agent/converse`) — lets us dogfood on the TableTalk agent from the spike.
 - **Later:** OpenAI Realtime, Vapi, Retell, Twilio/SIP (real phone number), turn-based HTTP, browser (Playwright-driven). The second adapter (v1) is what *proves* "any voice agent" and powers the strategic wedge: even agents built on a competitor's runtime get tested via Soundcheck → which runs on Deepgram STT/TTS.
 
+## 7b. Determinism: record / replay (the trust mechanism)
+
+Live voice is stochastic, so the adapter has two modes. **record:** a live run writes a *cassette* (the full `RawTurn[]` — caller text, captured agent audio, tool calls, timings) to `fixtures/cassettes/`. **replay:** reconstructs the run from a cassette with no socket/model/credits. Everything downstream of capture (gates, judge, report) is therefore **deterministic in CI**; live runs are nightly and surface *behavior drift* separately from *logic regressions*. Cassettes are re-recorded only via a reviewed PR. This is what lets a flaky-by-nature tool be trustworthy — and what makes "Soundcheck evaluates Soundcheck" reproducible. (Full rationale: `TESTING.md`.)
+
+## 7c. v1 / v2 component detail
+
+**Judge (v1).** A `judge/` module that scores the *heard* transcript against a rubric and emits a structured verdict `{ dimension: {score 1-5, why} , findings: [{tag, quote}] }`. Default backend: the **Deepgram-fronted LLM** via a grader-agent that returns the verdict through a `submitVerdict` function-call (Deepgram-key-only; §6). Backend is pluggable (bring-your-own model). Supports a **judge panel** (N graders, aggregate) for high-stakes scenarios. The judge is **advisory** — it threshold-warns, it does not hard-gate CI (only deterministic gates do). Its own trustworthiness is measured by calibration (§ TESTING 3.2).
+
+**Autonomous eval authoring (v1).** `author --spec <agent-spec>` ingests an agent's spec/system-prompt and emits a scenario suite: it **generates universal quality assertions + a rubric** itself, and **extracts business-rule assertions from the spec** (hours, party-size caps, etc. — domain facts it can't invent). Output is the same scenario JSON a human would write — the agent writes the test cases; the runner runs them.
+
+**Tuning loop (v2).** `tune <agent> --spec <spec>`: run the suite → collect failures → a **fixer-agent** (a *local coding agent* — Claude Code / Codex via subscription, so still no LLM API key) proposes edits (prompt, sanitizer rules, tool schema, date-grounding) → re-run → **keep edits that raise the score on a held-out scenario set the tuner never sees** (the Goodhart guardrail) → emit a reviewable diff + before/after report. Hard iteration cap + convergence criterion.
+
+## 7d. Self-evaluation — Soundcheck on Soundcheck
+
+Three forms, all in `TESTING.md`: **(a)** Evaline-as-AUT — point the harness at its own caller and assert persona/goal/clean-speech, with a deliberately-broken-Evaline fixture that must fail the meta-suite; **(b)** judge calibration against a labeled corpus (precision/recall per dimension); **(c)** the bare→grounded golden ladder as a self-regression (replay-CI + live-nightly). This is the design's central trust claim: the tester is tested — including by itself — to a higher bar than what it tests.
+
 ## 8. Scenario format (DSL)
 
 ```yaml
@@ -139,7 +155,7 @@ rubric:                        # judge dimensions
 - **The judge is non-deterministic** — mitigated by deterministic-gates-first, panels, and calibration; never a hard CI gate.
 - **The tuning loop can overfit** (Goodhart) — mitigated by held-out scenario sets.
 - **Full-duplex barge-in timing** is approximated, not perfectly reproduced.
-- **Non-goals (for now):** load/perf testing at scale; non-English (v0 is English); replacing human QA entirely (it shrinks human QA to calibration, not zero).
+- **Non-goals (for now):** load/perf testing at scale; non-English (v0 is English). (Note: the *build* of Soundcheck is fully autonomous — the only human touchpoint is an optional sign-off after completion. In *use*, Soundcheck shrinks a team's human QA to an optional final review, not zero.)
 
 ## 11. Provenance — what the spike already proved (so this isn't speculative)
 
