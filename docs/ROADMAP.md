@@ -13,12 +13,12 @@
 3. **Self-evaluation — Soundcheck evaluates Soundcheck.** We may only ask others to trust our tester if it is itself tested to a *higher* bar — including by itself: Evaline-as-AUT, judge calibration vs ground truth, and the bare→grounded golden ladder as a self-regression.
 4. **Independent code review at every milestone.** Each milestone ends with a dedicated code-review **sub-agent** (correctness · security/no-key-leak · test quality · simplicity). The builder addresses findings autonomously and proceeds — no human in this loop. No milestone is "done" on the builder's say-so alone.
 5. **Deepgram-key-only for everything the user runs.** Non-Deepgram adapters are exercised in CI against a **local mock AUT** (creds-free); a live non-Deepgram run is opt-in with that provider's key.
-6. **Tests are the gate, not vibes.** Every milestone must leave `npm run validate` (typecheck + lint + unit + replay-integration) green, with coverage at/above target.
+6. **Tests are the gate, not vibes.** Every milestone must leave `npm run validate` green, with coverage at/above target. (`validate` = typecheck + unit + replay-integration from M0; **+ ESLint from M1 onward**.)
 
 ## Milestones (each: implement → tests green → independent review → address → commit → proceed)
 
 ### M0 — Foundation & determinism harness
-- **Base on v0 by branching from `feat/v0-deterministic-core`** (do NOT merge mid-run; merges are deferred to the optional final human sign-off). Add **record/replay** to the adapter (a live run writes a `cassette`; replay reads it — no socket). CI pipeline: typecheck + lint + unit + replay-integration. Cassettes for the bare/hardened/grounded ladder (record once, live, then replay).
+- **Base on v0 by branching from `feat/v0-deterministic-core`** (do NOT merge mid-run; merges are deferred to the optional final human sign-off). Add **record/replay** to the adapter (a live run writes a `cassette`; replay reads it — no socket). CI pipeline: typecheck + unit + replay-integration (**ESLint lint joins `validate` in M1** — deferred to avoid front-loading config churn). Cassettes for the bare/hardened/grounded ladder (record once, live, then replay).
 - **Proof point:** `npm run validate` is green in CI off replayed cassettes — fully deterministic, no live calls.
 - **Review gate.**
 

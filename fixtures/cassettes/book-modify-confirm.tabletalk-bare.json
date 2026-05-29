@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "scenario": "book-modify-confirm",
+  "persona": "cooperative",
+  "autLabel": "tabletalk-bare",
+  "recordedAtNote": "recorded via `soundcheck run --record` (re-record only via reviewed PR)",
+  "turns": [
+    {
+      "turn": 1,
+      "callerSaid": "Hi, I'd like to book a table for four people this Saturday at seven thirty PM. The name is Garcia.",
+      "agentHeardCallerAs": "Hi. I'd like to book a table for four people this Saturday at seven thirty PM. Name is Garcia.",
+      "agentText": "Your reservation for four people under the name Garcia is confirmed for this Saturday, October 28th at 7:30 PM.",
+      "agentSpokenHeardBack": "Your reservation for four people under the name Garcia is confirmed for this Saturday, October twenty eighth.",
+      "toolCalls": [
+        {
+          "name": "checkAvailability",
+          "args": {
+            "date": "2023-10-28",
+            "partySize": 4,
+            "time": "19:30"
+          },
+          "result": {
+            "available": true,
+            "date": "2023-10-28",
+            "time": "19:30",
+            "partySize": 4
+          }
+        },
+        {
+          "name": "bookReservation",
+          "args": {
+            "date": "2023-10-28",
+            "guestName": "Garcia",
+            "partySize": 4,
+            "time": "19:30"
+          },
+          "result": {
+            "success": true,
+            "reservationId": 42,
+            "guestName": "Garcia",
+            "partySize": 4,
+            "date": "2023-10-28",
+            "time": "19:30"
+          }
+        }
+      ],
+      "ttfbMs": 4403,
+      "turnMs": 7487
+    },
+    {
+      "turn": 2,
+      "callerSaid": "Actually, please change it to six thirty PM instead. Yes, go ahead and update it.",
+      "agentHeardCallerAs": "Actually, please change it to six thirty PM instead. Yes. Go ahead and update it.",
+      "agentText": "Your reservation has been successfully updated to 6:30 PM this Saturday, October 28th.",
+      "agentSpokenHeardBack": "At seven thirty PM. Your reservation has been successfully updated to six thirty PM this Saturday, October twenty eighth.",
+      "toolCalls": [
+        {
+          "name": "checkAvailability",
+          "args": {
+            "date": "2023-10-28",
+            "partySize": 4,
+            "time": "18:30"
+          },
+          "result": {
+            "available": true,
+            "date": "2023-10-28",
+            "time": "18:30",
+            "partySize": 4
+          }
+        },
+        {
+          "name": "modifyReservation",
+          "args": {
+            "changes": {
+              "time": "18:30"
+            },
+            "guestName": "Garcia"
+          },
+          "result": {
+            "success": true,
+            "reservationId": 42,
+            "changes": {
+              "time": "18:30"
+            }
+          }
+        }
+      ],
+      "ttfbMs": null,
+      "turnMs": 6571
+    },
+    {
+      "turn": 3,
+      "callerSaid": "What are tonight's specials, and how much is the prix fixe menu?",
+      "agentHeardCallerAs": "What are tonight's specials and how much is the prefix menu?",
+      "agentText": "Tonight's specials are:\n\n- Grilled Salmon: $32\n- Mushroom Risotto: $26\n- Lemon Tart: $12\n\nThe price for the prefix menu is $65, which includes a selection of dishes like Caesar Salad and Ribeye.",
+      "agentSpokenHeardBack": "Tonight's specials are grilled salmon, thirty two dollars mushroom risotto, twenty six dollars",
+      "toolCalls": [
+        {
+          "name": "getDailySpecials",
+          "args": {},
+          "result": {
+            "specials": [
+              {
+                "name": "Grilled salmon",
+                "price": 32
+              },
+              {
+                "name": "Mushroom risotto",
+                "price": 26
+              },
+              {
+                "name": "Lemon tart",
+                "price": 12
+              }
+            ]
+          }
+        },
+        {
+          "name": "getMenuItems",
+          "args": {
+            "dietaryFilter": "prefix"
+          },
+          "result": {
+            "items": [
+              {
+                "name": "Caesar salad",
+                "price": 14
+              },
+              {
+                "name": "Ribeye",
+                "price": 48
+              }
+            ],
+            "prixFixe": 65
+          }
+        }
+      ],
+      "ttfbMs": 2853,
+      "turnMs": 5985
+    },
+    {
+      "turn": 4,
+      "callerSaid": "Perfect. Can you confirm all my reservation details before we finish?",
+      "agentHeardCallerAs": "Perfect. Can you confirm all my reservation details before we finish?",
+      "agentText": "Sure! Here are your reservation details:\n\n- **Name:** Garcia\n- **Date:** Saturday, October 28th\n- **Time:** 6:30 PM\n- **Party Size:** 4 people\n\nEverything looks good!",
+      "agentSpokenHeardBack": "Lemon tart, twelve dollars. The price for the prefix menu is sixty five dollars, which includes a select Sure. Here are your reservation details. Star star name, star star Garcia, star star date,",
+      "toolCalls": [],
+      "ttfbMs": null,
+      "turnMs": 4589
+    }
+  ]
+}
