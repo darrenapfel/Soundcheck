@@ -9,6 +9,7 @@ import { detectArtifacts, detectDashAsNegative } from "./normalize.ts";
 import { evalineTurns } from "./caller/evaline.ts";
 import { DeepgramVoiceAgentAdapter } from "./adapters/deepgram-va.ts";
 import { buildTranscript } from "./capture/transcript.ts";
+import { saveCassette, loadCassette } from "./capture/cassette.ts";
 import { runGates } from "./gates/index.ts";
 import { generateReport } from "./report/html.ts";
 import type { AUTConfig, Scenario, ScenarioResult } from "./types.ts";
@@ -43,21 +44,30 @@ function loadScenarios(dir: string): Scenario[] {
 }
 
 async function cmdRun(positional: string[], opts: Record<string, string | boolean>) {
-  getKey(); // fail fast if missing
+  const replay = opts.replay === true;
+  const record = opts.record === true;
+  if (!replay) getKey(); // live/record need the key; replay is fully offline
   const dir = positional[0] ?? "scenarios";
   const autPath = (opts.aut as string) ?? "examples/tabletalk/grounded.ts";
-  const aut = await loadAut(autPath);
+  const aut = await loadAut(autPath); // module load only — no network even in replay
   let scenarios = loadScenarios(dir);
   if (typeof opts.only === "string") scenarios = scenarios.filter((s) => s.name.includes(opts.only as string));
   const adapter = new DeepgramVoiceAgentAdapter();
-  console.log(`\nSoundcheck — running ${scenarios.length} scenario(s) against AUT "${aut.label}" (adapter: ${adapter.label})\n`);
+  const mode = replay ? "replay (offline)" : record ? "live + record" : "live";
+  console.log(`\nSoundcheck — running ${scenarios.length} scenario(s) against AUT "${aut.label}" — mode: ${mode}\n`);
 
   const results: ScenarioResult[] = [];
   for (const scenario of scenarios) {
     process.stdout.write(`▶ ${scenario.name} (persona=${scenario.persona}) … `);
-    const turns = evalineTurns(scenario);
-    const raw = await adapter.runConversation(aut, turns);
-    const transcript = await buildTranscript(scenario, aut.label, raw);
+    let transcript;
+    if (replay) {
+      transcript = loadCassette(scenario.name, aut.label);
+    } else {
+      const turns = evalineTurns(scenario);
+      const raw = await adapter.runConversation(aut, turns);
+      transcript = await buildTranscript(scenario, aut.label, raw);
+      if (record) saveCassette(transcript);
+    }
     const gates = runGates(transcript, scenario);
     const passed = gates.every((g) => g.pass);
     results.push({ transcript, gates, passed });
@@ -99,9 +109,11 @@ async function cmdValidate(opts: Record<string, string | boolean>) {
 function help() {
   console.log(`Soundcheck — voice-agent test harness (Deepgram-key-only)
 
-  soundcheck run <scenariosDir> [--aut <config.ts>] [--out <report.html>]
+  soundcheck run <scenariosDir> [--aut <config.ts>] [--out <report.html>] [--record|--replay] [--only <name>]
       Drive Evaline against the agent-under-test, gate the result, write a report.
       Default --aut: examples/tabletalk/grounded.ts. Exits non-zero iff a gate fails.
+      --record : live run, then save a cassette for deterministic replay.
+      --replay : offline — load the cassette, run gates, no socket/STT/key needed.
 
   soundcheck validate --tts "<text>"     Round-trip text -> TTS -> STT; flag spoken symbols.
   soundcheck validate --stt <file.wav>   Transcribe an audio file.

@@ -15,7 +15,9 @@
     "soundcheck": "node --experimental-strip-types src/cli.ts",
     "run:scenarios": "node --experimental-strip-types src/cli.ts run scenarios",
     "test": "node --experimental-strip-types --test test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "test:coverage": "node --experimental-strip-types --test --experimental-test-coverage test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run typecheck && npm run test"
   },
   "keywords": [
     "voice",

@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "scenario": "menu-price",
+  "persona": "cooperative",
+  "autLabel": "tabletalk-grounded",
+  "recordedAtNote": "recorded via `soundcheck run --record` (re-record only via reviewed PR)",
+  "turns": [
+    {
+      "turn": 1,
+      "callerSaid": "Hi, what are tonight's specials?",
+      "agentHeardCallerAs": "Hi. What are tonight's specials?",
+      "agentText": "Tonight's specials are grilled salmon for thirty-two dollars, mushroom risotto for twenty-six dollars, and lemon tart for twelve dollars.",
+      "agentSpokenHeardBack": "Tonight's specials are grilled salmon for thirty two dollars mushroom risotto for twenty six dollars and lemon tart",
+      "toolCalls": [
+        {
+          "name": "getDailySpecials",
+          "args": {},
+          "result": {
+            "specials": [
+              {
+                "name": "Grilled salmon",
+                "price": 32
+              },
+              {
+                "name": "Mushroom risotto",
+                "price": 26
+              },
+              {
+                "name": "Lemon tart",
+                "price": 12
+              }
+            ]
+          }
+        }
+      ],
+      "ttfbMs": 3277,
+      "turnMs": 6455
+    },
+    {
+      "turn": 2,
+      "callerSaid": "And how much is the prix fixe menu?",
+      "agentHeardCallerAs": "And how much is the prefix menu?",
+      "agentText": "The prix fixe menu is sixty-five dollars. It includes options like Caesar salad for fourteen dollars and ribeye for forty-eight dollars.",
+      "agentSpokenHeardBack": "For twelve dollars. The prefix menu is sixty five dollars. It includes options like Caesar salad for fourteen dollars and rib eye for forty eight dollars.",
+      "toolCalls": [
+        {
+          "name": "getMenuItems",
+          "args": {},
+          "result": {
+            "items": [
+              {
+                "name": "Caesar salad",
+                "price": 14
+              },
+              {
+                "name": "Ribeye",
+                "price": 48
+              }
+            ],
+            "prixFixe": 65
+          }
+        }
+      ],
+      "ttfbMs": null,
+      "turnMs": 8206
+    }
+  ]
+}

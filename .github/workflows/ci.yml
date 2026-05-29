@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dev dependencies
+        run: npm ci || npm install
+      - name: Validate (typecheck + unit + replay-integration)
+        run: npm run validate
+        # No DEEPGRAM_API_KEY in CI — validate is fully offline (replays cassettes).
+        # Live runs (recording cassettes, drift detection) are a separate nightly workflow.
