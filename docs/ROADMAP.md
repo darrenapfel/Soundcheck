@@ -48,7 +48,7 @@
 - **Review gate.**
 
 ### M6 — Soundcheck-evaluates-Soundcheck (self-evaluation, part II)
-- Point Soundcheck at **Evaline herself** as an AUT (does the caller stay in persona, reach her goal, speak cleanly?). Wire the golden ladder as a **live-nightly + replay-CI** self-regression. Add a deliberately-broken Evaline fixture the meta-suite must catch.
+- Point Soundcheck at **Evaline herself** (does the caller stay in persona, preserve the goal, speak cleanly?). Wire the golden ladder as a **live-nightly + replay-CI** self-regression. Add a deliberately-broken Evaline fixture the meta-suite must catch. **Scope (honest):** v1 Evaline is *scripted*, so this is caller-OUTPUT self-checks (voice-clean / in-persona / goal-preserving) — a live-VA Evaline as a full conversational AUT is the tracked goal-driven enhancement. The broader self-regression (bare→grounded ladder + full pipeline on the mock adapter) lives in the replay + genericity tests.
 - **Proof point:** Soundcheck evaluates its own caller and passes; the meta-suite **fails** on the broken-Evaline fixture (proving the self-test has teeth).
 - **Review gate.**
 

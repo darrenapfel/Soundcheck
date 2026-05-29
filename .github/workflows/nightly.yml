@@ -1,0 +1,41 @@
+name: Nightly (live drift)
+
+# Runs the LIVE golden ladder + judge calibration against the real Deepgram API to
+# detect behavior DRIFT (the real agent changed) separately from logic regressions
+# (caught deterministically by CI replay). Requires a DEEPGRAM_API_KEY repo secret;
+# no-ops cleanly if it's absent. CI (ci.yml) stays fully offline/deterministic.
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    env:
+      DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - name: Guard — skip if no key secret
+        id: guard
+        run: |
+          if [ -z "$DEEPGRAM_API_KEY" ]; then
+            echo "No DEEPGRAM_API_KEY secret set — skipping live drift checks."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Live ladder — grounded must PASS
+        if: steps.guard.outputs.run == 'true'
+        run: npm run soundcheck -- run scenarios --aut examples/tabletalk/grounded.ts
+      - name: Live ladder — bare must FAIL (drift if it suddenly passes)
+        if: steps.guard.outputs.run == 'true'
+        run: "! npm run soundcheck -- run scenarios --aut examples/tabletalk/bare.ts --only book-modify-confirm"
+      - name: Live judge calibration (informational)
+        if: steps.guard.outputs.run == 'true'
+        run: npm run soundcheck -- calibrate --judge live
