@@ -2,12 +2,18 @@
 // interface generalizes beyond Deepgram. Drives OpenAI's Realtime API over its
 // WebSocket (audio in / audio out + tool calls), mirroring the Deepgram-VA adapter.
 //
-// ⚠️ EXPERIMENTAL — UNTESTED IN THIS BUILD. It was written to the documented OpenAI
-// Realtime protocol but has NOT been run against the live API here (no OpenAI key in
-// this environment). VALIDATE before relying on it. It is OPT-IN: it reads
-// OPENAI_API_KEY *only when explicitly selected*; the default + CI never touch it, so
-// Soundcheck's default operation stays Deepgram-key-only. CI proves genericity via the
-// (creds-free, deterministic) MockAUTAdapter instead. Contributions/fixes welcome.
+// ⚠️ REFERENCE IMPLEMENTATION — NOT CLI-SELECTABLE IN v1, NOT LIVE-TESTED HERE.
+// This shows the AUTAdapter interface generalizing to a second real runtime. It is a
+// CODE-LEVEL integration point: a developer imports + wires + validates it (it is
+// deliberately NOT reachable from the default CLI, so an untested path can't be run by
+// accident). It has NOT been run against the live OpenAI API (no key here). Protocol
+// was reviewed and corrected (manual turn control via turn_detection:null; the tool-
+// turn response.done race is handled) but the design still needs a live validation pass
+// — and a WsFactory/SynthFn DI seam (like the Deepgram adapter) to enable an offline
+// socket-mock test (tracked, see docs/REVIEW_LOG.md). When wired, it reads OPENAI_API_KEY
+// (for the AUT) AND the Deepgram key (for Evaline's caller TTS + the STT round-trip);
+// Soundcheck's DEFAULT + CI operation never imports this file and stays Deepgram-key-only.
+// CI proves genericity via the creds-free, deterministic MockAUTAdapter instead.
 
 import { synthesize, transcribe } from "../deepgram.ts";
 import type { AUTConfig, ToolCall } from "../types.ts";
@@ -39,7 +45,8 @@ export class OpenAIRealtimeAdapter implements AUTAdapter {
     let agentText: string[] = [];
     let toolCalls: ToolCall[] = [];
     const agentAudio: Buffer[] = [];
-    let responseDone: boolean; // set true on response.done; assigned (reset) at each turn's start before any read
+    let responseDone: boolean; // set true on the TERMINAL response.done; reset each turn before any read
+    let pendingFollowup = false; // a tool call fired a follow-up response.create — the first response.done isn't terminal
 
     const settings = {
       type: "session.update",
@@ -51,6 +58,7 @@ export class OpenAIRealtimeAdapter implements AUTAdapter {
         input_audio_transcription: { model: "whisper-1" },
         tools: aut.tools.map((t) => ({ type: "function", name: t.name, description: t.description, parameters: t.parameters })),
         tool_choice: "auto",
+        turn_detection: null, // manual turn control: WE commit + response.create (avoid server-VAD double-response)
       },
     };
 
@@ -73,16 +81,18 @@ export class OpenAIRealtimeAdapter implements AUTAdapter {
           const stub = aut.toolStubs[name];
           toolCalls.push({ name, args, result: stub ? stub(args) : { ok: true } });
           ws.send(JSON.stringify({ type: "conversation.item.create", item: { type: "function_call_output", call_id: m.call_id, output: JSON.stringify(toolCalls.at(-1)!.result) } }));
-          ws.send(JSON.stringify({ type: "response.create" }));
+          ws.send(JSON.stringify({ type: "response.create" })); // ask for the spoken reply AFTER the tool result
+          pendingFollowup = true;
           break;
         }
-        case "response.done": responseDone = true; break;
+        // the first response.done (the one that carried the tool call) is NOT terminal; wait for the follow-up
+        case "response.done": if (pendingFollowup) pendingFollowup = false; else responseDone = true; break;
       }
     });
 
     const out: RawTurn[] = [];
     for (const turn of callerTurns) {
-      agentText = []; toolCalls = []; agentAudio.length = 0; responseDone = false;
+      agentText = []; toolCalls = []; agentAudio.length = 0; responseDone = false; pendingFollowup = false;
       const pcm = await synthesize(turn.text, { model: turn.voice, encoding: "linear16", sampleRate: 24000, container: "none" });
       for (let p = 0; p < pcm.length; p += FRAME) {
         ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: pcm.subarray(p, p + FRAME).toString("base64") }));
