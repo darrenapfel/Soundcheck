@@ -165,6 +165,8 @@ function help() {
   soundcheck run <scenariosDir> [--aut <config.ts>] [--out <report.html>] [--record|--replay] [--only <name>]
       Drive Evaline against the agent-under-test, gate the result, write a report.
       Default --aut: examples/tabletalk/grounded.ts. Exits non-zero iff a gate fails.
+      --adapter mock : test a creds-free deterministic mock agent (no key/network); add --buggy to inject faults.
+                       (default adapter = deepgram-va; the openai-realtime adapter is a code-level reference, not selectable here.)
       --record : live run, then save a cassette for deterministic replay.
       --replay : offline — load the cassette, run gates, no socket/STT/key needed.
       --judge  : also run the LLM judge (advisory, not gating). --judge mock = offline rule-based;
