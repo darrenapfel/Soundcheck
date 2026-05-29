@@ -1,6 +1,7 @@
 # 🎙️ Soundcheck
 
 [![CI](https://github.com/darrenapfel/Soundcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/darrenapfel/Soundcheck/actions/workflows/ci.yml)
+[![core coverage ≥85%](https://img.shields.io/badge/core%20coverage-%E2%89%A585%25-brightgreen.svg)](docs/TESTING.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **The missing test & tuning harness for voice agents — Playwright + an LLM judge + a synthetic caller, for speech. Runs on a single Deepgram key.**
@@ -32,9 +33,9 @@ Determinism is built in: a live run **records a cassette**, and CI **replays** i
 echo "DEEPGRAM_API_KEY=dg_..." > .env     # the only key you need
 npm install                                # devDeps only (no runtime deps)
 
-npm test                                   # 62 deterministic tests, no network
-npm run soundcheck -- validate --tts "Your table is **booked** for $14."
-#   heard "...star star booked star star ... negative fourteen dollars"  -> 🚩
+npm test                                   # deterministic test suite, no network
+npm run soundcheck -- validate --tts "Your table is **booked**."
+#   the listener hears "star star booked star star"  -> 🚩 spoken symbols
 
 npm run soundcheck -- run scenarios --aut examples/tabletalk/grounded.ts   # ✅ live, passes
 npm run soundcheck -- run scenarios --aut examples/tabletalk/bare.ts       # 🚩 live, fails (exit 1)
@@ -42,6 +43,28 @@ npm run soundcheck -- run scenarios --adapter mock                         # cre
 ```
 
 The bundled `examples/tabletalk/` dogfood ships `bare` / `hardened` / `grounded` configs so you can watch the suite catch "STAR STAR", dash-as-negative prices, non-ISO tool dates, and ungrounded dates — then go green.
+
+### Use it in your repo's CI
+
+Soundcheck ships a **reusable composite GitHub Action** (`action.yml`). Because the harness has zero runtime dependencies, the Action needs nothing but Node 22 — no install step. Replay your recorded cassettes as an offline merge gate:
+
+```yaml
+# .github/workflows/voice.yml in your agent's repo
+jobs:
+  soundcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4   # your scenarios/ + fixtures/cassettes/ + agent.ts
+      - uses: darrenapfel/Soundcheck@v1.0.0
+        with:
+          scenarios: scenarios               # dir of scenario .json files
+          args: "--aut agent.ts --replay"    # replay recorded cassettes — deterministic, no key
+          # for a LIVE run instead (records/replays real audio):
+          #   args: "--aut agent.ts"
+          #   deepgram-api-key: ${{ secrets.DEEPGRAM_API_KEY }}
+```
+
+Replay reads cassettes from `fixtures/cassettes/` (recorded once via `--record`); the offline path needs no Deepgram key.
 
 ## One key: Deepgram
 
@@ -62,7 +85,7 @@ Great evals are the moat between a prototype and a shippable agent. That layer e
 
 ## Status
 
-**v1.0** — deterministic core + judge + calibration + autonomous authoring + genericity (3 adapters) + self-evaluation + the tuning loop. Zero runtime dependencies (Node 22 native TypeScript). Grew out of a validated research spike; each milestone independently reviewed (see `docs/REVIEW_LOG.md`).
+**v1.0** — deterministic core + judge + calibration + autonomous authoring + genericity (2 CLI-selectable adapters + 1 reference adapter) + self-evaluation + the tuning loop. Zero runtime dependencies (Node 22 native TypeScript). Grew out of a validated research spike; each milestone independently reviewed (see `docs/REVIEW_LOG.md`).
 
 ---
 

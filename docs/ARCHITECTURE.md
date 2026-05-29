@@ -1,6 +1,6 @@
 # Soundcheck — Architecture
 
-> Status: design (pre-v0). This document is the source of truth for what we are building and why. The phased build plan lives in [`ROADMAP.md`](ROADMAP.md).
+> Status: v1.0. This document describes the system design. **It mixes shipped behavior with forward design** — where a section describes more than the released code (e.g. richer persona sets, goal-driven improvisation, additional gates/adapters), treat it as the design target and see [`ROADMAP.md`](ROADMAP.md) for the milestone status and [`LIMITATIONS.md`](LIMITATIONS.md) for exactly what v1.0 does and does not do. The released v1.0 ships: 6 deterministic gates, the round-trip validator, the advisory judge + calibration, autonomous authoring, the tuning loop, 2 CLI-selectable adapters (Deepgram VA + MockAUT) plus 1 reference adapter, 2 caller personas, and a reusable composite GitHub Action.
 
 ## 1. What Soundcheck is
 
