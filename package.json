@@ -1,0 +1,35 @@
+{
+  "name": "soundcheck",
+  "version": "0.0.0",
+  "description": "Voice-agent test & tuning harness — Playwright + an LLM judge + a synthetic caller, for speech. Runs on a single Deepgram key.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Darren Apfel",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "bin": {
+    "soundcheck": "bin/soundcheck.mjs"
+  },
+  "scripts": {
+    "soundcheck": "node --experimental-strip-types src/cli.ts",
+    "run:scenarios": "node --experimental-strip-types src/cli.ts run scenarios",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "voice",
+    "agent",
+    "eval",
+    "testing",
+    "deepgram",
+    "tts",
+    "stt",
+    "voice-agent",
+    "regression"
+  ],
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "typescript": "^5.8.0"
+  }
+}
