@@ -68,8 +68,9 @@ async function graderTurn(promptTranscript: string, rubric: Rubric): Promise<Ver
       try { m = JSON.parse(String(ev.data)); } catch { return; }
       if (m.type === "SettingsApplied") {
         const pcm = await synthesize("Begin your evaluation now.", { model: "aura-2-orion-en", encoding: "linear16", sampleRate: 16000, container: "none" });
-        for (let p = 0; p < pcm.length; p += FRAME) { ws.send(pcm.subarray(p, p + FRAME)); await sleep(100); }
-        for (let s = 0; s < 20; s++) { ws.send(Buffer.alloc(FRAME)); await sleep(100); }
+        const streamable = () => !done && ws.readyState === WebSocket.OPEN; // don't send after timeout/close
+        for (let p = 0; p < pcm.length && streamable(); p += FRAME) { ws.send(pcm.subarray(p, p + FRAME)); await sleep(100); }
+        for (let s = 0; s < 20 && streamable(); s++) { ws.send(Buffer.alloc(FRAME)); await sleep(100); }
       } else if (m.type === "FunctionCallRequest") {
         const fn = (Array.isArray(m.functions) ? m.functions : [])[0] as { id?: string; name?: string; arguments?: string } | undefined;
         clearTimeout(timer);
