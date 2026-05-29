@@ -16,6 +16,9 @@ import { judgeTranscript, mockJudge } from "./judge/index.ts";
 import { deepgramVaJudge } from "./judge/deepgram-va-judge.ts";
 import { calibrate, formatReport } from "./calibration/index.ts";
 import { authorSuite } from "./author/index.ts";
+import { tune, formatTuneResult } from "./tune/index.ts";
+import type { ScenarioSet, TuneScore } from "./tune/index.ts";
+import { spawnSync } from "node:child_process";
 import { generateReport } from "./report/html.ts";
 import type { AUTConfig, Scenario, ScenarioResult, Transcript } from "./types.ts";
 
@@ -159,6 +162,49 @@ async function cmdAuthor(opts: Record<string, string | boolean>) {
   console.log();
 }
 
+async function cmdTune(opts: Record<string, string | boolean>) {
+  getKey();
+  const baseAut = await loadAut((opts.agent as string) ?? "examples/tabletalk/bare.ts");
+  const trainFile = (opts.train as string) ?? "scenarios/book-modify-confirm.json";
+  const heldoutFile = (opts.heldout as string) ?? "examples/authored-tabletalk/authored-book-confirm.json";
+  const loadOne = (f: string) => [JSON.parse(readFileSync(resolve(process.cwd(), f), "utf8")) as Scenario];
+  const train = loadOne(trainFile);
+  const heldout = loadOne(heldoutFile);
+  const fixerCmd = opts.fixer as string;
+  if (!fixerCmd) {
+    console.error('tune needs --fixer "<cmd>": a coding agent reading {"prompt","failures"} JSON on stdin and writing an improved prompt to stdout (e.g. claude -p, codex exec, or a script).');
+    process.exit(2);
+  }
+  const adapter = new DeepgramVoiceAgentAdapter();
+  const evalSet = async (prompt: string, scenarios: Scenario[]): Promise<TuneScore> => {
+    const aut = { ...baseAut, systemPrompt: prompt };
+    let passed = 0;
+    const failures: string[] = [];
+    for (const s of scenarios) {
+      const raw = await adapter.runConversation(aut, evalineTurns(s));
+      const t = await buildTranscript(s, aut.label, raw);
+      const gates = runGates(t, s);
+      if (gates.every((g) => g.pass)) passed++;
+      else failures.push(...gates.filter((g) => !g.pass).map((g) => g.name));
+    }
+    return { passed, total: scenarios.length, failures: [...new Set(failures)] };
+  };
+  const evaluate = (prompt: string, set: ScenarioSet) => evalSet(prompt, set === "train" ? train : heldout);
+  const propose = async (prompt: string, failures: string[]) => {
+    const res = spawnSync("sh", ["-c", fixerCmd], { input: JSON.stringify({ prompt, failures }), encoding: "utf8", maxBuffer: 1 << 20 });
+    if (res.status !== 0 || !res.stdout?.trim()) throw new Error(`fixer command failed (status ${res.status}): ${res.stderr?.slice(0, 200)}`);
+    return res.stdout.trim();
+  };
+
+  console.log(`\nTuning "${baseAut.label}" — train=${trainFile}, heldout=${heldoutFile}, fixer="${fixerCmd}"\n`);
+  const result = await tune(baseAut.systemPrompt, evaluate, propose, { maxIterations: Number(opts.max ?? 2) });
+  console.log("\n" + formatTuneResult(result) + "\n");
+  mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
+  writeFileSync(resolve(process.cwd(), "runs", "tuned-prompt.txt"), result.finalPrompt + "\n");
+  console.log(`tuned prompt -> runs/tuned-prompt.txt  (improved=${result.improved})\n`);
+  process.exit(result.improved ? 0 : 1);
+}
+
 function help() {
   console.log(`Soundcheck — voice-agent test harness (Deepgram-key-only)
 
@@ -183,6 +229,11 @@ function help() {
       Autonomously generate a scenario suite from an agent's spec (tools + system prompt):
       scenarios derived from the tools, gates baked in, business rules extracted. No human writes cases.
 
+  soundcheck tune --agent <config.ts> --fixer "<cmd>" [--train <s.json>] [--heldout <s.json>] [--max <n>]
+      Agents tuning agents: evaluate live -> a fixer (a coding agent reading {prompt,failures} JSON on
+      stdin, writing an improved prompt to stdout) proposes a fix -> KEEP only if the HELD-OUT set improves
+      (Goodhart guard). Writes the tuned prompt to runs/. Exits 0 iff the held-out score improved.
+
 Requires only DEEPGRAM_API_KEY (env or .env).`);
 }
 
@@ -193,6 +244,7 @@ try {
   else if (cmd === "validate") await cmdValidate(opts);
   else if (cmd === "calibrate") await cmdCalibrate(opts);
   else if (cmd === "author") await cmdAuthor(opts);
+  else if (cmd === "tune") await cmdTune(opts);
   else help();
 } catch (e) {
   console.error(`\n✖ ${(e as Error).message}\n`);
