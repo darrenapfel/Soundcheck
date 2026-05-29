@@ -12,6 +12,7 @@ overloaded (HTTP 529) and a sub-agent could not be spawned, the milestone got an
 | M1 — test hardening | ✅ independent sub-agent | ship as-is | 1 MINOR (adapter loop untested) — addressed in M2 (offline adapter-loop test) |
 | M2 — LLM judge + adapter DI | ✅ independent sub-agent (combined M2+M3, after the 529 outage cleared) | ship as-is | self-review during outage caught the stream-after-close guard; independent review confirmed no blocker/major + found minors (below) |
 | M3 — judge calibration | ✅ independent sub-agent (combined M2+M3) | ship as-is | metric math verified correct; minors addressed (macro-avg label, panel tie→problem, async-listener guard, score clamp) |
+| M4 — autonomous eval authoring | ✅ independent sub-agent | ship after addressing MAJORs | 2 MAJORs (both doc/test-gap, not broken code) addressed: (1) "catches bugs" is now an EXECUTING regression test (authored gates vs bare cassette); (2) ROADMAP reconciled — business rules are surfaced as HINTS, not auto-asserted. + minors (nextSaturday guard, rubric written to disk, loadScenarios skips non-scenario JSON, gate-dispatchability test). |
 
 ## Addressed from the M2+M3 review
 - Panel aggregation ties now break toward the problem polarity (not "true").
