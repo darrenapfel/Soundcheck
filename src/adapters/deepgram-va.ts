@@ -34,12 +34,32 @@ export function buildSettings(aut: AUTConfig) {
   };
 }
 
+// Minimal structural type for the socket the adapter drives — lets a test inject a
+// mock WebSocket (and skip the network + the key) without depending on the global.
+export interface WsLike {
+  binaryType: string;
+  readyState: number;
+  send(data: unknown): void;
+  close(): void;
+  addEventListener(type: string, listener: (ev: { data: unknown }) => void): void;
+}
+export type WsFactory = (url: string) => WsLike;
+export type SynthFn = (text: string, opts: { model: string; encoding: string; sampleRate: number; container: string }) => Promise<Buffer>;
+
 export class DeepgramVoiceAgentAdapter implements AUTAdapter {
   label = "deepgram-va";
+  #wsFactory: WsFactory;
+  #synth: SynthFn;
+
+  // Defaults are the real Deepgram socket + TTS (the default factory fetches the key,
+  // so an injected mock factory needs no key — keeps offline tests CI-safe).
+  constructor(opts: { wsFactory?: WsFactory; synth?: SynthFn } = {}) {
+    this.#wsFactory = opts.wsFactory ?? ((url) => new WebSocket(url, ["token", getKey()]) as unknown as WsLike);
+    this.#synth = opts.synth ?? ((text, o) => synthesize(text, o));
+  }
 
   async runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<RawTurn[]> {
-    const key = getKey();
-    const ws = new WebSocket(AGENT_WS, ["token", key]);
+    const ws = this.#wsFactory(AGENT_WS);
     ws.binaryType = "arraybuffer";
 
     // Shared turn state.
@@ -64,7 +84,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       ws.addEventListener("error", () => reject(new Error("Voice Agent WebSocket error")));
     });
 
-    ws.addEventListener("message", (event: MessageEvent) => {
+    ws.addEventListener("message", (event: { data: unknown }) => {
       if (event.data instanceof ArrayBuffer) {
         if (collecting) {
           if (firstFrameAt === 0) firstFrameAt = Date.now();
@@ -123,7 +143,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       agentAudio = []; agentLines = []; userHeard = []; toolCalls = []; firstFrameAt = 0;
       collecting = true;
       const turn = callerTurns[i];
-      const pcm = await synthesize(turn.text, { model: turn.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
+      const pcm = await this.#synth(turn.text, { model: turn.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
       const numSpeechFrames = Math.ceil(pcm.length / FRAME);
       const turnStart = Date.now();
       enqueueSpeech(pcm);

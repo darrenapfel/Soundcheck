@@ -76,5 +76,6 @@ export interface GateResult {
 export interface ScenarioResult {
   transcript: Transcript;
   gates: GateResult[];
-  passed: boolean; // all deterministic gates passed
+  passed: boolean; // all deterministic gates passed (gates are the hard gate)
+  verdict?: import("./judge/types.ts").Verdict; // advisory LLM-judge scores (optional)
 }

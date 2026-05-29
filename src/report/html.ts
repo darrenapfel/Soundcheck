@@ -23,9 +23,13 @@ export function generateReport(results: ScenarioResult[], generatedAt: string): 
         <td>${audio}</td>
       </tr>`;
     }).join("");
+    const verdictHtml = r.verdict
+      ? `<p class="judge"><strong>⚖ Judge (${esc(r.verdict.backend)}, advisory):</strong> ${r.verdict.dimensions.map((d) => `${esc(d.key)}=<code>${esc(String(d.value))}</code>`).join(" · ")}${r.verdict.findings[0] ? `<br><em>${esc(r.verdict.findings[0])}</em>` : ""}</p>`
+      : "";
     return `<section class="${r.passed ? "ok" : "bad"}">
       <h2>${esc(r.transcript.scenario)} <span class="meta">aut=${esc(r.transcript.autLabel)} · persona=${esc(r.transcript.persona)} · ${r.passed ? "PASS" : "FAIL"}</span></h2>
       <table class="gates"><thead><tr><th></th><th>gate</th><th>detail</th></tr></thead><tbody>${gateRows}</tbody></table>
+      ${verdictHtml}
       <details><summary>Conversation (what the caller actually heard)</summary>
       <table class="turns"><thead><tr><th>#</th><th>caller said</th><th>agent — heard back</th><th>tool calls</th><th>TTFB ms</th><th>audio</th></tr></thead><tbody>${turnRows}</tbody></table>
       </details>
