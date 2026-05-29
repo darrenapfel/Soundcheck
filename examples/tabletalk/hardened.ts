@@ -1,7 +1,12 @@
-// HARDENED — adds the no-Markdown / speak-as-words instruction. Fixes the SPEECH
-// but (per the spike) the model then passes a PROSE date to the tool. Expect:
-// no_spoken_symbols PASS, but tool_arg_iso FAIL (e.g. "October seventh") and
-// grounding FAIL. This is why a tool-contract gate matters, not just a speech one.
+// HARDENED — adds the no-Markdown / speak-as-words instruction. Reliably fixes the
+// SPEECH (no_spoken_symbols PASS) but does NOT fix grounding (grounding FAIL): the
+// model still hallucinates a stale date. That's hardened's deterministic role in the
+// ladder — a formatting fix isn't a grounding fix.
+//
+// NOTE: with this prompt the model SOMETIMES also passes a prose date to the tool
+// (e.g. "October seventh" -> tool_arg_iso FAIL) — but that's STOCHASTIC, so it is
+// pinned deterministically as a unit test in test/gates.test.ts, not via this
+// (possibly-ISO) cassette. This is exactly why a tool-contract gate matters.
 import { makeConfig } from "./tabletalk.ts";
 
 export default makeConfig(

@@ -4,7 +4,7 @@
 // and what makes "Soundcheck evaluates Soundcheck" reproducible. (See docs/TESTING.md.)
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { resolve } from "node:path";
 import type { CapturedTurn, Persona, Transcript } from "../types.ts";
 
 export const CASSETTE_DIR = "fixtures/cassettes";
@@ -56,7 +56,7 @@ export function saveCassette(t: Transcript): void {
 export function loadCassette(scenario: string, autLabel: string): Transcript {
   const path = cassettePath(scenario, autLabel);
   if (!existsSync(path)) {
-    throw new Error(`no cassette for "${scenario}" (aut "${autLabel}") at ${join(CASSETTE_DIR, `${scenario}.${autLabel}.json`)} — record one with: soundcheck run <dir> --aut <cfg> --record`);
+    throw new Error(`no cassette for "${scenario}" (aut "${autLabel}") at ${path} — record one with: soundcheck run <dir> --aut <cfg> --record`);
   }
   const data = JSON.parse(readFileSync(path, "utf8")) as CassetteFile;
   if (data.version !== CASSETTE_VERSION) throw new Error(`cassette ${path} is version ${data.version}, expected ${CASSETTE_VERSION}`);

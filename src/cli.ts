@@ -12,7 +12,7 @@ import { buildTranscript } from "./capture/transcript.ts";
 import { saveCassette, loadCassette } from "./capture/cassette.ts";
 import { runGates } from "./gates/index.ts";
 import { generateReport } from "./report/html.ts";
-import type { AUTConfig, Scenario, ScenarioResult } from "./types.ts";
+import type { AUTConfig, Scenario, ScenarioResult, Transcript } from "./types.ts";
 
 function parseArgs(argv: string[]) {
   const out: Record<string, string | boolean> = {};
@@ -59,9 +59,12 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   const results: ScenarioResult[] = [];
   for (const scenario of scenarios) {
     process.stdout.write(`▶ ${scenario.name} (persona=${scenario.persona}) … `);
-    let transcript;
+    let transcript: Transcript;
     if (replay) {
       transcript = loadCassette(scenario.name, aut.label);
+      if (transcript.scenario !== scenario.name || transcript.persona !== scenario.persona) {
+        throw new Error(`cassette for ${scenario.name}/${aut.label} doesn't match the scenario (cassette scenario="${transcript.scenario}", persona="${transcript.persona}") — re-record it`);
+      }
     } else {
       const turns = evalineTurns(scenario);
       const raw = await adapter.runConversation(aut, turns);
