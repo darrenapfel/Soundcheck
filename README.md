@@ -129,12 +129,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4   # your scenarios/ + fixtures/cassettes/ + agent.ts
-      - uses: darrenapfel/Soundcheck@v2
+      - uses: darrenapfel/Soundcheck@v2   # pin a published release tag
         with:
+          aut: agent.ts                      # your agent-under-test config (required)
           scenarios: scenarios               # dir of scenario .json files
-          args: "--aut agent.ts --replay"    # replay recorded cassettes — deterministic, no key
-          # for a LIVE run instead (records/replays real audio):
-          #   args: "--aut agent.ts"
+          cassette-dir: fixtures/cassettes   # recorded cassettes (the --replay default)
+          # `args` defaults to --replay (offline, deterministic, no key). For a LIVE run instead:
+          #   args: ""
           #   deepgram-api-key: ${{ secrets.DEEPGRAM_API_KEY }}
 ```
 

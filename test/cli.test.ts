@@ -40,3 +40,11 @@ test("replay of an all-live-only suite FAILS CLOSED (exit 2), never a vacuous gr
   assert.match(r.stderr, /0 scenarios replayed/);
   assert.doesNotMatch(r.stdout, /all gates passed/);
 });
+
+test("the GitHub Action's run shape works: SOUNDCHECK_CASSETTE_DIR override + run --aut --replay", () => {
+  // Mirrors action.yml: `run <scenarios> --aut <aut> --replay` with the cassette dir from an env var.
+  const r = spawnSync("node", ["--experimental-strip-types", "src/cli.ts", "run", "scenarios", "--aut", "examples/tabletalk/grounded.ts", "--replay", "--only", "book-modify-confirm", "--out", "/tmp/sc-action.html"],
+    { encoding: "utf8", cwd: process.cwd(), env: { ...process.env, SOUNDCHECK_CASSETTE_DIR: "fixtures/cassettes" } });
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /all gates passed/);
+});
