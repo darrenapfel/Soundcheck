@@ -1,0 +1,38 @@
+{
+  "name": "authored-scheduleCallback",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, I'd like to schedule callback for this Saturday at seven thirty PM my email is garcia at acme dot com.",
+    "Can you confirm the details before we finish?"
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    {
+      "required_tool": "scheduleCallback"
+    },
+    {
+      "tool_args_match_schema": "scheduleCallback"
+    },
+    {
+      "grounding": {
+        "tool": "scheduleCallback",
+        "field": "date",
+        "now": "2026-05-28",
+        "expected": "2026-05-30"
+      }
+    },
+    {
+      "spoken_matches_tool": {
+        "tool": "scheduleCallback",
+        "field": "date"
+      }
+    },
+    {
+      "latency": {
+        "ttfb_ms": {
+          "max": 12000
+        }
+      }
+    }
+  ]
+}

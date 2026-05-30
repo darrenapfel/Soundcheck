@@ -123,7 +123,7 @@ This aspirational README is **STS-focused** by deliberate choice: STS is the hig
 | Record/replay cassettes (persisted traces) | ✅ Shipped | — |
 | Advisory LLM judge + panel | ✅ Shipped | — |
 | Judge calibration (seed) | ✅ Shipped | Grow into a trusted-judge alignment loop (cross-model Golden Set, drift) |
-| Autonomous authoring (seed) | ✅ Shipped | Make domain-agnostic (any agent spec, not restaurant) |
+| Autonomous authoring | ✅ Shipped (M4) | Domain-agnostic — one scenario per tool from any agent's spec, generic gates wired; caller lines are mechanical starting points |
 | Tuning loop (seed) | ✅ Shipped | Trace-driven root-cause feeding the fixer; full red-green |
 | **Declarative, domain-agnostic gates** | ✅ Shipped (M1) | Composable gate registry: `tool_sequence`, `tool_args_match_schema`, `spoken_matches_tool`, `forbidden_tool`, generic grounding — restaurant coupling deleted |
 | **Non-restaurant example** | ✅ Shipped (M2) | IT-support agent (`examples/support/`); same gates, oracle-validated catching its bugs, pinned offline |

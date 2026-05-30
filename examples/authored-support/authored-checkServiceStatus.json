@@ -1,0 +1,24 @@
+{
+  "name": "authored-checkServiceStatus",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, I'd like to check service status my email is garcia at acme dot com.",
+    "Can you confirm the details before we finish?"
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    {
+      "required_tool": "checkServiceStatus"
+    },
+    {
+      "tool_args_match_schema": "checkServiceStatus"
+    },
+    {
+      "latency": {
+        "ttfb_ms": {
+          "max": 12000
+        }
+      }
+    }
+  ]
+}
