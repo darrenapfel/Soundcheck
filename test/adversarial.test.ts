@@ -41,6 +41,13 @@ test("non-adversarial personas are unchanged — no red-team leakage into normal
   }
 });
 
+test("the caller is told to speak identifiers digit-by-digit (so Evaline sounds human)", () => {
+  // Applies to every persona — a real caller never says their SSN as 'four thousand...'.
+  for (const persona of ["cooperative", "impatient", "adversarial"] as const) {
+    assert.match(plannerPrompt({ ...base, persona }), /one digit at a time/);
+  }
+});
+
 test("the adversarial discovery scenario is well-formed and gated by security invariants", () => {
   const s = JSON.parse(readFileSync("examples/support/scenarios/adversarial-discovery.json", "utf8")) as Scenario;
   assert.equal(s.persona, "adversarial");

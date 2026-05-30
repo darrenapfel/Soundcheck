@@ -1,7 +1,7 @@
 // Soundcheck CLI — `run` (drive scenarios, gate, report) and `validate` (standalone round-trip).
 // Reads ONE credential: DEEPGRAM_API_KEY (see deepgram.ts getKey()).
 
-import { readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { getKey, synthesize, transcribe } from "./deepgram.ts";
@@ -23,6 +23,7 @@ import type { ScenarioSet, TuneScore, Diagnosis } from "./tune/index.ts";
 import { spawnSync } from "node:child_process";
 import { generateReport } from "./report/html.ts";
 import { compareRuns, formatBakeoff } from "./bakeoff/index.ts";
+import { promoteTrace } from "./regress/index.ts";
 import type { AUTConfig, Scenario, ScenarioResult, Trace } from "./types.ts";
 import type { ConversationCapture } from "./adapters/types.ts";
 
@@ -87,8 +88,9 @@ async function acquireTranscript(
   const goalMode = opts.caller === "goal" || (!!scenario.goal && opts.caller !== "scripted");
   let raw: ConversationCapture;
   if (!useMockAdapter && (goalMode || scenario.bargeIn)) {
+    const maxTurns = opts.turns ? Math.min(15, Math.max(2, Number(opts.turns))) : undefined; // --turns N: deeper goal-driven calls (adapter backstop is 16)
     const caller = goalMode
-      ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner })
+      ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner, maxTurns })
       : ScriptedCaller.fromScenario(scenario);
     process.stdout.write(`[${caller.label}] `);
     raw = await (adapter as DeepgramVoiceAgentAdapter).converse(aut, caller);
@@ -130,6 +132,20 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
     console.log(passed ? "PASS" : "FAIL");
     for (const g of gates) console.log(`    ${g.pass ? "✅" : "🚩"} ${g.name} — ${g.detail}`);
     if (verdict) console.log(`    ⚖ judge(${verdict.backend}): ${verdict.dimensions.map((d) => `${d.key}=${d.value}`).join(", ")}${verdict.findings[0] ? ` | ${verdict.findings[0]}` : ""}`);
+    // --promote-failures: close the loop — freeze a failing (often improvised) call into a
+    // scripted regression scenario + a replayable cassette, growing the suite automatically.
+    if (opts["promote-failures"] === true && !passed) {
+      try {
+        const reg = promoteTrace(transcript, scenario);
+        const regPath = resolve(process.cwd(), dir, `${reg.name}.json`);
+        if (existsSync(regPath)) console.log(`    (overwriting existing ${reg.name}.json)`);
+        writeFileSync(regPath, JSON.stringify(reg, null, 2) + "\n");
+        saveCassette({ ...transcript, scenario: reg.name }); // re-key so the regression replays offline
+        console.log(`    ⤴ promoted → ${dir}/${reg.name}.json (+ cassette): ${reg.turns.length} turns, ${reg.assert.length} invariants`);
+      } catch (e) {
+        console.log(`    (could not promote: ${(e as Error).message})`); // e.g. no usable caller turns — skip, don't abort the run
+      }
+    }
   }
 
   mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
@@ -306,6 +322,9 @@ function help() {
       --caller goal : reactive Evaline — a Deepgram-VA brain improvises each line toward the
                  scenario's "goal" and hangs up when met (live-only; auto-on if a scenario has a goal).
                  A scenario "bargeIn" field makes the scripted caller interrupt the agent (live-only).
+      --promote-failures : close the loop — freeze each FAILING call into a scripted regression
+                 scenario (+ replayable cassette) in the scenarios dir, so a discovered failure
+                 becomes a permanent test. Pairs with --caller goal (discover) → tune (fix).
 
   soundcheck validate --tts "<text>"     Round-trip text -> TTS -> STT; flag spoken symbols.
   soundcheck validate --stt <file.wav>   Transcribe an audio file.
@@ -321,7 +340,7 @@ function help() {
       scenarios derived from the tools, gates baked in, business rules extracted. No human writes cases.
 
   soundcheck tune --agent <config.ts> --fixer "<cmd>" [--train <s.json>] [--heldout <s.json>] [--max <n>]
-      Agents tuning agents: evaluate live -> a fixer (a coding agent reading {prompt,failures} JSON on
+      Agents tuning agents: evaluate live -> a fixer (a coding agent reading {prompt,diagnosis} JSON on
       stdin, writing an improved prompt to stdout) proposes a fix -> KEEP only if the HELD-OUT set improves
       (Goodhart guard — use a held-out scenario that is genuinely DIFFERENT from train). Writes the tuned
       prompt to runs/. Exits 0 iff the held-out score improved. (--fixer runs via 'sh -c' and inherits your env.)

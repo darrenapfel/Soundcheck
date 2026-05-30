@@ -19,8 +19,9 @@ export const PERSONA_VOICE: Record<Persona, string> = {
 
 /** One completed exchange, as seen by the caller (agent = the agent's own text reply). */
 export interface CallerExchange {
-  caller: string;
-  agent: string;
+  caller: string; // what the caller INTENDED to say
+  agent: string; // the agent's text reply
+  heardAs?: string; // what the agent's STT actually heard the caller say (may differ — a mishearing)
 }
 
 /** What the caller knows when deciding its next move. */
@@ -80,6 +81,9 @@ export interface PlanDecision {
 }
 export type PlanFn = (input: PlanInput) => Promise<PlanDecision>;
 
+// Short acknowledgements a caller repeats naturally — exempt from the looping guard.
+const CALLER_ACKS = new Set(["yes", "no", "yeah", "yep", "nope", "correct", "right", "okay", "ok", "sure", "thanks", "thank you", "got it", "please", "uh huh", "mm hmm", "exactly", "perfect"]);
+
 /** Reactive caller: adapts each line to what the agent actually said, ends on goal. */
 export class GoalDrivenCaller implements Caller {
   label = "goal-driven";
@@ -88,7 +92,7 @@ export class GoalDrivenCaller implements Caller {
   #voice: string;
   #plan: PlanFn;
   #maxTurns: number;
-  #asked = new Set<string>();
+  #said = new Map<string, number>();
   constructor(opts: { goal: string; persona: Persona; plan: PlanFn; maxTurns?: number }) {
     this.#goal = opts.goal;
     this.#persona = opts.persona;
@@ -106,11 +110,16 @@ export class GoalDrivenCaller implements Caller {
       turnIndex: ctx.turnIndex,
     });
     if (d.action === "hangup" || !d.utterance.trim()) return null;
-    // Repetition guard: a caller that re-asks something it already said isn't making
-    // progress — end the call instead of looping (robustness against a flaky brain).
+    // Repetition guard: a caller that re-says the EXACT same substantive line several times
+    // is looping (a flaky brain) — but re-asking ONCE after the agent stalls or mishears is
+    // normal human behavior, so allow up to 2 repeats and only end on the 3rd. Short acks
+    // ("yes", "thanks", "correct") are never counted — a caller says them freely.
     const norm = d.utterance.trim().toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ");
-    if (this.#asked.has(norm)) return null;
-    this.#asked.add(norm);
+    if (!CALLER_ACKS.has(norm)) {
+      const n = (this.#said.get(norm) ?? 0) + 1;
+      this.#said.set(norm, n);
+      if (n >= 3) return null;
+    }
     return { text: d.utterance.trim(), voice: this.#voice };
   }
 }
