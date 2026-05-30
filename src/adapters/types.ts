@@ -25,10 +25,10 @@ export interface RawTurn {
 
 /**
  * The full result of driving one conversation: the per-turn captures plus — for LIVE
- * adapters — a faithful, real-time, MIXED recording of the whole call (caller + agent
- * overlaid at true wall-clock timing, 24kHz mono). This recording is the ground truth:
- * the report plays it and Soundcheck's own oracle (STT) transcribes it to self-validate.
- * Text/mock adapters omit it (no audio).
+ * adapters — a faithful, MIXED recording of the whole call (caller + agent overlaid at
+ * playback-paced timing — the pump plays agent audio out at 1× real time, phone-call
+ * style — 24kHz mono). This recording is the ground truth: the report plays it and
+ * Soundcheck's own oracle (STT) transcribes it to self-validate. Mock adapters omit it.
  */
 export interface ConversationCapture {
   turns: RawTurn[];

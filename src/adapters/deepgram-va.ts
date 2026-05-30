@@ -184,7 +184,12 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     recordingOn = true; // record the whole call, from the greeting on
 
     const enqueueSpeech = (pcm: Buffer) => {
-      for (let p = 0; p < pcm.length; p += FRAME) audioQueue.push(pcm.subarray(p, p + FRAME));
+      for (let p = 0; p < pcm.length; p += FRAME) {
+        const frame = pcm.subarray(p, p + FRAME);
+        // Pad the trailing partial frame to a full FRAME so every pump tick is exactly 100ms —
+        // otherwise that tick advances the recording (and pulls agent audio) by less than 100ms.
+        audioQueue.push(frame.length === FRAME ? frame : Buffer.concat([frame, SILENCE.subarray(0, FRAME - frame.length)]));
+      }
     };
     // Turn endpoint (the fix): the turn completes when the caller's audio has drained,
     // the agent actually started responding, AgentAudioDone fired for THIS turn, AND a
@@ -283,6 +288,10 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       lastAgent = agentText; // feed the agent's reply back so a reactive caller can adapt
     }
 
+    // Drain any agent audio still queued: the VA streams TTS faster than 1× real-time, so the
+    // FINAL reply usually has a backlog. Without this it would be dropped when the pump stops —
+    // truncating the most important turn from BOTH the recording and the oracle transcript.
+    while (agentQ.length) recording.push(pullAgent(4800)); // 100ms @ 24kHz, agent-only (caller is done)
     recordingOn = false;
     clearInterval(pump);
     try { ws.close(); } catch { /* ignore */ }

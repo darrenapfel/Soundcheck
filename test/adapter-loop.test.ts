@@ -85,3 +85,34 @@ test("converse drives a REACTIVE caller and feeds the agent's reply back (contro
   assert.match(out[0].agentText, /confirmed/);
   assert.ok(seen[1].includes("confirmed")); // turn 2's brain SAW the agent's turn-1 reply
 }, { timeout: 20000 });
+
+// Regression for the recorder's MAJOR: the VA streams faster than 1x real-time, so the final
+// reply has a backlog the pump can't drain before the turn ends — it must be flushed into the
+// recording, or the most important turn is truncated from the recording + oracle transcript.
+class BurstWs implements WsLike {
+  binaryType = "blob"; readyState = 0;
+  #l: Record<string, ((ev: { data: unknown }) => void)[]> = {};
+  #deb: ReturnType<typeof setTimeout> | null = null;
+  constructor() { queueMicrotask(() => { this.readyState = 1; this.#fire("open"); }); }
+  addEventListener(t: string, cb: (ev: { data: unknown }) => void) { (this.#l[t] ??= []).push(cb); }
+  #fire(t: string, d?: unknown) { for (const cb of this.#l[t] ?? []) cb({ data: d }); }
+  #json(o: unknown) { this.#fire("message", JSON.stringify(o)); }
+  send(data: unknown) {
+    if (typeof data === "string") {
+      if (JSON.parse(data).type === "Settings") setTimeout(() => { this.#json({ type: "ConversationText", role: "assistant", content: "hi" }); this.#fire("message", new ArrayBuffer(960)); this.#json({ type: "AgentAudioDone" }); }, 10);
+      return;
+    }
+    if (Buffer.isBuffer(data) && data.some((b) => b !== 0)) {
+      if (this.#deb) clearTimeout(this.#deb);
+      this.#deb = setTimeout(() => { this.#json({ type: "ConversationText", role: "assistant", content: "a long reply" }); this.#fire("message", new ArrayBuffer(96000)); this.#json({ type: "AgentAudioDone" }); }, 300);
+    }
+  }
+  close() { this.readyState = 3; this.#fire("close"); }
+}
+
+test("recorder drains the agent backlog so the final reply isn't truncated", async () => {
+  const BURST = 96000; // ~2s of 24kHz agent audio — far more than one 100ms tick (4800B) drains
+  const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => new BurstWs(), synth: async () => Buffer.alloc(6400, 1) });
+  const cap = await adapter.runConversation(makeConfig("t", "be nice"), [{ text: "hi", voice: "v" }]);
+  assert.ok(cap.recordingPcm && cap.recordingPcm.length >= BURST, `recording (${cap.recordingPcm?.length}) must include the full ${BURST}B agent burst — drain worked`);
+}, { timeout: 20000 });
