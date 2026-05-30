@@ -43,8 +43,9 @@ export interface AUTConfig {
   label: string;
   systemPrompt: string;
   tools: ToolSchema[];
-  /** Deterministic stubs so tool calls return plausible data (no real DB in v0). */
-  toolStubs: Record<string, (args: Record<string, unknown>) => unknown>;
+  /** Stubs that return tool results. Real agents back these with DB/API calls, so a handler
+   *  may be async; the adapter awaits it and records a structured error if it throws. */
+  toolStubs: Record<string, (args: Record<string, unknown>) => unknown | Promise<unknown>>;
   voice?: string; // aura model for the AUT's speech
   listenModel?: string; // nova model
   think?: { type: string; model: string; temperature?: number };

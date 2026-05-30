@@ -170,10 +170,16 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
           for (const fn of fns) {
             let args: Record<string, unknown>;
             try { args = fn.arguments ? JSON.parse(fn.arguments) : {}; } catch { args = {}; }
-            const stub = aut.toolStubs[fn.name];
-            const result = stub ? stub(args) : { ok: true };
-            toolCalls.push({ name: fn.name, args, result });
-            ws.send(JSON.stringify({ type: "FunctionCallResponse", id: fn.id, name: fn.name, content: JSON.stringify(result) }));
+            // Tool handlers may be async (real ones hit a DB/API) and may throw — await + guard,
+            // and on failure return a structured error so the agent gets a response and isn't stuck.
+            void (async () => {
+              const stub = aut.toolStubs[fn.name];
+              let result: unknown;
+              try { result = stub ? await stub(args) : { ok: true }; }
+              catch (err) { result = { error: (err as Error)?.message ?? String(err) }; }
+              toolCalls.push({ name: fn.name, args, result });
+              try { ws.send(JSON.stringify({ type: "FunctionCallResponse", id: fn.id, name: fn.name, content: JSON.stringify(result) })); } catch { /* socket closed */ }
+            })();
           }
           break;
         }
