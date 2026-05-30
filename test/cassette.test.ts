@@ -5,8 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { rmSync, writeFileSync, mkdirSync } from "node:fs";
-import { resolve } from "node:path";
-import { saveCassette, loadCassette, cassettePath, CASSETTE_DIR } from "../src/capture/cassette.ts";
+import { resolve, win32, posix } from "node:path";
+import { saveCassette, loadCassette, cassettePath, isWithinRoot, CASSETTE_DIR } from "../src/capture/cassette.ts";
 import type { Trace } from "../src/types.ts";
 
 const SCEN = "__selftest__";
@@ -85,4 +85,19 @@ test("cassettePath rejects path-traversal / unsafe scenario + AUT names (P1-3)",
   }
   // a normal name still resolves inside fixtures/cassettes
   assert.match(cassettePath("reset-and-callback", "support-grounded"), /fixtures\/cassettes\/reset-and-callback\.support-grounded\.json$/);
+});
+
+test("isWithinRoot containment is separator-agnostic (Windows + POSIX) (round-2 P1)", () => {
+  // Windows: backslash paths must be recognized as contained — the old `startsWith(root + "/")`
+  // check rejected these, breaking cassette lookup for Windows users.
+  const winRoot = "C:\\repo\\fixtures\\cassettes";
+  assert.ok(isWithinRoot(winRoot, "C:\\repo\\fixtures\\cassettes\\book.tabletalk-grounded.json", win32), "valid Windows path is contained");
+  assert.ok(isWithinRoot(winRoot, winRoot, win32), "the root itself is contained");
+  assert.ok(!isWithinRoot(winRoot, "C:\\repo\\secrets\\.env", win32), "a sibling escapes");
+  assert.ok(!isWithinRoot(winRoot, "C:\\repo\\fixtures\\cassettes\\..\\..\\evil.json", win32), "traversal escapes");
+  // POSIX behaves the same through the same helper.
+  const pRoot = "/repo/fixtures/cassettes";
+  assert.ok(isWithinRoot(pRoot, "/repo/fixtures/cassettes/book.json", posix), "valid POSIX path is contained");
+  assert.ok(!isWithinRoot(pRoot, "/repo/secrets/.env", posix), "a POSIX sibling escapes");
+  assert.ok(!isWithinRoot(pRoot, "/etc/passwd", posix), "an absolute outside path escapes");
 });
