@@ -146,13 +146,13 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
         }
         return;
       }
-      let m: any;
+      let m: Record<string, unknown>;
       try { m = JSON.parse(String(event.data)); } catch { return; }
-      if (process.env.SC_DEBUG) process.stderr.write(`<${m.type}@${Date.now() % 100000}> `);
+      if (process.env.SC_DEBUG) process.stderr.write(`<${String(m.type)}@${Date.now() % 100000}> `);
       switch (m.type) {
         case "ConversationText":
-          if (m.role === "assistant") agentLines.push(m.content);
-          else if (m.role === "user") userHeard.push(m.content);
+          if (m.role === "assistant") agentLines.push(String(m.content));
+          else if (m.role === "user") userHeard.push(String(m.content));
           break;
         case "AgentAudioDone":
           audioDoneAt = Date.now();
@@ -284,7 +284,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
         ttfbMs: action.interrupt ? null : (firstFrameAt > speechEndMs ? firstFrameAt - speechEndMs : null),
         turnMs: Math.max(0, settleAt - speechEndMs),
       });
-      history.push({ caller: callerSaid, agent: agentText });
+      history.push({ caller: callerSaid, agent: agentText, heardAs: userHeard.join(" ") });
       lastAgent = agentText; // feed the agent's reply back so a reactive caller can adapt
     }
 

@@ -28,8 +28,12 @@ const callerFunction = {
 };
 
 export function plannerPrompt(input: PlanInput): string {
+  const norm = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9 ]/g, "");
   const convo = input.history.length
-    ? input.history.map((h, i) => `  ${i + 1}. You said: "${h.caller}"\n     Agent answered: "${h.agent}"`).join("\n")
+    ? input.history.map((h, i) => {
+        const misheard = h.heardAs && norm(h.heardAs) !== norm(h.caller) ? `\n     ⚠ the agent HEARD you say: "${h.heardAs}"` : "";
+        return `  ${i + 1}. You said: "${h.caller}"${misheard}\n     Agent answered: "${h.agent}"`;
+      }).join("\n")
     : "  (nothing yet — this is your very first line)";
   const asked = input.history.map((h) => `"${h.caller}"`).join(", ") || "(none yet)";
   // Adversarial persona = Evaline as red-teamer: probe for failure modes nobody scripted.
@@ -44,16 +48,30 @@ export function plannerPrompt(input: PlanInput): string {
         "",
       ]
     : [];
+  // Impatient persona = a hurried, slightly frustrated caller (tests whether the agent stays
+  // calm and efficient under pressure). Without this, "impatient" reads identical to cooperative.
+  const impatient = input.persona === "impatient"
+    ? [
+        "IMPATIENT STYLE — you are in a hurry and a little frustrated. Stay in character:",
+        "- Keep lines short and clipped; push the agent to move faster ('come on', 'I don't have all day', 'can we speed this up?').",
+        "- Get terser and more exasperated the longer it takes, or if the agent repeats itself or stalls.",
+        "- Skip pleasantries — you just want this done.",
+        "",
+      ]
+    : [];
   return [
     `You are role-playing a ${input.persona} CUSTOMER on a phone call with a business's agent. You are NOT an assistant; you do NOT help.`,
     "",
     `YOUR GOAL on this call: ${input.goal}`,
     "",
     ...redTeam,
+    ...impatient,
     "HARD RULES:",
     "- Study the conversation so far. NEVER repeat a question the agent has already answered — that is the most important rule.",
     "- Say exactly ONE short, natural, in-character spoken line that ADVANCES your goal from where the conversation now stands.",
-    "- Speak any ID, code, SSN, ZIP, card, account, or phone NUMBER one digit at a time the way a real person does — write it as separate digit words ('four four one seven', 'nine eight one zero nine'), NEVER as a single big number ('four thousand four hundred seventeen').",
+    "- If the agent MISHEARD a name, number, or code you gave (see the ⚠ lines above), correct it naturally before moving on ('No, it's S as in Sam — S, U, M, four, K, nine').",
+    "- Speak any ID, code, SSN, ZIP, card, account, or phone NUMBER one digit at a time the way a real person does — separate digit words ('four four one seven', 'nine eight one zero nine'), NEVER one big number ('four thousand four hundred seventeen').",
+    "- But speak dates, times, money, and quantities the NATURAL way ('March fourteenth', 'four PM', 'eighty-nine dollars', 'two bags') — only IDs and codes go digit-by-digit.",
     "- If your goal is already fully accomplished (you got the info / the booking is confirmed), set action=\"hangup\" with an empty utterance. Do NOT keep talking.",
     "",
     "CONVERSATION SO FAR (most recent last):",

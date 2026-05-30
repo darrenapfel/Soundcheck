@@ -19,9 +19,9 @@ Node 22+ (we run TypeScript natively via `--experimental-strip-types`; no build 
 ## How to add…
 - **A new AUT adapter** (test another runtime): implement `AUTAdapter` (`src/adapters/types.ts`) — `runConversation(aut, callerTurns) → RawTurn[]`. Audio adapters leave `agentSpokenHeardBack` unset (capture round-trips via STT); text/mock adapters set it. Mirror `DeepgramVoiceAgentAdapter`'s `WsFactory`/`SynthFn` injection so it's offline-testable. See `mock-aut.ts` for the simplest example.
 - **A new gate**: add it in `src/gates/index.ts`, wire it into the dispatcher, and add a fixture unit test in `test/gates.test.ts` (assert it fails on a bad transcript AND passes on a good one).
-- **A scenario**: drop a `.json` in `scenarios/` (`name`, `persona`, `turns`, `assert`, optional `grounding`), or let `soundcheck author` generate one from a spec.
+- **A scenario**: drop a `.json` in `scenarios/` (`name`, `persona`, `turns` or `goal`, `assert`), or let `soundcheck author` generate one from a spec.
 - **A judge backend**: implement `JudgeBackend` (`src/judge/types.ts`); keep the verdict parsing tolerant (small models emit malformed JSON — see `parse.ts`).
-- **A tuning fixer**: any program reading `{"prompt","failures"}` JSON on stdin and writing an improved prompt to stdout (e.g. `claude -p`, `codex`, a script).
+- **A tuning fixer**: any program reading `{"prompt","diagnosis"}` JSON on stdin (where `diagnosis` is a `{gate, problem, hint}[]` — trace-derived evidence per failing gate) and writing an improved prompt to stdout (e.g. `claude -p`, `codex`, a script).
 
 ## Before opening a PR
 - `npm run validate` green; coverage maintained (`npm run test:coverage`).
