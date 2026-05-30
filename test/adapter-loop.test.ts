@@ -19,7 +19,7 @@ class MockWs implements WsLike {
   readyState = 0;
   #l: Record<string, ((ev: { data: unknown }) => void)[]> = {};
   #debounce: ReturnType<typeof setTimeout> | null = null;
-  constructor() { queueMicrotask(() => { this.readyState = 1; this.#fire("open"); }); }
+  constructor() { queueMicrotask(() => { this.readyState = 1; this.#fire("open"); this.#json({ type: "Welcome" }); }); }
   addEventListener(type: string, cb: (ev: { data: unknown }) => void) { (this.#l[type] ??= []).push(cb); }
   #fire(type: string, data?: unknown) { for (const cb of this.#l[type] ?? []) cb({ data }); }
   #json(obj: unknown) { this.#fire("message", JSON.stringify(obj)); }
@@ -28,7 +28,6 @@ class MockWs implements WsLike {
       const m = JSON.parse(data);
       if (m.type === "Settings") {
         setTimeout(() => {
-          this.#json({ type: "Welcome" });
           this.#json({ type: "SettingsApplied" });
           this.#json({ type: "ConversationText", role: "assistant", content: "Hi, how can I help?" });
           this.#fire("message", new ArrayBuffer(960));
@@ -93,13 +92,13 @@ class BurstWs implements WsLike {
   binaryType = "blob"; readyState = 0;
   #l: Record<string, ((ev: { data: unknown }) => void)[]> = {};
   #deb: ReturnType<typeof setTimeout> | null = null;
-  constructor() { queueMicrotask(() => { this.readyState = 1; this.#fire("open"); }); }
+  constructor() { queueMicrotask(() => { this.readyState = 1; this.#fire("open"); this.#json({ type: "Welcome" }); }); }
   addEventListener(t: string, cb: (ev: { data: unknown }) => void) { (this.#l[t] ??= []).push(cb); }
   #fire(t: string, d?: unknown) { for (const cb of this.#l[t] ?? []) cb({ data: d }); }
   #json(o: unknown) { this.#fire("message", JSON.stringify(o)); }
   send(data: unknown) {
     if (typeof data === "string") {
-      if (JSON.parse(data).type === "Settings") setTimeout(() => { this.#json({ type: "ConversationText", role: "assistant", content: "hi" }); this.#fire("message", new ArrayBuffer(960)); this.#json({ type: "AgentAudioDone" }); }, 10);
+      if (JSON.parse(data).type === "Settings") setTimeout(() => { this.#json({ type: "SettingsApplied" }); this.#json({ type: "ConversationText", role: "assistant", content: "hi" }); this.#fire("message", new ArrayBuffer(960)); this.#json({ type: "AgentAudioDone" }); }, 10);
       return;
     }
     if (Buffer.isBuffer(data) && data.some((b) => b !== 0)) {
@@ -116,3 +115,44 @@ test("recorder drains the agent backlog so the final reply isn't truncated", asy
   const cap = await adapter.runConversation(makeConfig("t", "be nice"), [{ text: "hi", voice: "v" }]);
   assert.ok(cap.recordingPcm && cap.recordingPcm.length >= BURST, `recording (${cap.recordingPcm?.length}) must include the full ${BURST}B agent burst — drain worked`);
 }, { timeout: 20000 });
+
+// P0-3: setup-failure robustness — the adapter must REJECT (never hang) and clean up the pump.
+class HandshakeWs implements WsLike {
+  binaryType = "blob"; readyState = 0;
+  #l: Record<string, ((ev: { data: unknown }) => void)[]> = {};
+  #mode: "error" | "silent";
+  gotSettingsAt = 0; welcomeAt = 0;
+  constructor(mode: "error" | "silent") {
+    this.#mode = mode;
+    queueMicrotask(() => { this.readyState = 1; this.#fire("open"); this.welcomeAt = Date.now(); this.#json({ type: "Welcome" }); });
+  }
+  addEventListener(t: string, cb: (ev: { data: unknown }) => void) { (this.#l[t] ??= []).push(cb); }
+  #fire(t: string, d?: unknown) { for (const cb of this.#l[t] ?? []) cb({ data: d }); }
+  #json(o: unknown) { this.#fire("message", JSON.stringify(o)); }
+  send(data: unknown) {
+    if (typeof data === "string" && JSON.parse(data).type === "Settings") {
+      this.gotSettingsAt = Date.now();
+      if (this.#mode === "error") setTimeout(() => this.#json({ type: "Error", description: "settings rejected" }), 5);
+      // "silent": never send SettingsApplied → the adapter must time out, not hang.
+    }
+  }
+  close() { this.readyState = 3; this.#fire("close"); }
+}
+const hangupCaller = () => new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan: async () => ({ action: "hangup", utterance: "" }) });
+
+test("converse REJECTS on a server Error during setup (does not hang)", async () => {
+  const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => new HandshakeWs("error"), synth: async () => Buffer.alloc(6400, 1), setupTimeoutMs: 3000 });
+  await assert.rejects(adapter.converse(makeConfig("t", "p"), hangupCaller()), /Voice Agent error/);
+}, { timeout: 10000 });
+
+test("converse REJECTS via setup timeout when SettingsApplied never arrives (does not hang)", async () => {
+  const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => new HandshakeWs("silent"), synth: async () => Buffer.alloc(6400, 1), setupTimeoutMs: 150 });
+  await assert.rejects(adapter.converse(makeConfig("t", "p"), hangupCaller()), /timed out/);
+}, { timeout: 10000 });
+
+test("Settings is sent only AFTER the server's Welcome (Deepgram protocol order)", async () => {
+  let ws!: HandshakeWs;
+  const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => (ws = new HandshakeWs("silent")), synth: async () => Buffer.alloc(6400, 1), setupTimeoutMs: 150 });
+  await adapter.converse(makeConfig("t", "p"), hangupCaller()).catch(() => { /* expected timeout */ });
+  assert.ok(ws.welcomeAt > 0 && ws.gotSettingsAt >= ws.welcomeAt, `Settings (${ws.gotSettingsAt}) must be sent at/after Welcome (${ws.welcomeAt})`);
+}, { timeout: 10000 });
