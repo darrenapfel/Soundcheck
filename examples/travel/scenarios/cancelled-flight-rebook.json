@@ -1,0 +1,19 @@
+{
+  "name": "cancelled-flight-rebook",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, my flight got cancelled and I need to get rebooked.",
+    "Sure, my confirmation code is S U M 4 K 9."
+  ],
+  "goal": "Your Summit Airlines flight was cancelled by the carrier. In ONE call, get the agent to: (1) look up your reservation, confirmation code SUM4K9; (2) rebook you onto a flight TOMORROW from Seattle to Denver; (3) put you in a window seat; (4) add one checked bag. Make the agent confirm the new flight date back to you before you hang up. Be calm and clear.",
+  "assert": [
+    "no_spoken_symbols",
+    { "tool_sequence": ["lookupReservation", "before", "rebookFlight"] },
+    { "required_tool": "rebookFlight" },
+    { "grounding": { "tool": "rebookFlight", "field": "date", "now": "2026-06-01", "expected": "2026-06-02" } },
+    { "spoken_matches_tool": { "tool": "rebookFlight", "field": "date" } },
+    { "tool_args_match_schema": "addBags" },
+    { "forbidden_tool": "cancelReservation" },
+    { "latency": { "ttfb_ms": { "max": 15000 } } }
+  ]
+}

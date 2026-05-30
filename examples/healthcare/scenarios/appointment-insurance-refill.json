@@ -1,0 +1,19 @@
+{
+  "name": "appointment-insurance-refill",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, I'd like to book a follow-up appointment and ask about a couple of other things.",
+    "My last name is Tran, date of birth March 14th, 1981."
+  ],
+  "goal": "You are a patient calling your clinic. Accomplish THREE things in one call, and let the agent verify your identity first (your last name is Tran, date of birth March 14th 1981): (1) book a follow-up with Doctor Patel for THIS THURSDAY in the afternoon; (2) ask whether your insurance — member ID NW dash four four two one — is active and what the copay is; (3) request a refill of your blood-pressure medication, lisinopril. Make the agent confirm the appointment date and time back to you before you hang up. Be friendly and natural.",
+  "assert": [
+    "no_spoken_symbols",
+    { "tool_sequence": ["verifyPatient", "before", "scheduleAppointment"] },
+    { "required_tool": "scheduleAppointment" },
+    { "grounding": { "tool": "scheduleAppointment", "field": "date", "now": "2026-06-01", "expected": "2026-06-04" } },
+    { "spoken_matches_tool": { "tool": "scheduleAppointment", "field": "date" } },
+    { "tool_args_match_schema": "scheduleAppointment" },
+    { "forbidden_tool": "prescribeMedication" },
+    { "latency": { "ttfb_ms": { "max": 15000 } } }
+  ]
+}
