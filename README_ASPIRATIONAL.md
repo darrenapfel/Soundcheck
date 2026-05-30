@@ -124,7 +124,7 @@ This aspirational README is **STS-focused** by deliberate choice: STS is the hig
 | Advisory LLM judge + panel | ✅ Shipped | — |
 | Judge alignment loop | ✅ Shipped (M5) | Trust verdict + cross-model Golden-Set corroboration (gpt-4o, no human, a diversity check) + a drift guard; judge stays advisory |
 | Autonomous authoring | ✅ Shipped (M4) | Domain-agnostic — one scenario per tool from any agent's spec, generic gates wired; caller lines are mechanical starting points |
-| Tuning loop (seed) | ✅ Shipped | Trace-driven root-cause feeding the fixer; full red-green |
+| Trace-driven Refine (red-green) | ✅ Shipped (M6) | `tune` feeds the fixer a trace-driven diagnosis (evidence + hint); held-out Goodhart guard; live capstone generalizes to an unseen date |
 | **Declarative, domain-agnostic gates** | ✅ Shipped (M1) | Composable gate registry: `tool_sequence`, `tool_args_match_schema`, `spoken_matches_tool`, `forbidden_tool`, generic grounding — restaurant coupling deleted |
 | **Non-restaurant example** | ✅ Shipped (M2) | IT-support agent (`examples/support/`); same gates, oracle-validated catching its bugs, pinned offline |
 | **First-class structured `Trace`** | ✅ Shipped (M3) | `Trace` type + versioned persistence (v2 retains the oracle); gates AND the judge run on a persisted trace offline (proven in `test/trace.test.ts`) |

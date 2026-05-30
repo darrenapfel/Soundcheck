@@ -179,7 +179,7 @@ const gGrounding: GateFn = (spec, { transcript }) => {
     const m = /^(\d{4})-\d{2}-\d{2}$/.exec(d);
     if (!m) { problems.push(`${v.tool}.${field}="${d}" not a resolvable date`); continue; }
     if (Number(m[1]) < currentYear) problems.push(`${v.tool}.${field}="${d}" stale year (now ${s.now})`);
-    if (d !== s.expected) problems.push(`${v.tool}.${field}="${d}" != expected ${s.expected}`);
+    if (d !== s.expected) problems.push(`${v.tool}.${field}="${d}" != expected ${s.expected} (now ${s.now})`);
   }
   return { name, pass: problems.length === 0, detail: problems.join("; ") || `correct (${s.expected})` };
 };

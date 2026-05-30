@@ -18,8 +18,8 @@ import { judgeTranscript, mockJudge } from "./judge/index.ts";
 import { deepgramVaJudge, makeDeepgramVaJudge } from "./judge/deepgram-va-judge.ts";
 import { calibrate, formatReport, crossModelAlign, formatAlignment } from "./calibration/index.ts";
 import { authorSuite } from "./author/index.ts";
-import { tune, formatTuneResult } from "./tune/index.ts";
-import type { ScenarioSet, TuneScore } from "./tune/index.ts";
+import { tune, formatTuneResult, diagnose } from "./tune/index.ts";
+import type { ScenarioSet, TuneScore, Diagnosis } from "./tune/index.ts";
 import { spawnSync } from "node:child_process";
 import { generateReport } from "./report/html.ts";
 import type { AUTConfig, Scenario, ScenarioResult, Trace } from "./types.ts";
@@ -198,7 +198,7 @@ async function cmdAuthor(opts: Record<string, string | boolean>) {
 async function cmdTune(opts: Record<string, string | boolean>) {
   const fixerCmd = opts.fixer as string;
   if (!fixerCmd) {
-    console.error('tune needs --fixer "<cmd>": a coding agent reading {"prompt","failures"} JSON on stdin and writing an improved prompt to stdout (e.g. claude -p, codex exec, or a script).');
+    console.error('tune needs --fixer "<cmd>": a coding agent reading {"prompt","diagnosis"} JSON on stdin (diagnosis = the trace-driven root-cause: each failure\'s evidence + a hint) and writing an improved prompt to stdout (e.g. claude -p, codex exec, or a script).');
     process.exit(2);
   }
   getKey();
@@ -212,21 +212,25 @@ async function cmdTune(opts: Record<string, string | boolean>) {
   const evalSet = async (prompt: string, scenarios: Scenario[]): Promise<TuneScore> => {
     const aut = { ...baseAut, systemPrompt: prompt };
     let passed = 0;
-    const failures: string[] = [];
+    const diagnosis: Diagnosis[] = [];
     for (const s of scenarios) {
       const raw = await adapter.runConversation(aut, evalineTurns(s));
       const t = await buildTranscript(s, aut.label, raw);
       const gates = runGates(t, s, aut.tools);
       if (gates.every((g) => g.pass)) passed++;
-      else failures.push(...gates.filter((g) => !g.pass).map((g) => g.name));
+      else diagnosis.push(...diagnose(t, gates)); // trace-driven root-cause of THIS scenario's failures
     }
-    return { passed, total: scenarios.length, failures: [...new Set(failures)] };
+    // dedup by gate (same failure class across scenarios -> one entry)
+    const seen = new Set<string>();
+    const deduped = diagnosis.filter((d) => (seen.has(d.gate) ? false : (seen.add(d.gate), true)));
+    return { passed, total: scenarios.length, diagnosis: deduped };
   };
   const evaluate = (prompt: string, set: ScenarioSet) => evalSet(prompt, set === "train" ? train : heldout);
-  const propose = async (prompt: string, failures: string[]) => {
+  const propose = async (prompt: string, diagnosis: Diagnosis[]) => {
     // The fixer is the user's own --fixer command (run via `sh -c`, inherits env incl. the
-    // Deepgram key — they're trusting their own tool). A timeout prevents a hung fixer from blocking.
-    const res = spawnSync("sh", ["-c", fixerCmd], { input: JSON.stringify({ prompt, failures }), encoding: "utf8", maxBuffer: 1 << 20, timeout: 180000 });
+    // Deepgram key — they're trusting their own tool). It receives the TRACE-DRIVEN diagnosis
+    // (each failure's evidence + a remediation hint). A timeout prevents a hung fixer from blocking.
+    const res = spawnSync("sh", ["-c", fixerCmd], { input: JSON.stringify({ prompt, diagnosis }), encoding: "utf8", maxBuffer: 1 << 20, timeout: 180000 });
     if (res.status !== 0 || !res.stdout?.trim()) throw new Error(`fixer command failed (status ${res.status}${res.signal ? `, signal ${res.signal}` : ""}): ${res.stderr?.slice(0, 200)}`);
     return res.stdout.trim();
   };
