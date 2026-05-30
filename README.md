@@ -63,6 +63,7 @@ No agent of your own yet? The bundled `examples/tabletalk/` (restaurant) and `ex
   ```jsonc
   "assert": [
     "no_spoken_symbols",                                               // never speak markup/symbols
+    "no_spoken_cardinal_ids",                                          // say IDs/SSN/ZIP digit-by-digit, not "four thousand…"
     { "tool_args_match_schema": "bookAppointment" },                   // type/required/format/enum/pattern
     { "tool_sequence": ["verifyIdentity", "before", "accessRecord"] }, // ordering invariants
     { "spoken_matches_tool": { "field": "date", "tool": "bookAppointment" } }, // say what you did

@@ -105,6 +105,44 @@ function typeOk(v: unknown, type: string): boolean {
   }
 }
 
+// Identifier-class fields: SSN, ZIP, account, confirmation, PIN, card, phone, member, policy,
+// claim, routing, tracking, reference, or any *Code/*Number. A human reads these DIGIT-BY-DIGIT
+// ("four four one seven"), never as a cardinal ("four thousand four hundred seventeen").
+const ID_FIELD = /ssn|zip|account|acct|confirm|pin|card|phone|member|policy|claim|routing|tracking|reference|code|number/i;
+
+const ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+function under1000(n: number): string {
+  const out: string[] = [];
+  if (n >= 100) { out.push(ONES[Math.floor(n / 100)], "hundred"); n %= 100; }
+  if (n >= 20) { out.push(TENS[Math.floor(n / 10)]); if (n % 10) out.push(ONES[n % 10]); }
+  else if (n > 0) out.push(ONES[n]);
+  return out.join(" ");
+}
+/** Spoken CARDINAL form of a whole number ("four thousand four hundred seventeen"). */
+function cardinalWords(n: number): string {
+  if (n === 0) return "zero";
+  const out: string[] = [];
+  if (n >= 1000) { out.push(under1000(Math.floor(n / 1000)), "thousand"); n %= 1000; }
+  if (n > 0) out.push(under1000(n));
+  return out.join(" ");
+}
+/** Identifier digit-runs (≥4 digits) the agent handled, from any ID-class tool arg/result. */
+function identifierDigitRuns(t: Trace): { field: string; value: string; digits: string }[] {
+  const out: { field: string; value: string; digits: string }[] = [];
+  const scan = (obj: unknown) => {
+    if (!obj || typeof obj !== "object") return;
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      if (v && typeof v === "object") { scan(v); continue; }
+      if (!ID_FIELD.test(k)) continue;
+      const s = String(v);
+      for (const run of s.match(/\d{4,}/g) ?? []) out.push({ field: k, value: s, digits: run });
+    }
+  };
+  for (const tc of allToolCalls(t)) { scan(tc.args); scan(tc.result); }
+  return out;
+}
+
 // ---- gates ----
 
 const gNoSpokenSymbols: GateFn = (_spec, { transcript }) => {
@@ -116,6 +154,24 @@ const gNoSpokenSymbols: GateFn = (_spec, { transcript }) => {
     if (arts.length || dash) fails.push(`turn ${turn.turn}: ${[...arts, dash ? "negative-$ (dash read as minus)" : ""].filter(Boolean).join(", ")}`);
   }
   return { name: "no_spoken_symbols", pass: fails.length === 0, detail: fails.join(" | ") || "clean across all turns" };
+};
+
+// Voice-safety: an identifier (SSN-4, ZIP, account/confirmation/phone number) must be spoken
+// digit-by-digit, never as a cardinal number. Tool-aware: it only checks values the agent
+// actually handled, and only fails if the agent SPOKE the cardinal rendering of one.
+const gNoSpokenCardinalIds: GateFn = (_spec, { transcript }) => {
+  const heard = heardText(transcript).replace(/\band\b/g, " ").replace(/\s+/g, " ");
+  const fails: string[] = [];
+  const seen = new Set<string>();
+  for (const id of identifierDigitRuns(transcript)) {
+    if (seen.has(id.digits)) continue;
+    seen.add(id.digits);
+    const cardinal = cardinalWords(Number(id.digits));
+    if (cardinal.includes(" ") && containsWord(heard, cardinal)) {
+      fails.push(`${id.field}=${id.value} spoken as a cardinal number ("${cardinal}") — say it digit-by-digit`);
+    }
+  }
+  return { name: "no_spoken_cardinal_ids", pass: fails.length === 0, detail: fails.join(" | ") || "identifiers spoken digit-by-digit (or not read back)" };
 };
 
 const gRequiredTool: GateFn = (spec, { transcript }) => {
@@ -203,6 +259,7 @@ const gLatency: GateFn = (spec, { transcript }) => {
 
 const REGISTRY: Record<string, GateFn> = {
   no_spoken_symbols: gNoSpokenSymbols,
+  no_spoken_cardinal_ids: gNoSpokenCardinalIds,
   required_tool: gRequiredTool,
   forbidden_tool: gForbiddenTool,
   tool_sequence: gToolSequence,

@@ -53,6 +53,7 @@ export function plannerPrompt(input: PlanInput): string {
     "HARD RULES:",
     "- Study the conversation so far. NEVER repeat a question the agent has already answered — that is the most important rule.",
     "- Say exactly ONE short, natural, in-character spoken line that ADVANCES your goal from where the conversation now stands.",
+    "- Speak any ID, code, SSN, ZIP, card, account, or phone NUMBER one digit at a time the way a real person does — write it as separate digit words ('four four one seven', 'nine eight one zero nine'), NEVER as a single big number ('four thousand four hundred seventeen').",
     "- If your goal is already fully accomplished (you got the info / the booking is confirmed), set action=\"hangup\" with an empty utterance. Do NOT keep talking.",
     "",
     "CONVERSATION SO FAR (most recent last):",

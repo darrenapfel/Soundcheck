@@ -94,6 +94,22 @@ test("latency — slow ttfb and slow turn fail; ok passes", () => {
   assert.equal(gate(run([turn(1, "ok", [], 1200)], [{ latency: { ttfb_ms: { max: 12000 } } }]), "latency").pass, true);
 });
 
+test("no_spoken_cardinal_ids — catches an identifier read as a cardinal; passes digit-by-digit, silent, or money", () => {
+  const ssn = (): ToolCall => ({ name: "verifyIdentity", args: { lastFourSsn: "4417", zipCode: "98109" }, result: { accountId: "PINN-3390" } });
+  // FAIL: agent reads the SSN back as a big cardinal number (the un-human rendering).
+  const bad = run([turn(1, "Thanks, I have your social as four thousand four hundred and seventeen.", [ssn()])], ["no_spoken_cardinal_ids"]);
+  assert.equal(gate(bad, "no_spoken_cardinal_ids").pass, false);
+  // PASS: digit-by-digit is how a person says it.
+  const good = run([turn(1, "Thanks, I have your social as four four one seven.", [ssn()])], ["no_spoken_cardinal_ids"]);
+  assert.equal(gate(good, "no_spoken_cardinal_ids").pass, true);
+  // PASS: the agent never reads the identifier back at all.
+  const silent = run([turn(1, "Thank you, your identity is verified.", [ssn()])], ["no_spoken_cardinal_ids"]);
+  assert.equal(gate(silent, "no_spoken_cardinal_ids").pass, true);
+  // PASS: a dollar amount is NOT an identifier field — cardinals are correct for money.
+  const money = run([turn(1, "Your balance is one thousand two hundred forty dollars.", [call("checkBalance", { availableDollars: 1240 })])], ["no_spoken_cardinal_ids"]);
+  assert.equal(gate(money, "no_spoken_cardinal_ids").pass, true);
+});
+
 test("unknown gate fails closed", () => {
   const g = runGates(tx([turn(1, "hi")]), scen(["bogus" as never, { nope: 1 } as never]), TOOLS);
   assert.ok(g.every((x) => x.pass === false && x.detail.includes("unknown gate")));
