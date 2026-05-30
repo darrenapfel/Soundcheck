@@ -2,7 +2,7 @@
   "name": "barge-in-closing",
   "persona": "cooperative",
   "turns": ["Hi, what are tonight's specials?"],
-  "bargeIn": { "afterTurn": 0, "text": "Sorry to cut in — what time do you close tonight?", "afterMs": 1800 },
+  "bargeIn": { "afterTurn": 0, "text": "Sorry to cut in — what time do you close tonight?", "afterMs": 250 },
   "assert": [
     "no_spoken_symbols",
     { "latency": { "ttfb_ms": { "max": 15000 } } }

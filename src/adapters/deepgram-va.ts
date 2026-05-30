@@ -183,9 +183,20 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       let callerPcm = pcm;
       let callerSaid = action.text;
       if (action.interrupt) {
-        // Barge-in: wait for the agent to START replying, then speak OVER it.
+        // Barge-in: wait until the agent is GENUINELY mid-response — not just one stray
+        // frame (firstFrameAt>0 is too weak; a greeting tail satisfies it) but SUSTAINED
+        // audio — so the interrupt truly lands during the agent's reply. Then dwell, then
+        // speak over it.
+        // Wait until the agent is GENUINELY responding (sustained audio, not one stray
+        // frame) so the interrupt lands DURING the reply rather than as a contiguous second
+        // utterance. NOTE: agent audio is buffered as fast as the VA sends it (not played in
+        // real time), so this confirms the caller waited for a real partial response, but it
+        // can't faithfully reproduce real-time mid-playback interruption — see LIMITATIONS.
+        const MIN_AGENT_FRAMES = 6; // ~0.6s of actual agent speech = a real partial response
         const w = Date.now();
-        while (firstFrameAt === 0 && Date.now() - w < 8000 && ws.readyState === WebSocket.OPEN) await sleep(80);
+        while (agentAudio.length < MIN_AGENT_FRAMES && Date.now() - w < 12000 && ws.readyState === WebSocket.OPEN) await sleep(50);
+        const agentSpoke = agentAudio.length >= MIN_AGENT_FRAMES;
+        process.stdout.write(agentSpoke ? `[barge-in: agent spoke ${((Date.now() - w) / 1000).toFixed(1)}s before interrupt] ` : `[barge-in: agent never started — interrupt is sequential] `);
         await sleep(action.interrupt.afterMs);
         const ipcm = await this.#synth(action.interrupt.text, { model: action.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
         audioDoneAt = 0; lastAudioAt = 0; // re-arm the endpoint so we capture the agent's REACTION to the interrupt

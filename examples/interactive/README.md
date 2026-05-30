@@ -27,8 +27,11 @@ agent's interruption handling.
 soundcheck run examples/interactive --aut examples/tabletalk/grounded.ts \
   --only barge-in-closing
 ```
-Example: Evaline asks for specials and cuts in with "what time do you close?" — a
-well-behaved agent acknowledges and answers the interruption.
+Example: Evaline asks for specials and cuts in with "what time do you close?" — the
+agent is cut off mid-list and pivots to answer the interruption. The caller first waits
+until the agent is genuinely speaking, then interrupts after a short `afterMs` dwell —
+**keep `afterMs` small** (e.g. 250ms); too large and the agent's whole reply buffers
+first, so it reads as a sequential second question instead of a real interruption.
 
 Open `runs/report-*.html` to **hear** both (full-conversation + per-turn caller/agent audio).
 ```
