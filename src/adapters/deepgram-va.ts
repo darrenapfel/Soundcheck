@@ -182,27 +182,32 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
 
       let callerPcm = pcm;
       let callerSaid = action.text;
+      let interruptPcm: Buffer | null = null;
+      let agentPreInterrupt: Buffer | null = null; // agent audio captured up to the interrupt
       if (action.interrupt) {
-        // Barge-in: wait until the agent is GENUINELY mid-response — not just one stray
-        // frame (firstFrameAt>0 is too weak; a greeting tail satisfies it) but SUSTAINED
-        // audio — so the interrupt truly lands during the agent's reply. Then dwell, then
-        // speak over it.
-        // Wait until the agent is GENUINELY responding (sustained audio, not one stray
-        // frame) so the interrupt lands DURING the reply rather than as a contiguous second
-        // utterance. NOTE: agent audio is buffered as fast as the VA sends it (not played in
-        // real time), so this confirms the caller waited for a real partial response, but it
-        // can't faithfully reproduce real-time mid-playback interruption — see LIMITATIONS.
-        const MIN_AGENT_FRAMES = 6; // ~0.6s of actual agent speech = a real partial response
+        // Wait until the agent is GENUINELY responding (SUSTAINED audio, not one stray frame
+        // — firstFrameAt>0 is too weak; a greeting tail satisfies it) so the interrupt lands
+        // DURING the reply rather than as a contiguous second utterance. Then interrupt
+        // promptly (small afterMs) — that triggers the VA's server-side barge-in. NOTE: agent
+        // audio is buffered as fast as the VA sends it (not played in real time), so this
+        // drives server-side barge-in, not real-time mid-playback timing — see LIMITATIONS.
+        // Wait until the agent has spoken a meaningful CHUNK (so the interrupt lands after it
+        // "says some things"), but not so long that its whole reply buffers first (which would
+        // read as a sequential second question). Target agent-audio DURATION, not frame count
+        // (the VA's frame sizes vary).
+        const agentBytes = () => agentAudio.reduce((n, b) => n + b.length, 0);
+        const TARGET_BYTES = Math.round(1.3 * 24000 * 2); // ~1.3s of 24kHz 16-bit agent audio
         const w = Date.now();
-        while (agentAudio.length < MIN_AGENT_FRAMES && Date.now() - w < 12000 && ws.readyState === WebSocket.OPEN) await sleep(50);
-        const agentSpoke = agentAudio.length >= MIN_AGENT_FRAMES;
-        process.stdout.write(agentSpoke ? `[barge-in: agent spoke ${((Date.now() - w) / 1000).toFixed(1)}s before interrupt] ` : `[barge-in: agent never started — interrupt is sequential] `);
+        while (agentBytes() < TARGET_BYTES && Date.now() - w < 12000 && ws.readyState === WebSocket.OPEN) await sleep(50);
+        const spokeSecs = agentBytes() / 2 / 24000;
+        process.stdout.write(spokeSecs >= 0.3 ? `[barge-in: agent spoke ${spokeSecs.toFixed(1)}s, then caller cut in] ` : `[barge-in: agent barely started — interrupt may read sequential] `);
         await sleep(action.interrupt.afterMs);
-        const ipcm = await this.#synth(action.interrupt.text, { model: action.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
+        agentPreInterrupt = Buffer.concat(agentAudio); // what the agent had said when we cut in
+        interruptPcm = await this.#synth(action.interrupt.text, { model: action.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
         audioDoneAt = 0; lastAudioAt = 0; // re-arm the endpoint so we capture the agent's REACTION to the interrupt
-        enqueueSpeech(ipcm);
+        enqueueSpeech(interruptPcm);
         for (let s = 0; s < 12; s++) audioQueue.push(SILENCE);
-        callerPcm = Buffer.concat([pcm, ipcm]);
+        callerPcm = Buffer.concat([pcm, interruptPcm]);
         callerSaid = `${action.text}  ⟨interrupts⟩ ${action.interrupt.text}`;
       }
 
@@ -210,14 +215,29 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       collecting = false;
       const settleAt = Date.now();
       const agentText = agentLines.join(" ");
+      const agentAll = Buffer.concat(agentAudio);
+      // Faithful barge-in timeline for the report: caller line 1 → what the agent said before
+      // the cut → the interrupt → the agent's reaction. (Without this the stitched audio would
+      // play both caller lines glued together, hiding the interruption.) 24kHz throughout.
+      let conversationPcm: Buffer | undefined;
+      if (agentPreInterrupt !== null && interruptPcm !== null) {
+        const agentPost = agentAll.subarray(agentPreInterrupt.length);
+        conversationPcm = Buffer.concat([
+          resamplePcm16le(pcm, 16000, 24000),
+          agentPreInterrupt,
+          resamplePcm16le(interruptPcm, 16000, 24000),
+          agentPost,
+        ]);
+      }
       out.push({
         callerSaid,
         agentHeardCallerAs: userHeard.join(" "),
         agentText,
-        agentAudioPcm: Buffer.concat(agentAudio),
+        agentAudioPcm: agentAll,
         // Evaline was synthesized at 16kHz for the agent's input; upsample to 24kHz so
         // report playback (and the stitched conversation) is one consistent rate with the agent.
         callerAudioPcm: resamplePcm16le(callerPcm, 16000, 24000),
+        conversationPcm,
         toolCalls,
         // On a barge-in turn, firstFrameAt is the latency to the FIRST utterance (before the
         // interrupt), which doesn't mean "time to respond to this turn" — report null rather
