@@ -23,10 +23,12 @@ test("the authored booking scenario contains the gates that catch the known bug 
   // these are exactly the gates that catch bare's STAR STAR + stale-date + prose-date bugs
   assert.match(a, /no_spoken_symbols/);
   assert.match(a, /grounding/);
-  assert.match(a, /tool_arg_iso/);
+  assert.match(a, /tool_args_match_schema/);
+  assert.match(a, /spoken_matches_tool/);
   assert.match(a, /modifyReservation/); // modify present -> required_tool added
   const book = suite.scenarios.find((s) => s.name === "authored-book-confirm")!;
-  assert.equal(book.grounding?.expectedDate, nextSaturday("2026-05-28"));
+  const grounding = book.assert.find((x) => typeof x === "object" && "grounding" in x) as { grounding: { now: string; expected: string } };
+  assert.equal(grounding.grounding.expected, nextSaturday("2026-05-28")); // resolves "this Saturday" relative to now
 });
 
 test("a spec without booking tools authors no booking scenario", () => {
@@ -45,7 +47,7 @@ test("EXECUTING proof: the authored booking gates actually CATCH the bare agent'
   const book = suite.scenarios.find((s) => s.name === "authored-book-confirm")!;
   // Run the AUTHORED gates against the recorded bare (buggy) conversation.
   const bare = loadCassette("book-modify-confirm", "tabletalk-bare");
-  const gates = runGates(bare, book);
+  const gates = runGates(bare, book, TOOLS);
   const g = (n: string) => gates.find((x) => x.name.startsWith(n))!;
   assert.equal(g("no_spoken_symbols").pass, false, "authored suite must catch spoken symbols");
   assert.equal(g("grounding").pass, false, "authored suite must catch the stale/hallucinated date");
@@ -55,8 +57,8 @@ test("every authored scenario is gate-dispatchable (no 'unknown assertion')", ()
   const suite = authorSuite(spec);
   const bare = loadCassette("book-modify-confirm", "tabletalk-bare");
   for (const s of suite.scenarios) {
-    const gates = runGates(bare, s);
-    assert.ok(!gates.some((g) => g.detail === "unknown assertion"), `${s.name} has an unknown assertion`);
+    const gates = runGates(bare, s, TOOLS);
+    assert.ok(!gates.some((g) => g.detail.includes("unknown gate")), `${s.name} has an unknown gate`);
   }
 });
 

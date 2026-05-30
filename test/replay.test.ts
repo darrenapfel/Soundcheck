@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadCassette } from "../src/capture/cassette.ts";
 import { runGates } from "../src/gates/index.ts";
+import { TOOLS } from "../examples/tabletalk/tabletalk.ts";
 import type { GateResult, Scenario } from "../src/types.ts";
 
 function vector(scenarioName: string, autLabel: string): Record<string, boolean> {
@@ -25,29 +26,27 @@ function vector(scenarioName: string, autLabel: string): Record<string, boolean>
   // guard against a cassette drifting from the scenario it's gated against
   assert.equal(transcript.scenario, scenario.name, "cassette scenario name mismatch");
   assert.equal(transcript.persona, scenario.persona, "cassette persona mismatch");
-  const gates: GateResult[] = runGates(transcript, scenario);
+  const gates: GateResult[] = runGates(transcript, scenario, TOOLS);
   return Object.fromEntries(gates.map((g) => [g.name.split(":")[0], g.pass]));
 }
 
 test("ladder TOP — grounded book-modify-confirm: every gate passes", () => {
   assert.deepEqual(vector("book-modify-confirm", "tabletalk-grounded"), {
-    no_spoken_symbols: true, tool_arg_iso: true, grounding: true, required_tool: true, value_consistency: true, latency: true,
+    no_spoken_symbols: true, tool_args_match_schema: true, grounding: true, required_tool: true, spoken_matches_tool: true, latency: true,
   });
 });
 
 test("ladder BOTTOM — bare book-modify-confirm: dirty speech + ungrounded", () => {
   assert.deepEqual(vector("book-modify-confirm", "tabletalk-bare"), {
-    no_spoken_symbols: false, tool_arg_iso: true, grounding: false, required_tool: true, value_consistency: true, latency: true,
+    no_spoken_symbols: false, tool_args_match_schema: true, grounding: false, required_tool: true, spoken_matches_tool: true, latency: true,
   });
 });
 
 test("ladder MIDDLE — hardened book-modify-confirm: clean speech, still ungrounded", () => {
-  // value_consistency=true: the agent is internally consistent (it speaks the same date
-  // it booked) but ungrounded (wrong year) — grounding is the gate that catches the real
-  // problem. (Before the turn-taking fix, smeared turns made value_consistency spuriously
-  // fail; clean segmentation now reflects the agent's true self-consistency.)
+  // spoken_matches_tool=true: the agent speaks the same date it booked (internally consistent)
+  // but it's ungrounded (wrong year) — grounding is the gate that catches the real problem.
   assert.deepEqual(vector("book-modify-confirm", "tabletalk-hardened"), {
-    no_spoken_symbols: true, tool_arg_iso: true, grounding: false, required_tool: true, value_consistency: true, latency: true,
+    no_spoken_symbols: true, tool_args_match_schema: true, grounding: false, required_tool: true, spoken_matches_tool: true, latency: true,
   });
 });
 

@@ -31,7 +31,7 @@ const NUMBER_WORDS = [
   "seventeen", "eighteen", "nineteen",
 ];
 const TENS_WORDS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export function numberToWords(value: number): string {
   if (!Number.isFinite(value)) return String(value);

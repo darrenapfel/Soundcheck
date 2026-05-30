@@ -20,7 +20,7 @@ async function gatesFor(buggy: boolean) {
   const turns = evalineTurns(scenario);
   const raw = await new MockAUTAdapter({ buggy }).runConversation(aut, turns);
   const transcript = await buildTranscript(scenario, buggy ? "mock-buggy" : "mock", raw, noNetwork);
-  return runGates(transcript, scenario);
+  return runGates(transcript, scenario, aut.tools);
 }
 const find = (gs: Awaited<ReturnType<typeof gatesFor>>, n: string) => gs.find((g) => g.name.startsWith(n))!;
 
