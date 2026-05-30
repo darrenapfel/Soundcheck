@@ -65,12 +65,14 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
   label = "deepgram-va";
   #wsFactory: WsFactory;
   #synth: SynthFn;
+  #setupTimeoutMs: number;
 
   // Defaults are the real Deepgram socket + TTS (the default factory fetches the key,
   // so an injected mock factory needs no key — keeps offline tests CI-safe).
-  constructor(opts: { wsFactory?: WsFactory; synth?: SynthFn } = {}) {
+  constructor(opts: { wsFactory?: WsFactory; synth?: SynthFn; setupTimeoutMs?: number } = {}) {
     this.#wsFactory = opts.wsFactory ?? ((url) => new WebSocket(url, ["token", getKey()]) as unknown as WsLike);
     this.#synth = opts.synth ?? ((text, o) => synthesize(text, o));
+    this.#setupTimeoutMs = opts.setupTimeoutMs ?? 15000;
   }
 
   // Back-compat scripted path: wrap the fixed list in a ScriptedCaller and converse.
@@ -129,10 +131,17 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       }
     }, 100);
 
+    // Deepgram message flow: open → server `Welcome` → we send `Settings` → server `SettingsApplied`
+    // → ready. We resolve only on SettingsApplied, with a hard setup timeout so a missing/late
+    // handshake or a server Error can never hang the call. (Welcome/SettingsApplied/Error are
+    // handled in the message switch below.)
+    let resolveOpened!: () => void, rejectOpened!: (e: Error) => void, settled = false;
     const opened = new Promise<void>((resolve, reject) => {
-      ws.addEventListener("open", () => { ws.send(JSON.stringify(buildSettings(aut))); resolve(); });
-      ws.addEventListener("error", () => reject(new Error("Voice Agent WebSocket error")));
+      resolveOpened = () => { if (!settled) { settled = true; resolve(); } };
+      rejectOpened = (e) => { if (!settled) { settled = true; reject(e); } };
     });
+    const setupTimer = setTimeout(() => rejectOpened(new Error(`Voice Agent setup timed out — no SettingsApplied within ${this.#setupTimeoutMs}ms`)), this.#setupTimeoutMs);
+    ws.addEventListener("error", () => rejectOpened(new Error("Voice Agent WebSocket error")));
 
     ws.addEventListener("message", (event: { data: unknown }) => {
       if (event.data instanceof ArrayBuffer) {
@@ -150,6 +159,21 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       try { m = JSON.parse(String(event.data)); } catch { return; }
       if (process.env.SC_DEBUG) process.stderr.write(`<${String(m.type)}@${Date.now() % 100000}> `);
       switch (m.type) {
+        case "Welcome": // server is ready; per Deepgram's flow we send Settings only now
+          ws.send(JSON.stringify(buildSettings(aut)));
+          break;
+        case "SettingsApplied":
+          clearTimeout(setupTimer); resolveOpened();
+          break;
+        case "Error": {
+          const desc = String((m as { description?: unknown }).description ?? (m as { message?: unknown }).message ?? "unknown");
+          process.stderr.write(`[Voice Agent server Error: ${desc}]\n`);
+          clearTimeout(setupTimer); rejectOpened(new Error(`Voice Agent error: ${desc}`)); // no-op once past setup
+          break;
+        }
+        case "Warning":
+          if (process.env.SC_DEBUG) process.stderr.write(`<Warning: ${String((m as { description?: unknown }).description ?? "")}> `);
+          break;
         case "ConversationText":
           if (m.role === "assistant") agentLines.push(String(m.content));
           else if (m.role === "user") userHeard.push(String(m.content));
@@ -186,6 +210,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       }
     });
 
+    try { // always clean up the pump + socket below, even if setup times out or a turn throws
     await opened;
     recordingOn = true; // record the whole call, from the greeting on
 
@@ -299,8 +324,11 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     // truncating the most important turn from BOTH the recording and the oracle transcript.
     while (agentQ.length) recording.push(pullAgent(4800)); // 100ms @ 24kHz, agent-only (caller is done)
     recordingOn = false;
-    clearInterval(pump);
-    try { ws.close(); } catch { /* ignore */ }
     return { turns: out, recordingPcm: Buffer.concat(recording) };
+    } finally {
+      clearTimeout(setupTimer);
+      clearInterval(pump);
+      try { ws.close(); } catch { /* ignore */ }
+    }
   }
 }
