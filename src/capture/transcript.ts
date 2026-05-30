@@ -26,8 +26,14 @@ export async function buildTranscript(
     // Audio adapters round-trip through STT; text/mock adapters supply heard text directly.
     const heard = r.agentSpokenHeardBack ?? (await transcribeFn(r.agentAudioPcm));
     const callerPcm = r.callerAudioPcm;
-    if (callerPcm?.length) stitched.push(callerPcm);
-    if (r.agentAudioPcm.length) stitched.push(r.agentAudioPcm);
+    if (r.conversationPcm?.length) {
+      // Barge-in: a pre-built faithful timeline (caller→agent→interrupt→agent), so the
+      // stitched conversation reflects the interruption instead of gluing both caller lines.
+      stitched.push(r.conversationPcm);
+    } else {
+      if (callerPcm?.length) stitched.push(callerPcm);
+      if (r.agentAudioPcm.length) stitched.push(r.agentAudioPcm);
+    }
     turns.push({
       turn: i + 1,
       callerSaid: r.callerSaid,
