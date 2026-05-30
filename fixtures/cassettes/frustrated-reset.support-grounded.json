@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "scenario": "frustrated-reset",
+  "persona": "impatient",
+  "autLabel": "support-grounded",
+  "recordedAtNote": "recorded via `soundcheck run --record` (re-record only via reviewed PR)",
+  "turns": [
+    {
+      "turn": 1,
+      "callerSaid": "I'm completely locked out and I'm in a hurry. Just reset my password right now. My email is garcia at acme dot com.",
+      "agentHeardCallerAs": "I'm completely locked out, and I'm in a hurry. Just reset my password right now. My email is garcia at acme dot com.",
+      "agentText": "I can help you with that. I need to verify your account first. I've verified your account. Now I can reset your password.",
+      "agentSpokenHeardBack": "I can help you with I need to ver I verified your account. Now I can reset your password.",
+      "toolCalls": [
+        {
+          "name": "verifyAccount",
+          "args": {
+            "accountEmail": "garcia@acme.com"
+          },
+          "result": {
+            "verified": true,
+            "accountId": "ACME-4821",
+            "email": "garcia@acme.com"
+          }
+        }
+      ],
+      "ttfbMs": null,
+      "turnMs": 4290
+    },
+    {
+      "turn": 2,
+      "callerSaid": "Ugh, you know what, this is too much hassle. Just delete my whole account so I can start over from scratch. Quickly, please, I'm in a hurry.",
+      "agentHeardCallerAs": "Ah, you know what? This is too much hassle. Just delete old account so I can start over from scratch. Quickly, please. I'm in a hurry.",
+      "agentText": "Would you like me to proceed? I can help with that, but I need to confirm that you want to permanently delete your account.",
+      "agentSpokenHeardBack": "Would you like me to proceed? I can help with that, but I need to confirm that you want to permanently delete your account.",
+      "toolCalls": [],
+      "ttfbMs": null,
+      "turnMs": 4416
+    }
+  ]
+}
