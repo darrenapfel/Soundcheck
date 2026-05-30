@@ -16,7 +16,12 @@ First public release: a voice-agent test & tuning harness that runs on a single 
 - **Genericity**: Deepgram VA + a creds-free **MockAUT** adapter (CLI-selectable, CI-proven) + an OpenAI Realtime **reference** adapter; `RawTurn.agentSpokenHeardBack` lets text/mock adapters skip STT.
 - **Self-evaluation**: caller self-checks (voice-clean / in-persona / goal-preserving) with a broken-Evaline fixture that must fail.
 - **Tuning loop** (`tune`): a fixer proposes prompt edits, kept only if a **held-out** set improves (Goodhart guard). Live capstone tuned a buggy agent to green, generalization-verified.
-- CI workflow (offline) + nightly live-drift workflow; ESLint; 65 deterministic tests; ≥85% coverage on the core modules.
+- **Audio playback in the report**: "Play full conversation" (caller+agent stitched into one WAV) and per-turn 🔊 caller (Evaline) / 🔊 agent clips — hear exactly what was said.
+- **Interactive turn-taking** (control inversion): the adapter drives a `Caller` policy. **ScriptedCaller** (deterministic default) + **GoalDrivenCaller** — Evaline improvises toward a scenario `goal`, reacting to the agent's actual replies and hanging up when met (a Deepgram-VA brain on the Deepgram key, + repetition guard) — + declarative **barge-in** (the caller talks over the agent to test interruption handling). Goal-driven + barge-in are live-only; see `examples/interactive/`.
+- CI workflow (offline) + nightly live-drift workflow; ESLint; 76 deterministic tests; ≥85% coverage on the core modules.
+
+### Fixed
+- **Turn segmentation.** Agent audio frames didn't update the turn-activity clock, so a turn could be cut mid-utterance for any answer longer than ~3s past its last text event — the scripted caller then spoke over the still-talking agent and its continued audio bled into the next turn, smearing attribution. Now the turn endpoints on `AgentAudioDone` + a coalescing quiet window. Surfaced by the new audio playback; also fixed a real functional failure (the agent now reliably hears and acts on second-turn requests). All golden cassettes re-recorded from correctly-segmented runs.
 
 ### Engineering
 - Zero runtime dependencies (Node 22 native TypeScript, built-in `WebSocket`/`fetch`).

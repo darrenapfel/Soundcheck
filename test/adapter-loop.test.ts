@@ -6,6 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DeepgramVoiceAgentAdapter, type WsLike } from "../src/adapters/deepgram-va.ts";
+import { GoalDrivenCaller, type PlanFn } from "../src/caller/policy.ts";
 import { makeConfig } from "../examples/tabletalk/tabletalk.ts";
 
 const isSpeech = (d: unknown) => Buffer.isBuffer(d) && d.some((b) => b !== 0);
@@ -62,4 +63,23 @@ test("adapter drives a duplex turn: captures heard text, agent reply, and dispat
   assert.equal(out[0].toolCalls[0].name, "bookReservation");
   assert.equal((out[0].toolCalls[0].result as { success?: boolean }).success, true); // ran the real AUT stub
   assert.ok(out[0].agentAudioPcm.length > 0); // agent audio captured
+}, { timeout: 20000 });
+
+test("converse drives a REACTIVE caller and feeds the agent's reply back (control inversion)", async () => {
+  const adapter = new DeepgramVoiceAgentAdapter({
+    wsFactory: () => new MockWs(),
+    synth: async () => Buffer.alloc(6400, 1),
+  });
+  const seen: string[] = [];
+  let i = 0;
+  const plan: PlanFn = async (input) => {
+    seen.push(input.lastAgent);
+    return i++ < 2 ? { action: "say", utterance: `line ${i}` } : { action: "hangup", utterance: "" };
+  };
+  const caller = new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan, maxTurns: 5 });
+  const out = await adapter.converse(makeConfig("t", "be nice"), caller);
+
+  assert.equal(out.length, 2); // two say-turns, then the brain hung up
+  assert.match(out[0].agentText, /confirmed/);
+  assert.ok(seen[1].includes("confirmed")); // turn 2's brain SAW the agent's turn-1 reply
 }, { timeout: 20000 });
