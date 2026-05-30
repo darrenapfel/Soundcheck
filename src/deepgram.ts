@@ -2,26 +2,43 @@
 // The ONLY credential Soundcheck reads is DEEPGRAM_API_KEY (see getKey()).
 
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 let cachedKey: string | null = null;
 
-/** Resolve the Deepgram key from env or a local .env. NO other key is ever read. */
+function readEnvKey(loc: string | URL): string | undefined {
+  try { return readFileSync(loc, "utf8").match(/^DEEPGRAM_API_KEY=(.+)$/m)?.[1].trim() || undefined; }
+  catch { return undefined; }
+}
+
+/** Resolve the Deepgram key. Precedence: env var → the caller's CWD `.env` (what the quickstart
+ *  writes) → the Soundcheck package's own `.env` (repo dev only). NO other key is ever read. */
 export function getKey(): string {
   if (cachedKey) return cachedKey;
-  let key = process.env.DEEPGRAM_API_KEY?.trim();
+  const key =
+    process.env.DEEPGRAM_API_KEY?.trim() ||
+    readEnvKey(resolve(process.cwd(), ".env")) ||
+    readEnvKey(new URL("../.env", import.meta.url));
   if (!key) {
-    try {
-      const env = readFileSync(new URL("../.env", import.meta.url), "utf8");
-      key = env.match(/^DEEPGRAM_API_KEY=(.+)$/m)?.[1].trim();
-    } catch {
-      /* no .env */
-    }
-  }
-  if (!key) {
-    throw new Error("DEEPGRAM_API_KEY not set (env or .env). Soundcheck needs only this one key.");
+    throw new Error("DEEPGRAM_API_KEY not set (env, ./.env, or the Soundcheck package .env). Soundcheck needs only this one key.");
   }
   cachedKey = key;
   return key;
+}
+
+/** A 4xx other than 429 is the caller's fault (bad key/request) — not worth retrying. */
+function httpError(label: string, status: number, body: string): Error {
+  const e = new Error(`${label} ${status}: ${body.slice(0, 200)}`) as Error & { retryable?: boolean };
+  e.retryable = status >= 500 || status === 429;
+  return e;
+}
+
+/** fetch with a hard timeout so a hung request can't block a run forever. */
+async function fetchWithTimeout(url: string, init: RequestInit, ms = 30000): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...init, signal: ctrl.signal }); }
+  finally { clearTimeout(timer); }
 }
 
 async function withRetry<T>(fn: () => Promise<T>, label: string, tries = 3): Promise<T> {
@@ -31,6 +48,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, tries = 3): Pro
       return await fn();
     } catch (e) {
       last = e;
+      if ((e as { retryable?: boolean })?.retryable === false) throw e; // bad key/request → don't waste retries
       if (i < tries - 1) await new Promise((r) => setTimeout(r, 500 * (i + 1)));
     }
   }
@@ -52,12 +70,12 @@ export async function synthesize(text: string, opts: TtsOpts = {}): Promise<Buff
   const container = opts.container ?? "none";
   const url = `https://api.deepgram.com/v1/speak?model=${model}&encoding=${encoding}&sample_rate=${sampleRate}&container=${container}`;
   return withRetry(async () => {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       method: "POST",
       headers: { Authorization: `Token ${getKey()}`, "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     });
-    if (!res.ok) throw new Error(`TTS ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    if (!res.ok) throw httpError("TTS", res.status, await res.text());
     return Buffer.from(await res.arrayBuffer());
   }, "Deepgram TTS");
 }
@@ -78,12 +96,12 @@ export async function transcribe(audio: Buffer, opts: SttOpts = {}): Promise<str
   if (opts.sampleRate) params.set("sample_rate", String(opts.sampleRate));
   const contentType = opts.contentType ?? "audio/wav";
   return withRetry(async () => {
-    const res = await fetch(`https://api.deepgram.com/v1/listen?${params}`, {
+    const res = await fetchWithTimeout(`https://api.deepgram.com/v1/listen?${params}`, {
       method: "POST",
       headers: { Authorization: `Token ${getKey()}`, "Content-Type": contentType },
       body: Uint8Array.from(audio),
     });
-    if (!res.ok) throw new Error(`STT ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    if (!res.ok) throw httpError("STT", res.status, await res.text());
     const j = (await res.json()) as any;
     return j?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "";
   }, "Deepgram STT");

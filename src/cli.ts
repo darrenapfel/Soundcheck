@@ -12,7 +12,7 @@ import { deepgramVaPlanner } from "./caller/planner.ts";
 import { DeepgramVoiceAgentAdapter } from "./adapters/deepgram-va.ts";
 import { MockAUTAdapter } from "./adapters/mock-aut.ts";
 import { buildTranscript } from "./capture/transcript.ts";
-import { saveCassette, loadCassette } from "./capture/cassette.ts";
+import { saveCassette, loadCassette, safeSegment } from "./capture/cassette.ts";
 import { runGates } from "./gates/index.ts";
 import { judgeTranscript, mockJudge } from "./judge/index.ts";
 import { deepgramVaJudge, makeDeepgramVaJudge } from "./judge/deepgram-va-judge.ts";
@@ -59,6 +59,7 @@ function loadScenarios(dir: string): Scenario[] {
     .filter((s) => s && typeof s.name === "string" && Array.isArray(s.assert));
   if (!scenarios.length) throw new Error(`no valid .json scenarios in ${dir}`);
   for (const s of scenarios) {
+    safeSegment(s.name, "scenario name"); // names become path segments (cassette + promoted-regression files) — reject traversal
     if (!VALID_PERSONAS.includes(s.persona)) {
       throw new Error(`scenario "${s.name}" has unknown persona "${s.persona}" — expected one of: ${VALID_PERSONAS.join(", ")}`);
     }
