@@ -26,8 +26,12 @@ export function generateReport(results: ScenarioResult[], generatedAt: string): 
         <td>${t.ttfbMs ?? "—"}</td>
       </tr>`;
     }).join("");
-    const fullAudio = r.transcript.fullConversationWav
-      ? `<p class="fullaudio">▶ <strong>Play full conversation</strong> <span class="meta">(Evaline + agent, stitched)</span><br>${wavEl(r.transcript.fullConversationWav)}</p>`
+    const fullAudio = r.transcript.recordingWav
+      ? `<p class="fullaudio">▶ <strong>Play full conversation</strong> <span class="meta">(real-time recording — caller + agent, overlaps and all)</span><br>${wavEl(r.transcript.recordingWav)}${
+          r.transcript.oracleTranscript
+            ? `<br><span class="meta">🔎 Oracle — what Soundcheck heard (STT of the recording):</span><br><em>${esc(r.transcript.oracleTranscript)}</em>`
+            : ""
+        }</p>`
       : "";
     const verdictHtml = r.verdict
       ? `<p class="judge"><strong>⚖ Judge (${esc(r.verdict.backend)}, advisory):</strong> ${r.verdict.dimensions.map((d) => `${esc(d.key)}=<code>${esc(String(d.value))}</code>`).join(" · ")}${r.verdict.findings[0] ? `<br><em>${esc(r.verdict.findings[0])}</em>` : ""}</p>`

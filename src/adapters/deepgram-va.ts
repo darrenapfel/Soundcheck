@@ -9,13 +9,27 @@
 
 import { getKey, synthesize, resamplePcm16le } from "../deepgram.ts";
 import type { AUTConfig, ToolCall } from "../types.ts";
-import type { AUTAdapter, CallerTurn, RawTurn } from "./types.ts";
+import type { AUTAdapter, CallerTurn, RawTurn, ConversationCapture } from "./types.ts";
 import { ScriptedCaller, type Caller, type CallerExchange } from "../caller/policy.ts";
 
 const AGENT_WS = "wss://agent.deepgram.com/v1/agent/converse";
 const FRAME = 3200; // 100ms @ 16kHz, 16-bit mono
 const SILENCE = Buffer.alloc(FRAME);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Sum two 16-bit LE PCM buffers sample-wise (clamped) — for the real-time mixed recording,
+// so when caller and agent speak at once (barge-in) you HEAR both, faithfully overlaid.
+function mixPcm16le(a: Buffer, b: Buffer): Buffer {
+  const n = Math.max(a.length, b.length) & ~1;
+  const out = Buffer.alloc(n);
+  for (let i = 0; i + 1 < n; i += 2) {
+    const sa = i + 1 < a.length ? a.readInt16LE(i) : 0;
+    const sb = i + 1 < b.length ? b.readInt16LE(i) : 0;
+    const s = Math.max(-32768, Math.min(32767, sa + sb));
+    out.writeInt16LE(s, i);
+  }
+  return out;
+}
 
 export function buildSettings(aut: AUTConfig) {
   const think = aut.think ?? { type: "open_ai", model: "gpt-4o-mini", temperature: 0.5 };
@@ -60,13 +74,13 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
   }
 
   // Back-compat scripted path: wrap the fixed list in a ScriptedCaller and converse.
-  async runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<RawTurn[]> {
+  async runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<ConversationCapture> {
     return this.converse(aut, new ScriptedCaller(callerTurns.map((t) => ({ text: t.text, voice: t.voice }))));
   }
 
   // Control-inverted loop: ask the Caller for each next action given what the agent just
   // said (enables a reactive goal-driven caller and barge-in). The scripted path uses it too.
-  async converse(aut: AUTConfig, caller: Caller): Promise<RawTurn[]> {
+  async converse(aut: AUTConfig, caller: Caller): Promise<ConversationCapture> {
     const ws = this.#wsFactory(AGENT_WS);
     ws.binaryType = "arraybuffer";
 
@@ -82,10 +96,37 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     let lastAudioAt = 0; // most recent agent audio frame of the current turn
     let audioDoneAt = 0; // AgentAudioDone for the current turn (the authoritative end-of-speech signal)
 
-    // Continuous real-time pump (phone-call model — never stop sending audio).
+    // --- real-time call recorder (the keystone) ---
+    // The pump is the wall clock: each 100ms tick we MIX the caller frame we send with the
+    // next 100ms of agent audio (paced out of a playback queue) into one faithful recording.
+    // Result: a real, time-ordered call — overlaps and all — that the report plays and the
+    // oracle (STT) transcribes to self-validate.
+    let recordingOn = false;
+    const recording: Buffer[] = []; // mixed 24kHz frames, in real-time order
+    const agentQ: Buffer[] = []; // agent PCM (24kHz) awaiting real-time playback
+    let agentQHead = 0; // read offset into agentQ[0]
+    const pullAgent = (n: number): Buffer => {
+      const out = Buffer.alloc(n); // zero-filled => silence padding when the agent isn't speaking
+      let w = 0;
+      while (w < n && agentQ.length) {
+        const head = agentQ[0];
+        const take = Math.min(head.length - agentQHead, n - w);
+        head.copy(out, w, agentQHead, agentQHead + take);
+        w += take; agentQHead += take;
+        if (agentQHead >= head.length) { agentQ.shift(); agentQHead = 0; }
+      }
+      return out;
+    };
+
+    // Continuous real-time pump (phone-call model — never stop sending audio) + recorder.
     const pump = setInterval(() => {
       if (ws.readyState !== WebSocket.OPEN) return;
-      ws.send(audioQueue.length ? audioQueue.shift()! : SILENCE);
+      const callerFrame = audioQueue.length ? audioQueue.shift()! : SILENCE;
+      ws.send(callerFrame);
+      if (recordingOn) {
+        const caller24 = resamplePcm16le(callerFrame, 16000, 24000);
+        recording.push(mixPcm16le(caller24, pullAgent(caller24.length)));
+      }
     }, 100);
 
     const opened = new Promise<void>((resolve, reject) => {
@@ -95,11 +136,13 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
 
     ws.addEventListener("message", (event: { data: unknown }) => {
       if (event.data instanceof ArrayBuffer) {
+        const buf = Buffer.from(event.data);
+        if (recordingOn) agentQ.push(buf); // feed the real-time playback queue (whole call)
         if (collecting) {
           const now = Date.now();
           if (firstFrameAt === 0) firstFrameAt = now;
           lastAudioAt = now; // streaming audio IS activity — the fix for premature turn-cut
-          agentAudio.push(Buffer.from(event.data));
+          agentAudio.push(buf);
         }
         return;
       }
@@ -130,6 +173,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     });
 
     await opened;
+    recordingOn = true; // record the whole call, from the greeting on
 
     const enqueueSpeech = (pcm: Buffer) => {
       for (let p = 0; p < pcm.length; p += FRAME) audioQueue.push(pcm.subarray(p, p + FRAME));
@@ -231,8 +275,9 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       lastAgent = agentText; // feed the agent's reply back so a reactive caller can adapt
     }
 
+    recordingOn = false;
     clearInterval(pump);
     try { ws.close(); } catch { /* ignore */ }
-    return out;
+    return { turns: out, recordingPcm: Buffer.concat(recording) };
   }
 }

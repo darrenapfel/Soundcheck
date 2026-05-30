@@ -54,7 +54,8 @@ test("adapter drives a duplex turn: captures heard text, agent reply, and dispat
     wsFactory: () => new MockWs(),
     synth: async () => Buffer.alloc(6400, 1), // ~2 non-silent frames of "caller speech"
   });
-  const out = await adapter.runConversation(makeConfig("t", "be nice"), [{ text: "book a table", voice: "v" }]);
+  const cap = await adapter.runConversation(makeConfig("t", "be nice"), [{ text: "book a table", voice: "v" }]);
+  const out = cap.turns;
 
   assert.equal(out.length, 1);
   assert.equal(out[0].agentHeardCallerAs, "caller said something");
@@ -63,6 +64,7 @@ test("adapter drives a duplex turn: captures heard text, agent reply, and dispat
   assert.equal(out[0].toolCalls[0].name, "bookReservation");
   assert.equal((out[0].toolCalls[0].result as { success?: boolean }).success, true); // ran the real AUT stub
   assert.ok(out[0].agentAudioPcm.length > 0); // agent audio captured
+  assert.ok(cap.recordingPcm && cap.recordingPcm.length > 0); // real-time recorder produced a mixed call recording
 }, { timeout: 20000 });
 
 test("converse drives a REACTIVE caller and feeds the agent's reply back (control inversion)", async () => {
@@ -77,7 +79,7 @@ test("converse drives a REACTIVE caller and feeds the agent's reply back (contro
     return i++ < 2 ? { action: "say", utterance: `line ${i}` } : { action: "hangup", utterance: "" };
   };
   const caller = new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan, maxTurns: 5 });
-  const out = await adapter.converse(makeConfig("t", "be nice"), caller);
+  const out = (await adapter.converse(makeConfig("t", "be nice"), caller)).turns;
 
   assert.equal(out.length, 2); // two say-turns, then the brain hung up
   assert.match(out[0].agentText, /confirmed/);

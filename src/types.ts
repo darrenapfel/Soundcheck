@@ -72,9 +72,12 @@ export interface Transcript {
   persona: Persona;
   autLabel: string;
   turns: CapturedTurn[];
-  /** The whole conversation stitched in order (caller→agent per turn), one WAV.
-   *  Present only on live runs that captured audio; absent on replay (cassettes drop audio). */
-  fullConversationWav?: Buffer;
+  /** The real-time MIXED recording of the whole call (caller + agent overlaid at true
+   *  timing), 24kHz WAV — the ground-truth audio the report plays. Live runs only. */
+  recordingWav?: Buffer;
+  /** Soundcheck's own oracle (STT) over the recording: what was actually heard, in order.
+   *  The self-validation signal — present whenever recordingWav is. */
+  oracleTranscript?: string;
 }
 
 export interface GateResult {

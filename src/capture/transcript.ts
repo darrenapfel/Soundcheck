@@ -1,33 +1,31 @@
 // Capture: round-trip the AUT's spoken audio back through STT so gates/judge see
-// what a listener actually HEARS (not the model's text), and assemble the Transcript.
+// what a listener actually HEARS (not the model's text), assemble the Transcript, and
+// — for a live recording — run the oracle (STT) over the WHOLE call so Soundcheck
+// self-validates what really happened, in order, overlaps and all.
 
 import { transcribe, pcmToWav } from "../deepgram.ts";
 import type { CapturedTurn, Scenario, Transcript } from "../types.ts";
-import type { RawTurn } from "../adapters/types.ts";
+import type { ConversationCapture } from "../adapters/types.ts";
 
-const PLAYBACK_RATE = 24000; // caller (upsampled) + agent both land here, so stitching is pure concat
+const PLAYBACK_RATE = 24000; // caller (upsampled) + agent + the mixed recording all live here
 
-/** Round-trips the AUT's spoken audio back through STT to get the "heard" text.
- *  `transcribeFn` is injectable so capture is unit-testable without the network. */
+/** STT a chunk of audio. `transcribeFn` is injectable so capture is unit-testable offline. */
 export type TranscribeFn = (pcm: Buffer) => Promise<string>;
 const defaultTranscribe: TranscribeFn = (pcm) =>
-  transcribe(pcm, { encoding: "linear16", sampleRate: 24000, contentType: "audio/l16" });
+  transcribe(pcm, { encoding: "linear16", sampleRate: PLAYBACK_RATE, contentType: "audio/l16" });
 
 export async function buildTranscript(
   scenario: Scenario,
   autLabel: string,
-  raw: RawTurn[],
+  cap: ConversationCapture,
   transcribeFn: TranscribeFn = defaultTranscribe,
 ): Promise<Transcript> {
   const turns: CapturedTurn[] = [];
-  const stitched: Buffer[] = []; // caller→agent PCM in order, for one full-conversation WAV
-  for (let i = 0; i < raw.length; i++) {
-    const r = raw[i];
+  for (let i = 0; i < cap.turns.length; i++) {
+    const r = cap.turns[i];
     // Audio adapters round-trip through STT; text/mock adapters supply heard text directly.
     const heard = r.agentSpokenHeardBack ?? (await transcribeFn(r.agentAudioPcm));
     const callerPcm = r.callerAudioPcm;
-    if (callerPcm?.length) stitched.push(callerPcm);
-    if (r.agentAudioPcm.length) stitched.push(r.agentAudioPcm);
     turns.push({
       turn: i + 1,
       callerSaid: r.callerSaid,
@@ -41,6 +39,10 @@ export async function buildTranscript(
       callerAudioWav: callerPcm?.length ? pcmToWav(callerPcm, PLAYBACK_RATE) : undefined,
     });
   }
-  const fullConversationWav = stitched.length ? pcmToWav(Buffer.concat(stitched), PLAYBACK_RATE) : undefined;
-  return { scenario: scenario.name, persona: scenario.persona, autLabel, turns, fullConversationWav };
+  // The real-time mixed recording is the ground truth: play it in the report, and run the
+  // oracle over it so the report shows "what Soundcheck actually heard, in order."
+  const rec = cap.recordingPcm;
+  const recordingWav = rec?.length ? pcmToWav(rec, PLAYBACK_RATE) : undefined;
+  const oracleTranscript = rec?.length ? await transcribeFn(rec) : undefined;
+  return { scenario: scenario.name, persona: scenario.persona, autLabel, turns, recordingWav, oracleTranscript };
 }

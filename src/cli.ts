@@ -23,7 +23,7 @@ import type { ScenarioSet, TuneScore } from "./tune/index.ts";
 import { spawnSync } from "node:child_process";
 import { generateReport } from "./report/html.ts";
 import type { AUTConfig, Scenario, ScenarioResult, Transcript } from "./types.ts";
-import type { RawTurn } from "./adapters/types.ts";
+import type { ConversationCapture } from "./adapters/types.ts";
 
 function parseArgs(argv: string[]) {
   const out: Record<string, string | boolean> = {};
@@ -92,7 +92,7 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
       // declarative barge-in). Goal-driven + barge-in are live-only via the real adapter;
       // the mock adapter always uses the scripted list.
       const goalMode = opts.caller === "goal" || (!!scenario.goal && opts.caller !== "scripted");
-      let raw: RawTurn[];
+      let raw: ConversationCapture;
       if (!useMockAdapter && (goalMode || scenario.bargeIn)) {
         const caller = goalMode
           ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner })
