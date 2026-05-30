@@ -1,3 +1,6 @@
+// INTERNAL — Soundcheck's own self-test helpers (used by test/selfeval.test.ts). NOT part of
+// the public API and intentionally not re-exported from src/index.ts.
+//
 // Self-evaluation — Soundcheck evaluates Soundcheck. We can only ask others to
 // trust our tester if it is itself tested to a higher bar — including by itself.
 //

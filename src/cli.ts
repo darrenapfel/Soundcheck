@@ -322,7 +322,7 @@ function help() {
       scenarios derived from the tools, gates baked in, business rules extracted. No human writes cases.
 
   soundcheck tune --agent <config.ts> --fixer "<cmd>" [--train <s.json>] [--heldout <s.json>] [--max <n>]
-      Agents tuning agents: evaluate live -> a fixer (a coding agent reading {prompt,failures} JSON on
+      Agents tuning agents: evaluate live -> a fixer (a coding agent reading {prompt,diagnosis} JSON on
       stdin, writing an improved prompt to stdout) proposes a fix -> KEEP only if the HELD-OUT set improves
       (Goodhart guard — use a held-out scenario that is genuinely DIFFERENT from train). Writes the tuned
       prompt to runs/. Exits 0 iff the held-out score improved. (--fixer runs via 'sh -c' and inherits your env.)
