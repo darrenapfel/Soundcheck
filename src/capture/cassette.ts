@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { CapturedTurn, Persona, Trace } from "../types.ts";
 
-export const CASSETTE_DIR = "fixtures/cassettes";
+export const CASSETTE_DIR = process.env.SOUNDCHECK_CASSETTE_DIR || "fixtures/cassettes"; // overridable for the GitHub Action / consumer repos
 export const TRACE_VERSION = 2; // 2 adds oracleTranscript; v1 (without it) still loads
 const SUPPORTED_VERSIONS = new Set([1, 2]);
 
