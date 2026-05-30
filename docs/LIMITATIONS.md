@@ -4,7 +4,7 @@ Honesty is part of the product. Soundcheck is trustworthy *because* its limits a
 
 ## What it does NOT test
 - **Acoustic robustness.** Evaline's caller audio is clean **TTS**. Soundcheck tests an agent's *behavior* (turn-taking, tools, spoken-output correctness), **not** its resilience to real accents, background noise, cross-talk, or telephony codecs. Don't read a green Soundcheck run as "works on a noisy phone line." (A real-audio corpus is future work.)
-- **Barge-in / full-duplex timing** is approximated, not faithfully reproduced.
+- **Barge-in** is supported as a *deliberate* test (the caller talks over the agent; live-only) and the agent's handling is captured — but full-duplex **timing** is approximated, not faithfully reproduced, and a barge-in turn reports `ttfbMs: null` (the first-utterance latency isn't a meaningful per-turn TTFB).
 - **Load / concurrency / cost at scale** — out of scope.
 - **Non-English** — v1 is English only.
 
@@ -17,7 +17,8 @@ Honesty is part of the product. Soundcheck is trustworthy *because* its limits a
 ## Scope of specific features
 - **"Tests any voice agent"** = "any agent you can write an `AUTAdapter` for." Ships with **Deepgram VA** + a creds-free **MockAUT** (both CLI-selectable, CI-proven) and an **OpenAI Realtime** *reference* adapter (real protocol, **not CLI-selectable, not live-tested** — a developer wires + validates it).
 - **Autonomous authoring** generates scenarios from the tools and **surfaces business rules as hints**; it does not auto-generate an assertion for an arbitrary domain rule (e.g. "closed Mondays") — a human/agent adds those.
-- **Self-evaluation** (v1): Evaline is *scripted*, so this checks the caller's own output is fit-to-test-with (voice-clean / in-persona / goal-preserving) with a broken-Evaline fixture that must fail. Running Evaline as a live, goal-pursuing conversational AUT is future work.
+- **Self-evaluation** (v1): the self-eval suite checks the *scripted* caller's own output is fit-to-test-with (voice-clean / in-persona / goal-preserving) with a broken-Evaline fixture that must fail.
+- **Interactive caller (goal-driven + barge-in) is live-only and non-deterministic.** The **default caller is scripted** — deterministic, and what CI, the cassettes, and the tune loop use. The **goal-driven** caller (Evaline improvises toward a scenario `goal`, reacting to the agent's actual replies and hanging up when met) runs a Deepgram-VA *brain* (`gpt-4o` on the Deepgram key) plus a repetition guard; it is newer and less battle-tested than the scripted path and **cannot be replayed**. Use scripted scenarios for regression gates; use goal-driven for exploratory/realistic conversations. Examples: `examples/interactive/`.
 - **The bundled tuning fixer is rule-based** (deterministic) — the live capstone proves the loop + Goodhart guard *mechanism*. The intelligent fixer is the **pluggable** drop-in (`--fixer "claude -p …"`).
 
 ## Known internal follow-ups (tracked, not release blockers — see `docs/REVIEW_LOG.md`)

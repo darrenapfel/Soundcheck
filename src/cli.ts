@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 import { getKey, synthesize, transcribe } from "./deepgram.ts";
 import { detectArtifacts, detectDashAsNegative } from "./normalize.ts";
 import { evalineTurns } from "./caller/evaline.ts";
+import { ScriptedCaller, GoalDrivenCaller } from "./caller/policy.ts";
+import { deepgramVaPlanner } from "./caller/planner.ts";
 import { DeepgramVoiceAgentAdapter } from "./adapters/deepgram-va.ts";
 import { MockAUTAdapter } from "./adapters/mock-aut.ts";
 import { buildTranscript } from "./capture/transcript.ts";
@@ -21,6 +23,7 @@ import type { ScenarioSet, TuneScore } from "./tune/index.ts";
 import { spawnSync } from "node:child_process";
 import { generateReport } from "./report/html.ts";
 import type { AUTConfig, Scenario, ScenarioResult, Transcript } from "./types.ts";
+import type { RawTurn } from "./adapters/types.ts";
 
 function parseArgs(argv: string[]) {
   const out: Record<string, string | boolean> = {};
@@ -85,8 +88,20 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
         throw new Error(`cassette for ${scenario.name}/${aut.label} doesn't match the scenario (cassette scenario="${transcript.scenario}", persona="${transcript.persona}") — re-record it`);
       }
     } else {
-      const turns = evalineTurns(scenario);
-      const raw = await adapter.runConversation(aut, turns);
+      // Caller selection (B): goal-driven (reactive) or scripted (default; supports
+      // declarative barge-in). Goal-driven + barge-in are live-only via the real adapter;
+      // the mock adapter always uses the scripted list.
+      const goalMode = opts.caller === "goal" || (!!scenario.goal && opts.caller !== "scripted");
+      let raw: RawTurn[];
+      if (!useMockAdapter && (goalMode || scenario.bargeIn)) {
+        const caller = goalMode
+          ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner })
+          : ScriptedCaller.fromScenario(scenario);
+        process.stdout.write(`[${caller.label}] `);
+        raw = await (adapter as DeepgramVoiceAgentAdapter).converse(aut, caller);
+      } else {
+        raw = await adapter.runConversation(aut, evalineTurns(scenario));
+      }
       transcript = await buildTranscript(scenario, aut.label, raw);
       if (record) saveCassette(transcript);
     }
@@ -225,6 +240,9 @@ function help() {
       --replay : offline — load the cassette, run gates, no socket/STT/key needed.
       --judge  : also run the LLM judge (advisory, not gating). --judge mock = offline rule-based;
                  otherwise the live Deepgram-fronted grader (needs the key).
+      --caller goal : reactive Evaline — a Deepgram-VA brain improvises each line toward the
+                 scenario's "goal" and hangs up when met (live-only; auto-on if a scenario has a goal).
+                 A scenario "bargeIn" field makes the scripted caller interrupt the agent (live-only).
 
   soundcheck validate --tts "<text>"     Round-trip text -> TTS -> STT; flag spoken symbols.
   soundcheck validate --stt <file.wav>   Transcribe an audio file.

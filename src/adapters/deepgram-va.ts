@@ -10,6 +10,7 @@
 import { getKey, synthesize, resamplePcm16le } from "../deepgram.ts";
 import type { AUTConfig, ToolCall } from "../types.ts";
 import type { AUTAdapter, CallerTurn, RawTurn } from "./types.ts";
+import { ScriptedCaller, type Caller, type CallerExchange } from "../caller/policy.ts";
 
 const AGENT_WS = "wss://agent.deepgram.com/v1/agent/converse";
 const FRAME = 3200; // 100ms @ 16kHz, 16-bit mono
@@ -58,7 +59,14 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     this.#synth = opts.synth ?? ((text, o) => synthesize(text, o));
   }
 
+  // Back-compat scripted path: wrap the fixed list in a ScriptedCaller and converse.
   async runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<RawTurn[]> {
+    return this.converse(aut, new ScriptedCaller(callerTurns.map((t) => ({ text: t.text, voice: t.voice }))));
+  }
+
+  // Control-inverted loop: ask the Caller for each next action given what the agent just
+  // said (enables a reactive goal-driven caller and barge-in). The scripted path uses it too.
+  async converse(aut: AUTConfig, caller: Caller): Promise<RawTurn[]> {
     const ws = this.#wsFactory(AGENT_WS);
     ws.binaryType = "arraybuffer";
 
@@ -150,12 +158,18 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     await sleep(500);
 
     const out: RawTurn[] = [];
-    for (let i = 0; i < callerTurns.length; i++) {
+    const history: CallerExchange[] = [];
+    // Seed turn 0 with the configured greeting so a reactive caller can react to it.
+    let lastAgent = aut.greeting ?? "Hi, thanks for calling. How can I help you today?";
+    const MAX_TURNS = 16; // backstop only — a Caller normally ends itself (scripted list exhausted, or GoalDrivenCaller's own maxTurns/repetition guard)
+    for (let i = 0; i < MAX_TURNS; i++) {
+      const action = await caller.next({ turnIndex: i, lastAgent, history });
+      if (!action) break; // caller hung up (scripted list exhausted, or goal met)
+
       agentAudio = []; agentLines = []; userHeard = []; toolCalls = [];
       firstFrameAt = 0; lastAudioAt = 0; audioDoneAt = 0; // per-turn endpoint state
       collecting = true;
-      const turn = callerTurns[i];
-      const pcm = await this.#synth(turn.text, { model: turn.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
+      const pcm = await this.#synth(action.text, { model: action.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
       const numSpeechFrames = Math.ceil(pcm.length / FRAME);
       const turnStart = Date.now();
       enqueueSpeech(pcm);
@@ -163,24 +177,45 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       // The caller stops *speaking* ~numSpeechFrames*100ms after the pump starts
       // (frames are sent real-time at 100ms each). TTFB is measured from there.
       // NOTE (v0): per-turn TTFB includes think + tool round-trips; a tool-time-
-      // excluded SLO is a v1 refinement. If the agent barges in before speech ends
-      // we can't cleanly measure TTFB -> report null.
+      // excluded SLO is a v1 refinement.
       const speechEndMs = turnStart + numSpeechFrames * 100;
+
+      let callerPcm = pcm;
+      let callerSaid = action.text;
+      if (action.interrupt) {
+        // Barge-in: wait for the agent to START replying, then speak OVER it.
+        const w = Date.now();
+        while (firstFrameAt === 0 && Date.now() - w < 8000 && ws.readyState === WebSocket.OPEN) await sleep(80);
+        await sleep(action.interrupt.afterMs);
+        const ipcm = await this.#synth(action.interrupt.text, { model: action.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
+        audioDoneAt = 0; lastAudioAt = 0; // re-arm the endpoint so we capture the agent's REACTION to the interrupt
+        enqueueSpeech(ipcm);
+        for (let s = 0; s < 12; s++) audioQueue.push(SILENCE);
+        callerPcm = Buffer.concat([pcm, ipcm]);
+        callerSaid = `${action.text}  ⟨interrupts⟩ ${action.interrupt.text}`;
+      }
+
       await waitTurn(34000);
       collecting = false;
       const settleAt = Date.now();
+      const agentText = agentLines.join(" ");
       out.push({
-        callerSaid: turn.text,
+        callerSaid,
         agentHeardCallerAs: userHeard.join(" "),
-        agentText: agentLines.join(" "),
+        agentText,
         agentAudioPcm: Buffer.concat(agentAudio),
         // Evaline was synthesized at 16kHz for the agent's input; upsample to 24kHz so
         // report playback (and the stitched conversation) is one consistent rate with the agent.
-        callerAudioPcm: resamplePcm16le(pcm, 16000, 24000),
+        callerAudioPcm: resamplePcm16le(callerPcm, 16000, 24000),
         toolCalls,
-        ttfbMs: firstFrameAt > speechEndMs ? firstFrameAt - speechEndMs : null,
+        // On a barge-in turn, firstFrameAt is the latency to the FIRST utterance (before the
+        // interrupt), which doesn't mean "time to respond to this turn" — report null rather
+        // than a misleading number (consistent with the can't-cleanly-measure → null rule).
+        ttfbMs: action.interrupt ? null : (firstFrameAt > speechEndMs ? firstFrameAt - speechEndMs : null),
         turnMs: Math.max(0, settleAt - speechEndMs),
       });
+      history.push({ caller: callerSaid, agent: agentText });
+      lastAgent = agentText; // feed the agent's reply back so a reactive caller can adapt
     }
 
     clearInterval(pump);

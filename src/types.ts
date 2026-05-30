@@ -12,6 +12,12 @@ export interface Scenario {
   assert: AssertSpec[];
   /** Grounding parameters a developer/agent supplies (today + the resolved target date). */
   grounding?: { today: string; expectedDate: string };
+  /** Goal-driven caller (B): when set and selected, Evaline improvises toward this goal
+   *  instead of replaying `turns`. Live-only (a brain decides each line); not for cassettes. */
+  goal?: string;
+  /** Declarative barge-in (B): after `afterTurn`, the scripted caller speaks `text` OVER
+   *  the agent `afterMs` after it starts replying — to test interruption handling. */
+  bargeIn?: { afterTurn: number; text: string; afterMs: number };
 }
 
 export type AssertSpec =
