@@ -39,7 +39,7 @@ function graderPrompt(promptTranscript: string, rubric: Rubric): string {
   ].join("\n");
 }
 
-async function graderTurn(promptTranscript: string, rubric: Rubric): Promise<Verdict | null> {
+async function graderTurn(promptTranscript: string, rubric: Rubric, model: string, backendName: string): Promise<Verdict | null> {
   const key = getKey();
   const ws = new WebSocket(AGENT_WS, ["token", key]);
   ws.binaryType = "arraybuffer";
@@ -49,7 +49,7 @@ async function graderTurn(promptTranscript: string, rubric: Rubric): Promise<Ver
     agent: {
       language: "en",
       listen: { provider: { type: "deepgram", model: "nova-3" } },
-      think: { provider: { type: "open_ai", model: "gpt-4o-mini", temperature: 0 }, prompt: graderPrompt(promptTranscript, rubric), functions: [verdictFunction(rubric)] },
+      think: { provider: { type: "open_ai", model, temperature: 0 }, prompt: graderPrompt(promptTranscript, rubric), functions: [verdictFunction(rubric)] },
       speak: { provider: { type: "deepgram", model: "aura-2-thalia-en" } },
       greeting: "",
     },
@@ -76,18 +76,26 @@ async function graderTurn(promptTranscript: string, rubric: Rubric): Promise<Ver
       } else if (m.type === "FunctionCallRequest") {
         const fn = (Array.isArray(m.functions) ? m.functions : [])[0] as { id?: string; name?: string; arguments?: string } | undefined;
         clearTimeout(timer);
-        finish(fn?.arguments ? parseVerdict(fn.arguments, rubric, "deepgram-va") : null);
+        finish(fn?.arguments ? parseVerdict(fn.arguments, rubric, backendName) : null);
       }
     });
   });
 }
 
-export const deepgramVaJudge: JudgeBackend = {
-  name: "deepgram-va",
-  async judge(promptTranscript: string, rubric: Rubric): Promise<Verdict> {
-    // one retry — small models occasionally fail to call the function
-    const v = (await graderTurn(promptTranscript, rubric)) ?? (await graderTurn(promptTranscript, rubric));
-    if (!v) return { dimensions: rubric.dimensions.map((d) => ({ key: d.key, value: null, why: "" })), findings: ["judge did not return a verdict"], backend: "deepgram-va" };
-    return v;
-  },
-};
+/** A Deepgram-VA judge backed by `model` (the think LLM runs on the Deepgram key). The default
+ *  is gpt-4o-mini (the production judge); a stronger model (e.g. gpt-4o) is the cross-model
+ *  REFERENCE that corroborates the Golden Set in the alignment loop. */
+export function makeDeepgramVaJudge(model = "gpt-4o-mini"): JudgeBackend {
+  const name = model === "gpt-4o-mini" ? "deepgram-va" : `deepgram-va:${model}`;
+  return {
+    name,
+    async judge(promptTranscript: string, rubric: Rubric): Promise<Verdict> {
+      // one retry — small models occasionally fail to call the function
+      const v = (await graderTurn(promptTranscript, rubric, model, name)) ?? (await graderTurn(promptTranscript, rubric, model, name));
+      if (!v) return { dimensions: rubric.dimensions.map((d) => ({ key: d.key, value: null, why: "" })), findings: ["judge did not return a verdict"], backend: name };
+      return v;
+    },
+  };
+}
+
+export const deepgramVaJudge: JudgeBackend = makeDeepgramVaJudge();

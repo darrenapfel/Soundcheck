@@ -21,6 +21,29 @@
 - **This is exactly why the layering is designed as it is:** the **deterministic `no_spoken_symbols` gate owns the crisp spoken-symbol verdict** (it is exact), and the **judge is advisory** — high recall makes it a useful early-warning, but its false positives mean it must not hard-gate CI. On the dimensions with no deterministic gate (naturalness, confirm-before-acting), the judge is the only signal and is reported as advisory.
 - Re-run in CI against the **mock** judge (deterministic) so a judge/prompt change that degrades agreement is caught without network flakiness; the **live** numbers above are refreshed manually / nightly.
 
-## Thresholds (release gate)
-- Crisp classes (`spoken_cleanly`, `goal_completed`): agreement ≥ 80% **and** problem-recall ≥ 80%. **Met** (83%/100%, 100%/100%).
-- Fuzzy classes: reported, not threshold-gated (honest — no ground truth to calibrate against without human labels).
+## Thresholds (release gate) + the TRUST verdict
+- Trust thresholds (`src/calibration/metrics.ts` `TRUST_THRESHOLDS`): overall agreement ≥ 80% **and** problem-recall ≥ 90% on each crisp class. **Met** → the judge prints `TRUST: ✅ trusted — may be relied on (advisorily)`. If not met, it prints `⚠️ NOT trusted — rely on the deterministic gates`.
+- Fuzzy classes: reported, not threshold-gated (honest — no ground truth without human labels).
+
+## Cross-model alignment loop (coSTAR's second loop, no human) — M5
+`soundcheck calibrate --judge live --align` runs a **stronger reference model** (default **gpt-4o**)
+over the corpus: it re-derives every verdict from the same transcript (the label is never shown)
+and must **catch the injected faults**. This is a **diversity check** that the Golden Set's faults
+are real and detectable — **not** cross-vendor independence: the reference and production judge are
+the **same model family** (GPT), so a shared blind spot is invisible. A second-vendor reference is
+future work, exactly like the STT oracle's "marking your own homework" caveat (`LIMITATIONS.md`).
+And because the corpus cases are **crisp by construction** ("star star booked", "negative thirty
+two dollars"), high agreement is a *sanity check*, not evidence the judge is reliable on ambiguous,
+realistic transcripts.
+
+Live result: reference **`gpt-4o`** re-derives the constructed Golden Set at **100%** and catches
+the injected faults → ✅ faults real + detectable; production **`gpt-4o-mini`** → **trusted**
+(91.7% agreement, 100% problem-recall, 75% precision). A **drift guard** (`test/calibration.test.ts`)
+pins the deterministic mock judge's calibration so a judge/metrics regression breaks CI without
+network flakiness.
+
+**Trust-check coverage (honest):** `judgeTrust` gates **boolean problem-recall** on the labeled
+crisp classes only. **Score** dimensions (e.g. naturalness) and any **unlabeled** rubric dimension
+(e.g. `confirmed_before_acting`) are *not* recall-gated — they're covered only by overall agreement
+or not at all. That's by design (no crisp problem class / no ground truth), and it's why those
+dimensions stay strictly advisory.
