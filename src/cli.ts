@@ -111,9 +111,12 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   const autPath = (opts.aut as string) ?? "examples/tabletalk/grounded.ts";
   const aut = await loadAut(autPath); // module load only — no network even in replay
   let scenarios = loadScenarios(dir);
-  if (typeof opts.only === "string") scenarios = scenarios.filter((s) => s.name.includes(opts.only as string));
+  if (typeof opts.only === "string") {
+    scenarios = scenarios.filter((s) => s.name.includes(opts.only as string));
+    if (scenarios.length === 0) { console.error(`\n✖ --only "${opts.only}" matched no scenarios in ${dir} — fail-closed (a filter typo must not report green).\n`); process.exit(2); }
+  }
   const adapter = useMockAdapter ? new MockAUTAdapter({ buggy: opts.buggy === true }) : new DeepgramVoiceAgentAdapter();
-  const mode = replay ? "replay (offline)" : record ? "live + record" : "live";
+  const mode = useMockAdapter ? `mock (offline${opts.buggy === true ? ", buggy" : ""})` : replay ? "replay (offline)" : record ? "live + record" : "live";
   console.log(`\nSoundcheck — running ${scenarios.length} scenario(s) against AUT "${aut.label}" — mode: ${mode}\n`);
 
   const results: ScenarioResult[] = [];
@@ -125,7 +128,10 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
     let verdict;
     if (opts.judge) {
       const useMock = opts.judge === "mock";
-      if (!useMock) getKey(); // live judge needs the key (replay path skipped it)
+      if (!useMock) {
+        if (replay) console.log(`    ⚠ --judge (live) calls the Deepgram-fronted grader over the network and needs the key, even under --replay; pass --judge mock to stay fully offline.`);
+        getKey(); // live judge needs the key (replay path skipped it)
+      }
       verdict = await judgeTranscript(transcript, useMock ? mockJudge : deepgramVaJudge);
     }
     results.push({ transcript, gates, passed, verdict });
@@ -208,14 +214,18 @@ async function cmdAuthor(opts: Record<string, string | boolean>) {
   const autPath = (opts.spec as string) ?? (opts.aut as string);
   if (!autPath) { console.error("usage: soundcheck author --spec <agent-config.ts> [--out <dir>]"); process.exit(2); }
   const aut = await loadAut(autPath);
-  const suite = authorSuite({ name: aut.label, systemPrompt: aut.systemPrompt, tools: aut.tools });
+  // Date anchor for generated grounding scenarios: --today (for deterministic docs/tests) else
+  // today's real local date — never a stale hardcoded default that drifts into the past.
+  const today = (opts.today as string) ?? new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) { console.error(`✖ --today must be YYYY-MM-DD (got "${today}")`); process.exit(2); }
+  const suite = authorSuite({ name: aut.label, systemPrompt: aut.systemPrompt, tools: aut.tools }, today);
   const outDir = (opts.out as string) ?? "scenarios-authored";
   mkdirSync(resolve(process.cwd(), outDir), { recursive: true });
   for (const s of suite.scenarios) {
     writeFileSync(resolve(process.cwd(), outDir, `${s.name}.json`), JSON.stringify(s, null, 2) + "\n");
   }
   writeFileSync(resolve(process.cwd(), outDir, "rubric.json"), JSON.stringify(suite.rubric, null, 2) + "\n");
-  console.log(`\nAuthored ${suite.scenarios.length} scenario(s) + rubric.json for "${aut.label}" -> ${outDir}/`);
+  console.log(`\nAuthored ${suite.scenarios.length} scenario(s) + rubric.json for "${aut.label}" -> ${outDir}/  (date anchor: ${today}${opts.today ? "" : " — today; pass --today YYYY-MM-DD to pin"})`);
   for (const s of suite.scenarios) console.log(`  • ${s.name} (${s.assert.length} assertions)`);
   if (suite.businessRules.length) {
     console.log(`\nBusiness rules extracted from the spec (add assertions for these):`);
@@ -283,7 +293,10 @@ async function cmdBakeoff(positional: string[], opts: Record<string, string | bo
   if (!replay && !useMockAdapter) getKey();
   const dir = positional[0] ?? "scenarios";
   let scenarios = loadScenarios(dir);
-  if (typeof opts.only === "string") scenarios = scenarios.filter((s) => s.name.includes(opts.only as string));
+  if (typeof opts.only === "string") {
+    scenarios = scenarios.filter((s) => s.name.includes(opts.only as string));
+    if (scenarios.length === 0) { console.error(`\n✖ --only "${opts.only}" matched no scenarios in ${dir} — fail-closed (a filter typo must not report a tie).\n`); process.exit(2); }
+  }
   const autA = await loadAut(aPath), autB = await loadAut(bPath);
   const adapter = useMockAdapter ? new MockAUTAdapter({ buggy: opts.buggy === true }) : new DeepgramVoiceAgentAdapter();
   const judging = opts.judge !== undefined; // --judge [mock] : also diff the advisory judge across configs
