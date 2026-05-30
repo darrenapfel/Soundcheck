@@ -1,37 +1,57 @@
-// Automated secret scan — asserts no API key value is committed to the tracked tree.
-// Scans source/config (excludes this test, docs, and *.md, which contain example
-// placeholders + the patterns themselves). Part of the release security gate.
+// Automated secret scan — asserts no API key value is committed to the distributed tree.
+// Works WITH git (scans the tracked tree, respecting .gitignore) and WITHOUT it (a filesystem
+// walk), so a package/archive consumer without `.git` can run the gate too. Excludes this test,
+// docs, and *.md (which contain example placeholders + the patterns themselves).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
-function grepTracked(pattern: string): string {
-  try {
-    // exit 0 = matches found (returns them); exit 1 = no matches (throws, caught below)
-    return execSync(`git grep -nE ${JSON.stringify(pattern)} -- . ':!test' ':!docs' ':!*.md'`, { encoding: "utf8" });
-  } catch (e) {
-    const err = e as { status?: number };
-    if (err.status === 1) return ""; // no matches — clean
-    throw e;
-  }
+const HAS_GIT = existsSync(".git");
+const SKIP_DIRS = new Set(["node_modules", ".git", "runs"]);
+const BINARY = /\.(wav|png|jpg|jpeg|gif|ico|woff2?|ttf)$/i;
+const norm = (f: string) => f.replace(/^\.\//, "");
+const excluded = (f: string) => { const n = norm(f); return n.startsWith("test/") || n.startsWith("docs/") || n.endsWith(".md"); };
+
+/** Files to scan: the tracked tree under git, else a filesystem walk. */
+function filesToScan(): string[] {
+  if (HAS_GIT) return execSync("git ls-files", { encoding: "utf8" }).split("\n").filter(Boolean);
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name)) walk(join(dir, e.name)); }
+      else out.push(join(dir, e.name));
+    }
+  };
+  walk(".");
+  return out;
 }
 
-test("no API key value is committed in source/config", () => {
+test(`no API key value is committed in source/config (${HAS_GIT ? "git" : "filesystem"} scan)`, () => {
   const patterns = [
     "33a18c", "28f7e5",                  // the throwaway dev keys used during the build
     "\\bdg_[A-Za-z0-9]{16}",             // Deepgram-style key value
     "\\bsk-[A-Za-z0-9]{16}",             // OpenAI-style key value
     "DEEPGRAM_API_KEY=[A-Za-z0-9]",      // a key assigned in a tracked file
     "OPENAI_API_KEY=[A-Za-z0-9]",
-  ];
-  for (const p of patterns) {
-    const hits = grepTracked(p);
-    assert.equal(hits.trim(), "", `possible committed secret matching /${p}/:\n${hits}`);
+  ].map((p) => new RegExp(p));
+  const files = filesToScan().filter((f) => !excluded(f) && !BINARY.test(f));
+  for (const f of files) {
+    let text: string;
+    try { text = readFileSync(norm(f), "utf8"); } catch { continue; } // unreadable/binary — skip
+    for (const re of patterns) {
+      assert.ok(!re.test(text), `possible committed secret matching /${re.source}/ in ${f}`);
+    }
   }
 });
 
-test(".env is not tracked", () => {
-  const tracked = execSync("git ls-files", { encoding: "utf8" });
-  assert.ok(!/(^|\/)\.env$/m.test(tracked), ".env must never be tracked");
+test(".env is not present in the distributed tree", () => {
+  if (HAS_GIT) {
+    const tracked = execSync("git ls-files", { encoding: "utf8" });
+    assert.ok(!/(^|\/)\.env$/m.test(tracked), ".env must never be tracked");
+  } else {
+    assert.ok(!existsSync(".env"), ".env must not ship in a package/archive tree");
+  }
 });
