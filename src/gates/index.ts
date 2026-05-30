@@ -8,12 +8,12 @@
 // IVR. (See README — Assess.)
 
 import { detectArtifacts, detectDashAsNegative, numberToWords, spokenTime, MONTHS } from "../normalize.ts";
-import type { AssertSpec, GateResult, Scenario, ToolCall, ToolSchema, Transcript } from "../types.ts";
+import type { AssertSpec, GateResult, Scenario, ToolCall, ToolSchema, Trace } from "../types.ts";
 
 /** Everything a gate may need: the captured conversation, the scenario, and the AUT's
  *  declared tool schemas (for schema-conformance gates). */
 export interface GateContext {
-  transcript: Transcript;
+  transcript: Trace;
   scenario: Scenario;
   tools: ToolSchema[];
 }
@@ -21,11 +21,11 @@ export type GateFn = (spec: unknown, ctx: GateContext) => GateResult;
 
 // ---- shared helpers ----
 
-function allToolCalls(t: Transcript): ToolCall[] {
+function allToolCalls(t: Trace): ToolCall[] {
   return t.turns.flatMap((turn) => turn.toolCalls);
 }
 /** Values an agent sent for `field` of `tool` (top-level or nested under `changes`). */
-function toolArgValues(t: Transcript, tool: string | undefined, field: string): { tool: string; value: unknown }[] {
+function toolArgValues(t: Trace, tool: string | undefined, field: string): { tool: string; value: unknown }[] {
   const out: { tool: string; value: unknown }[] = [];
   for (const tc of allToolCalls(t)) {
     if (tool && tc.name !== tool) continue;
@@ -36,7 +36,7 @@ function toolArgValues(t: Transcript, tool: string | undefined, field: string): 
   }
   return out;
 }
-const heardText = (t: Transcript) => t.turns.map((turn) => (turn.agentSpokenHeardBack || "").toLowerCase()).join(" ");
+const heardText = (t: Trace) => t.turns.map((turn) => (turn.agentSpokenHeardBack || "").toLowerCase()).join(" ");
 
 const ORDINALS = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth"];
 /** Spoken ordinal for a day-of-month 1..31: "first", "twenty eighth", "thirtieth". */
@@ -217,7 +217,7 @@ function splitSpec(spec: AssertSpec): { key: string; value: unknown } {
   return { key, value: (spec as Record<string, unknown>)[key] };
 }
 
-export function runGates(t: Transcript, scenario: Scenario, tools: ToolSchema[] = []): GateResult[] {
+export function runGates(t: Trace, scenario: Scenario, tools: ToolSchema[] = []): GateResult[] {
   const ctx: GateContext = { transcript: t, scenario, tools };
   return scenario.assert.map((spec) => {
     const { key, value } = splitSpec(spec);

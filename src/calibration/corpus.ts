@@ -4,15 +4,15 @@
 // (See docs/TESTING.md §3.2.) Crisp classes (spoken_cleanly, goal_completed) get firm
 // labels; fuzzy ones (naturalness) use clear-cut positive/negative examples only.
 
-import type { Transcript, ToolCall } from "../types.ts";
+import type { Trace, ToolCall } from "../types.ts";
 
 export interface LabeledCase {
   name: string;
-  transcript: Transcript;
+  transcript: Trace;
   labels: Record<string, boolean | number>; // dimension key -> ground-truth value
 }
 
-function tx(name: string, heard: string, tools: ToolCall[] = []): Transcript {
+function tx(name: string, heard: string, tools: ToolCall[] = []): Trace {
   return {
     scenario: name, persona: "cooperative", autLabel: "corpus",
     turns: [{ turn: 1, callerSaid: "(caller)", agentHeardCallerAs: "(caller)", agentText: "", agentSpokenHeardBack: heard, toolCalls: tools, ttfbMs: 1000, turnMs: 2000 }],

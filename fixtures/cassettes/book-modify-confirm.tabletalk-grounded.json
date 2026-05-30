@@ -1,17 +1,32 @@
 {
-  "version": 1,
+  "version": 2,
   "scenario": "book-modify-confirm",
   "persona": "cooperative",
   "autLabel": "tabletalk-grounded",
   "recordedAtNote": "recorded via `soundcheck run --record` (re-record only via reviewed PR)",
+  "oracleTranscript": "Hi. Thanks for calling Table Talk. How can I help you today? Hi. I'd like to book a table for four people this Saturday at seven thirty PM. The name is Garcia. Your table for four under the name Garcia is booked for Saturday, May thirtieth at seven thirty PM. If you need anything else, just let me know. Actually, please change it to six thirty PM instead. Yes. Go ahead and update it. Your reservation has been successfully updated to six hundred and thirty PM on Saturday, May thirtieth. If there's anything else I can assist you with, feel free to ask. What are tonight's specials? And how much is the prefix menu? The prefix menu is sixty five dollars. Would you like to know more about it? Perfect. Can you confirm all my reservation details before we finish? Sure. Here are your reservation details. You have a table for four under the name Garcia, booked for Saturday, May thirtieth at six thirty PM. If everything looks good, you're all set.",
   "turns": [
     {
       "turn": 1,
       "callerSaid": "Hi, I'd like to book a table for four people this Saturday at seven thirty PM. The name is Garcia.",
       "agentHeardCallerAs": "Hi. I'd like to book a table for four people this Saturday at seven thirty PM. The name is Garcia.",
-      "agentText": "I have successfully booked a table for four under the name Garcia on May thirtieth at seven thirty PM. Is there anything else I can assist you with?",
-      "agentSpokenHeardBack": "I have successfully booked a table for four under the name Garcia on May thirtieth at seven thirty PM. Is there anything else I can assist you with?",
+      "agentText": "Your table for four under the name Garcia is booked for Saturday, May thirtieth at seven thirty PM. If you need anything else, just let me know!",
+      "agentSpokenHeardBack": "Your table for four under the name Garcia is booked for Saturday, May thirtieth at seven thirty PM. If you need anything else, just let me know.",
       "toolCalls": [
+        {
+          "name": "checkAvailability",
+          "args": {
+            "date": "2026-05-30",
+            "partySize": 4,
+            "time": "19:30"
+          },
+          "result": {
+            "available": true,
+            "date": "2026-05-30",
+            "time": "19:30",
+            "partySize": 4
+          }
+        },
         {
           "name": "bookReservation",
           "args": {
@@ -30,15 +45,15 @@
           }
         }
       ],
-      "ttfbMs": 1886,
-      "turnMs": 8993
+      "ttfbMs": 2125,
+      "turnMs": 8959
     },
     {
       "turn": 2,
       "callerSaid": "Actually, please change it to six thirty PM instead. Yes, go ahead and update it.",
       "agentHeardCallerAs": "Actually, please change it to six thirty PM instead. Yes. Go ahead and update it.",
-      "agentText": "I've updated your reservation for Garcia to six thirty PM on May thirtieth. Is there anything else I can help you with?",
-      "agentSpokenHeardBack": "I've updated your reservation for Garcia to six thirty PM on May thirtieth. Is there anything else I can help you with?",
+      "agentText": "Your reservation has been successfully updated to six thirty PM on Saturday, May thirtieth. If there's anything else I can assist you with, feel free to ask!",
+      "agentSpokenHeardBack": "Your reservation has been successfully updated to six hundred and thirty PM on Saturday, May thirtieth. If there's anything else I can assist you with, feel free to ask.",
       "toolCalls": [
         {
           "name": "modifyReservation",
@@ -57,15 +72,15 @@
           }
         }
       ],
-      "ttfbMs": 2330,
-      "turnMs": 8497
+      "ttfbMs": 680,
+      "turnMs": 7843
     },
     {
       "turn": 3,
       "callerSaid": "What are tonight's specials, and how much is the prix fixe menu?",
-      "agentHeardCallerAs": "What are tonight's specials, and how much is the prefix menu?",
-      "agentText": "Tonight's specials include grilled salmon for thirty-two dollars, mushroom risotto for twenty-six dollars, and lemon tart for twelve dollars. The prefix menu is sixty-five dollars and includes a Caesar salad and ribeye. Would you like to make a reservation or need help with anything else?",
-      "agentSpokenHeardBack": "Tonight's specials include grilled salmon for thirty two dollars, mushroom risotto for twenty six dollars, and lemon tart for twelve dollars. The prefix menu is sixty five dollars and includes a Caesar salad and rib eye. Would you like to make a reservation or need help with anything else?",
+      "agentHeardCallerAs": "What are tonight's specials? How much is the prefix menu?",
+      "agentText": "The prefix menu is sixty-five dollars. Would you like to know more about it?",
+      "agentSpokenHeardBack": "The prefix menu is sixty five dollars Would you like to know more about it?",
       "toolCalls": [
         {
           "name": "getDailySpecials",
@@ -86,39 +101,20 @@
               }
             ]
           }
-        },
-        {
-          "name": "getMenuItems",
-          "args": {
-            "dietaryFilter": "prefix"
-          },
-          "result": {
-            "items": [
-              {
-                "name": "Caesar salad",
-                "price": 14
-              },
-              {
-                "name": "Ribeye",
-                "price": 48
-              }
-            ],
-            "prixFixe": 65
-          }
         }
       ],
-      "ttfbMs": 3598,
-      "turnMs": 16883
+      "ttfbMs": 805,
+      "turnMs": 4448
     },
     {
       "turn": 4,
       "callerSaid": "Perfect. Can you confirm all my reservation details before we finish?",
       "agentHeardCallerAs": "Perfect. Can you confirm all my reservation details before we finish?",
-      "agentText": "Sure! Your reservation is for Garcia, with a party of four on May thirtieth at six thirty PM. Is everything correct?",
-      "agentSpokenHeardBack": "Sure. Your reservation is for Garcia with a party of four on May thirtieth at six thirty PM. Is everything correct?",
+      "agentText": "Sure! Here are your reservation details: \n\nYou have a table for four under the name Garcia, booked for Saturday, May thirtieth at six thirty PM. If everything looks good, you're all set!",
+      "agentSpokenHeardBack": "Sure. Here are your reservation details. You have a table for four under the name Garcia, booked for Saturday, May thirtieth at six thirty PM. If everything looks good, you're all set.",
       "toolCalls": [],
-      "ttfbMs": 642,
-      "turnMs": 7975
+      "ttfbMs": 780,
+      "turnMs": 12513
     }
   ]
 }

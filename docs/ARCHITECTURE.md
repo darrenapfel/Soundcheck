@@ -27,7 +27,7 @@ The design goal is that an autonomous agent can **build → test → tune → sh
                                                           ▼
                                                    CAPTURE / round-trip
                                           (STT on the AUT's real audio + trace + timing)
-                                                          │ a structured Transcript
+                                                          │ a structured Trace
                                             ┌─────────────┴─────────────┐
                                             ▼                           ▼
                                   DETERMINISTIC GATES            LLM JUDGE
@@ -53,7 +53,7 @@ Implementation notes carried from the spike: audio must be streamed at **real ti
 Records the full exchange: Evaline's words, the AUT's emitted text/events (if the adapter exposes them), **the AUT's actual spoken audio round-tripped back through STT** (so we judge what a listener *hears*, not what the model *typed*), the **tool-call trace**, and **timings** (TTFB, turn latency, barge-in handling). The round-trip is also exposed **standalone**: `text→TTS→STT→compare` validates TTS; `known-audio→STT→compare` validates STT.
 
 ### 4.3 Deterministic gates (the regression suite)
-Pure-code, pass/fail assertions over the captured `Transcript`. Soundcheck ships a built-in **voice-safety rule pack** (productized directly from spike findings):
+Pure-code, pass/fail assertions over the captured `Trace`. Soundcheck ships a built-in **voice-safety rule pack** (productized directly from spike findings):
 - **no-spoken-symbols** — the heard audio never contains "star", "pound", "hashtag", a dash read as "negative" before a price, etc.
 - **value-consistency** — a spoken value equals its tool-call value (e.g. spoken date == booked date).
 - **tool-arg-wellformed** — dates passed to tools are ISO `YYYY-MM-DD`, times are 24h `HH:MM`, etc. *(This catches the spike's "speech-fix broke the tool-arg format" regression — a class the speech oracle alone cannot see.)*
