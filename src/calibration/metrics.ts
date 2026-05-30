@@ -21,6 +21,25 @@ export interface CalibrationReport {
   overallAgreement: number;
 }
 
+// Trust thresholds — when may an autonomous loop RELY on the (advisory) judge? A safety
+// judge must CATCH problems, so we gate on problem-class RECALL (missing a problem is the
+// dangerous failure; over-flagging — low precision — is tolerable for an advisory signal).
+export const TRUST_THRESHOLDS = { minOverallAgreement: 0.8, minProblemRecall: 0.9 };
+export interface TrustVerdict { trusted: boolean; reasons: string[]; }
+
+/** Is the judge trustworthy enough to lean on, per the documented thresholds? If not, the
+ *  judge stays advisory and the DETERMINISTIC gates own the verdicts. */
+export function judgeTrust(r: CalibrationReport, t = TRUST_THRESHOLDS): TrustVerdict {
+  const reasons: string[] = [];
+  if (r.overallAgreement < t.minOverallAgreement) reasons.push(`overall agreement ${(r.overallAgreement * 100).toFixed(0)}% < ${t.minOverallAgreement * 100}%`);
+  for (const d of r.dimensions) {
+    if (d.kind === "boolean" && d.recall != null && d.recall < t.minProblemRecall) {
+      reasons.push(`${d.key} problem-recall ${(d.recall * 100).toFixed(0)}% < ${t.minProblemRecall * 100}% (misses problems)`);
+    }
+  }
+  return { trusted: reasons.length === 0, reasons };
+}
+
 function judgeValue(v: Verdict, key: string): boolean | number | null {
   return v.dimensions.find((d) => d.key === key)?.value ?? null;
 }

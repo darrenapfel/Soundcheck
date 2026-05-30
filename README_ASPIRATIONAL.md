@@ -122,7 +122,7 @@ This aspirational README is **STS-focused** by deliberate choice: STS is the hig
 | Deterministic gates (symbols, ISO, required-tool, latency) | ✅ Shipped | — |
 | Record/replay cassettes (persisted traces) | ✅ Shipped | — |
 | Advisory LLM judge + panel | ✅ Shipped | — |
-| Judge calibration (seed) | ✅ Shipped | Grow into a trusted-judge alignment loop (cross-model Golden Set, drift) |
+| Judge alignment loop | ✅ Shipped (M5) | Trust verdict + cross-model Golden-Set corroboration (gpt-4o, no human, a diversity check) + a drift guard; judge stays advisory |
 | Autonomous authoring | ✅ Shipped (M4) | Domain-agnostic — one scenario per tool from any agent's spec, generic gates wired; caller lines are mechanical starting points |
 | Tuning loop (seed) | ✅ Shipped | Trace-driven root-cause feeding the fixer; full red-green |
 | **Declarative, domain-agnostic gates** | ✅ Shipped (M1) | Composable gate registry: `tool_sequence`, `tool_args_match_schema`, `spoken_matches_tool`, `forbidden_tool`, generic grounding — restaurant coupling deleted |

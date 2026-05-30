@@ -15,8 +15,8 @@ import { buildTranscript } from "./capture/transcript.ts";
 import { saveCassette, loadCassette } from "./capture/cassette.ts";
 import { runGates } from "./gates/index.ts";
 import { judgeTranscript, mockJudge } from "./judge/index.ts";
-import { deepgramVaJudge } from "./judge/deepgram-va-judge.ts";
-import { calibrate, formatReport } from "./calibration/index.ts";
+import { deepgramVaJudge, makeDeepgramVaJudge } from "./judge/deepgram-va-judge.ts";
+import { calibrate, formatReport, crossModelAlign, formatAlignment } from "./calibration/index.ts";
 import { authorSuite } from "./author/index.ts";
 import { tune, formatTuneResult } from "./tune/index.ts";
 import type { ScenarioSet, TuneScore } from "./tune/index.ts";
@@ -152,9 +152,21 @@ async function cmdValidate(opts: Record<string, string | boolean>) {
 
 async function cmdCalibrate(opts: Record<string, string | boolean>) {
   const live = opts.judge === "live";
-  const backend = live ? deepgramVaJudge : mockJudge;
   if (live) getKey();
-  const report = await calibrate(backend);
+  // Cross-model alignment loop: a STRONGER reference model (default gpt-4o) corroborates the
+  // Golden Set (no human) and the production judge's trust is reported against it. Live only.
+  if (live && (opts.align || typeof opts.reference === "string")) {
+    const refModel = typeof opts.reference === "string" ? opts.reference : "gpt-4o";
+    const alignment = await crossModelAlign(makeDeepgramVaJudge("gpt-4o-mini"), makeDeepgramVaJudge(refModel));
+    console.log("\n" + formatAlignment(alignment) + "\n");
+    if (typeof opts.out === "string") {
+      mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
+      writeFileSync(resolve(process.cwd(), opts.out), JSON.stringify(alignment, null, 2) + "\n");
+      console.log(`alignment written: ${opts.out}\n`);
+    }
+    process.exit(alignment.goldenSetValid ? 0 : 1);
+  }
+  const report = await calibrate(live ? deepgramVaJudge : mockJudge);
   console.log("\n" + formatReport(report) + "\n");
   if (typeof opts.out === "string") {
     mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
@@ -247,9 +259,11 @@ function help() {
   soundcheck validate --tts "<text>"     Round-trip text -> TTS -> STT; flag spoken symbols.
   soundcheck validate --stt <file.wav>   Transcribe an audio file.
 
-  soundcheck calibrate [--judge live] [--out <file.json>]
-      Score the judge against the self-constructed labeled corpus (agreement/precision/recall).
-      Default uses the offline mock judge; --judge live uses the Deepgram-fronted grader.
+  soundcheck calibrate [--judge live] [--align [--reference <model>]] [--out <file.json>]
+      Score the judge against the no-human Golden Set (agreement/precision/recall) + a TRUST
+      verdict (may it be relied on?). Default = offline mock judge; --judge live = the
+      Deepgram-fronted grader. --align (live) runs the cross-model alignment loop: a stronger
+      reference model (default gpt-4o) corroborates the Golden Set, then reports the judge's trust.
 
   soundcheck author --spec <agent-config.ts> [--out <dir>]
       Autonomously generate a scenario suite from an agent's spec (tools + system prompt):
