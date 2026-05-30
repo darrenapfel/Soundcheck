@@ -7,7 +7,7 @@
 // Auth: the raw Deepgram key via the ["token", key] subprotocol. The `think` LLM
 // runs on the Deepgram key alone — NO OpenAI/Anthropic key is ever passed.
 
-import { getKey, synthesize } from "../deepgram.ts";
+import { getKey, synthesize, resamplePcm16le } from "../deepgram.ts";
 import type { AUTConfig, ToolCall } from "../types.ts";
 import type { AUTAdapter, CallerTurn, RawTurn } from "./types.ts";
 
@@ -163,6 +163,9 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
         agentHeardCallerAs: userHeard.join(" "),
         agentText: agentLines.join(" "),
         agentAudioPcm: Buffer.concat(agentAudio),
+        // Evaline was synthesized at 16kHz for the agent's input; upsample to 24kHz so
+        // report playback (and the stitched conversation) is one consistent rate with the agent.
+        callerAudioPcm: resamplePcm16le(pcm, 16000, 24000),
         toolCalls,
         ttfbMs: firstFrameAt > speechEndMs ? firstFrameAt - speechEndMs : null,
         turnMs: Math.max(0, settleAt - speechEndMs),

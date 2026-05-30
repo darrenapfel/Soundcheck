@@ -58,6 +58,7 @@ export interface CapturedTurn {
   ttfbMs: number | null; // caller-stop -> first agent audio frame
   turnMs: number | null; // caller-stop -> turn settle
   audioWav?: Buffer; // agent audio for this turn, WAV-wrapped (for the report)
+  callerAudioWav?: Buffer; // Evaline's audio for this turn, WAV-wrapped (for the report)
 }
 
 export interface Transcript {
@@ -65,6 +66,9 @@ export interface Transcript {
   persona: Persona;
   autLabel: string;
   turns: CapturedTurn[];
+  /** The whole conversation stitched in order (caller→agent per turn), one WAV.
+   *  Present only on live runs that captured audio; absent on replay (cassettes drop audio). */
+  fullConversationWav?: Buffer;
 }
 
 export interface GateResult {

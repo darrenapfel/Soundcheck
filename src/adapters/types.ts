@@ -12,6 +12,9 @@ export interface RawTurn {
   agentHeardCallerAs: string;
   agentText: string;
   agentAudioPcm: Buffer; // the AUT's spoken output, linear16 @ 24kHz (empty for text/mock adapters)
+  /** Evaline's spoken audio for this turn, linear16 @ 24kHz (for report playback).
+   *  Optional: text/mock adapters don't produce caller audio. */
+  callerAudioPcm?: Buffer;
   toolCalls: ToolCall[];
   ttfbMs: number | null;
   turnMs: number | null;
