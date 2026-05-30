@@ -9,8 +9,8 @@
       "turn": 1,
       "callerSaid": "Hi, what are tonight's specials?",
       "agentHeardCallerAs": "Hi. What are tonight's specials?",
-      "agentText": "Tonight's specials are grilled salmon for thirty-two dollars, mushroom risotto for twenty-six dollars, and lemon tart for twelve dollars.",
-      "agentSpokenHeardBack": "Tonight's specials are grilled salmon for thirty two dollars mushroom risotto for twenty six dollars and lemon tart",
+      "agentText": "Tonight's specials are grilled salmon for thirty-two dollars, mushroom risotto for twenty-six dollars, and lemon tart for twelve dollars. Would you like to make a reservation?",
+      "agentSpokenHeardBack": "Tonight's specials are grilled salmon for thirty two dollars, mushroom risotto for twenty six dollars, and lemon tart for twelve dollars. Would you like to make a reservation?",
       "toolCalls": [
         {
           "name": "getDailySpecials",
@@ -33,15 +33,15 @@
           }
         }
       ],
-      "ttfbMs": 3277,
-      "turnMs": 6455
+      "ttfbMs": 1378,
+      "turnMs": 11134
     },
     {
       "turn": 2,
       "callerSaid": "And how much is the prix fixe menu?",
       "agentHeardCallerAs": "And how much is the prefix menu?",
-      "agentText": "The prix fixe menu is sixty-five dollars. It includes options like Caesar salad for fourteen dollars and ribeye for forty-eight dollars.",
-      "agentSpokenHeardBack": "For twelve dollars. The prefix menu is sixty five dollars. It includes options like Caesar salad for fourteen dollars and rib eye for forty eight dollars.",
+      "agentText": "The prix fixe menu is sixty-five dollars. It includes options like Caesar salad for fourteen dollars and ribeye for forty-eight dollars. Would you like to make a reservation?",
+      "agentSpokenHeardBack": "The prefix menu is sixty five dollars. It includes options like Caesar salad for fourteen dollars and rib eye for forty eight dollars. Would you like to make a reservation?",
       "toolCalls": [
         {
           "name": "getMenuItems",
@@ -61,8 +61,8 @@
           }
         }
       ],
-      "ttfbMs": null,
-      "turnMs": 8206
+      "ttfbMs": 1417,
+      "turnMs": 10638
     }
   ]
 }
