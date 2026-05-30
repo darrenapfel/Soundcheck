@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseVerdict, mockJudge, judgeTranscript, transcriptToPrompt, aggregateVerdicts, DEFAULT_RUBRIC } from "../src/judge/index.ts";
 import type { Verdict } from "../src/judge/types.ts";
-import type { Transcript } from "../src/types.ts";
+import type { Trace } from "../src/types.ts";
 
 const dim = (v: Verdict, key: string) => v.dimensions.find((d) => d.key === key)?.value;
 
@@ -47,7 +47,7 @@ test("mockJudge flags spoken symbols deterministically", async () => {
 });
 
 test("transcriptToPrompt includes heard text + tools and judgeTranscript runs a backend", async () => {
-  const t: Transcript = {
+  const t: Trace = {
     scenario: "s", persona: "cooperative", autLabel: "a",
     turns: [{ turn: 1, callerSaid: "book it", agentHeardCallerAs: "book it", agentText: "ok", agentSpokenHeardBack: "your reservation is confirmed", toolCalls: [{ name: "bookReservation", args: {}, result: {} }], ttfbMs: 100, turnMs: 200 }],
   };

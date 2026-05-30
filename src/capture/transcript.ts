@@ -1,10 +1,10 @@
 // Capture: round-trip the AUT's spoken audio back through STT so gates/judge see
-// what a listener actually HEARS (not the model's text), assemble the Transcript, and
+// what a listener actually HEARS (not the model's text), assemble the Trace, and
 // — for a live recording — run the oracle (STT) over the WHOLE call so Soundcheck
 // self-validates what really happened, in order, overlaps and all.
 
 import { transcribe, pcmToWav } from "../deepgram.ts";
-import type { CapturedTurn, Scenario, Transcript } from "../types.ts";
+import type { CapturedTurn, Scenario, Trace } from "../types.ts";
 import type { ConversationCapture } from "../adapters/types.ts";
 
 const PLAYBACK_RATE = 24000; // caller (upsampled) + agent + the mixed recording all live here
@@ -19,7 +19,7 @@ export async function buildTranscript(
   autLabel: string,
   cap: ConversationCapture,
   transcribeFn: TranscribeFn = defaultTranscribe,
-): Promise<Transcript> {
+): Promise<Trace> {
   const turns: CapturedTurn[] = [];
   for (let i = 0; i < cap.turns.length; i++) {
     const r = cap.turns[i];

@@ -22,7 +22,7 @@ import { tune, formatTuneResult } from "./tune/index.ts";
 import type { ScenarioSet, TuneScore } from "./tune/index.ts";
 import { spawnSync } from "node:child_process";
 import { generateReport } from "./report/html.ts";
-import type { AUTConfig, Scenario, ScenarioResult, Transcript } from "./types.ts";
+import type { AUTConfig, Scenario, ScenarioResult, Trace } from "./types.ts";
 import type { ConversationCapture } from "./adapters/types.ts";
 
 function parseArgs(argv: string[]) {
@@ -81,7 +81,7 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   const results: ScenarioResult[] = [];
   for (const scenario of scenarios) {
     process.stdout.write(`▶ ${scenario.name} (persona=${scenario.persona}) … `);
-    let transcript: Transcript;
+    let transcript: Trace;
     if (replay) {
       transcript = loadCassette(scenario.name, aut.label);
       if (transcript.scenario !== scenario.name || transcript.persona !== scenario.persona) {

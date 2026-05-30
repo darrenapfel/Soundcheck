@@ -125,9 +125,9 @@ This aspirational README is **STS-focused** by deliberate choice: STS is the hig
 | Judge calibration (seed) | ✅ Shipped | Grow into a trusted-judge alignment loop (cross-model Golden Set, drift) |
 | Autonomous authoring (seed) | ✅ Shipped | Make domain-agnostic (any agent spec, not restaurant) |
 | Tuning loop (seed) | ✅ Shipped | Trace-driven root-cause feeding the fixer; full red-green |
-| **Declarative, domain-agnostic gates** | 🚧 Aspirational | Replace hardcoded `grounding`/`value_consistency` with a composable gate registry: `tool_sequence`, `tool_args_match_schema`, `spoken_matches_tool`, `forbidden_tool`, generic grounding |
-| **Non-restaurant example** | 🚧 Aspirational | A tech-support / healthcare / finance agent proving genericity end-to-end |
-| **First-class structured `Trace`** | 🚧 Aspirational | One versioned artifact (recording+oracle+turns+tools) gates/judges run against offline |
+| **Declarative, domain-agnostic gates** | ✅ Shipped (M1) | Composable gate registry: `tool_sequence`, `tool_args_match_schema`, `spoken_matches_tool`, `forbidden_tool`, generic grounding — restaurant coupling deleted |
+| **Non-restaurant example** | ✅ Shipped (M2) | IT-support agent (`examples/support/`); same gates, oracle-validated catching its bugs, pinned offline |
+| **First-class structured `Trace`** | ✅ Shipped (M3) | `Trace` type + versioned persistence (v2 retains the oracle); gates AND the judge run on a persisted trace offline (proven in `test/trace.test.ts`) |
 | **Adversarial / edge-case discovery** | 🚧 Aspirational | Evaline as fuzzer/red-teamer surfacing unknown failure modes |
 | **A/B & vendor bake-off** | 🚧 Aspirational | Same suite vs. multiple configs, diffed |
 | **Regression-from-production** | 🚧 Aspirational | Failed real call → auto-authored reproducing scenario + cassette |

@@ -1,8 +1,8 @@
-// Judge orchestration: turn a Transcript into a grader prompt, run a backend,
+// Judge orchestration: turn a Trace into a grader prompt, run a backend,
 // return a structured Verdict. Default rubric covers the subjective dimensions the
 // deterministic gates can't. The judge is ADVISORY (reported, never a hard CI gate).
 
-import type { Transcript } from "../types.ts";
+import type { Trace } from "../types.ts";
 import type { JudgeBackend, Rubric, Verdict } from "./types.ts";
 
 export { parseVerdict } from "./parse.ts";
@@ -18,7 +18,7 @@ export const DEFAULT_RUBRIC: Rubric = {
 };
 
 /** Render a transcript into the text a grader judges (what a listener HEARS + tools). */
-export function transcriptToPrompt(t: Transcript): string {
+export function transcriptToPrompt(t: Trace): string {
   return t.turns
     .map((turn) =>
       `Turn ${turn.turn}:\n  caller: "${turn.callerSaid}"\n  agent (heard aloud): "${turn.agentSpokenHeardBack}"\n  tools called: ${turn.toolCalls.map((tc) => tc.name).join(", ") || "none"}`,
@@ -49,7 +49,7 @@ export const mockJudge: JudgeBackend = {
   },
 };
 
-export async function judgeTranscript(t: Transcript, backend: JudgeBackend, rubric: Rubric = DEFAULT_RUBRIC): Promise<Verdict> {
+export async function judgeTranscript(t: Trace, backend: JudgeBackend, rubric: Rubric = DEFAULT_RUBRIC): Promise<Verdict> {
   return backend.judge(transcriptToPrompt(t), rubric);
 }
 

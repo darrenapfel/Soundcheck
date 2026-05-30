@@ -69,7 +69,7 @@ export interface CapturedTurn {
   callerAudioWav?: Buffer; // Evaline's audio for this turn, WAV-wrapped (for the report)
 }
 
-export interface Transcript {
+export interface Trace {
   scenario: string;
   persona: Persona;
   autLabel: string;
@@ -89,7 +89,7 @@ export interface GateResult {
 }
 
 export interface ScenarioResult {
-  transcript: Transcript;
+  transcript: Trace;
   gates: GateResult[];
   passed: boolean; // all deterministic gates passed (gates are the hard gate)
   verdict?: import("./judge/types.ts").Verdict; // advisory LLM-judge scores (optional)

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runGates } from "../src/gates/index.ts";
-import type { CapturedTurn, Scenario, Transcript, ToolCall, ToolSchema } from "../src/types.ts";
+import type { CapturedTurn, Scenario, Trace, ToolCall, ToolSchema } from "../src/types.ts";
 
 const TOOLS: ToolSchema[] = [
   { name: "bookReservation", description: "", parameters: { type: "object", properties: { guestName: { type: "string" }, partySize: { type: "number" }, date: { type: "string", format: "date" }, time: { type: "string", format: "time" } }, required: ["guestName", "partySize", "date", "time"] } },
@@ -19,7 +19,7 @@ function book(date: unknown, extra: Record<string, unknown> = {}): ToolCall {
 }
 const call = (name: string, args: Record<string, unknown> = {}): ToolCall => ({ name, args, result: {} });
 const modify = (): ToolCall => ({ name: "modifyReservation", args: { changes: { time: "18:30" } }, result: {} });
-function tx(turns: CapturedTurn[]): Transcript {
+function tx(turns: CapturedTurn[]): Trace {
   return { scenario: "s", persona: "cooperative", autLabel: "fixture", turns };
 }
 const scen = (assertSpecs: Scenario["assert"]): Scenario => ({ name: "s", persona: "cooperative", turns: [], assert: assertSpecs });
