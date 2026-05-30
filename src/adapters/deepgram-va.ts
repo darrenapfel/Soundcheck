@@ -69,9 +69,10 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     let agentLines: string[] = [];
     let userHeard: string[] = [];
     let toolCalls: ToolCall[] = [];
-    let lastAgentEventAt = 0;
     let greetingDone = false;
     let firstFrameAt = 0; // first agent audio frame of the current turn
+    let lastAudioAt = 0; // most recent agent audio frame of the current turn
+    let audioDoneAt = 0; // AgentAudioDone for the current turn (the authoritative end-of-speech signal)
 
     // Continuous real-time pump (phone-call model — never stop sending audio).
     const pump = setInterval(() => {
@@ -87,7 +88,9 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     ws.addEventListener("message", (event: { data: unknown }) => {
       if (event.data instanceof ArrayBuffer) {
         if (collecting) {
-          if (firstFrameAt === 0) firstFrameAt = Date.now();
+          const now = Date.now();
+          if (firstFrameAt === 0) firstFrameAt = now;
+          lastAudioAt = now; // streaming audio IS activity — the fix for premature turn-cut
           agentAudio.push(Buffer.from(event.data));
         }
         return;
@@ -96,11 +99,11 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       try { m = JSON.parse(String(event.data)); } catch { return; }
       switch (m.type) {
         case "ConversationText":
-          if (m.role === "assistant") { agentLines.push(m.content); lastAgentEventAt = Date.now(); }
+          if (m.role === "assistant") agentLines.push(m.content);
           else if (m.role === "user") userHeard.push(m.content);
           break;
         case "AgentAudioDone":
-          lastAgentEventAt = Date.now();
+          audioDoneAt = Date.now();
           if (!greetingDone) greetingDone = true;
           break;
         case "FunctionCallRequest": {
@@ -112,7 +115,6 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
             const result = stub ? stub(args) : { ok: true };
             toolCalls.push({ name: fn.name, args, result });
             ws.send(JSON.stringify({ type: "FunctionCallResponse", id: fn.id, name: fn.name, content: JSON.stringify(result) }));
-            lastAgentEventAt = Date.now();
           }
           break;
         }
@@ -124,23 +126,33 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     const enqueueSpeech = (pcm: Buffer) => {
       for (let p = 0; p < pcm.length; p += FRAME) audioQueue.push(pcm.subarray(p, p + FRAME));
     };
-    // Settle: caller audio drained AND no agent activity for quietMs, capped.
-    const waitTurn = async (quietMs: number, capMs: number) => {
+    // Turn endpoint (the fix): the turn completes when the caller's audio has drained,
+    // the agent actually started responding, AgentAudioDone fired for THIS turn, AND a
+    // short coalescing window passed with no new audio (so multi-segment answers and
+    // tool-call-then-speak sequences are joined, not split). Capped as a backstop; if the
+    // agent never responds, we wait to the cap and record an empty agent turn.
+    // Relies on firstFrameAt/lastAudioAt/audioDoneAt being reset to 0 at each turn start.
+    const COALESCE_MS = 1200;
+    const waitTurn = async (capMs: number) => {
       const start = Date.now();
       while (Date.now() - start < capMs) {
-        await sleep(250);
-        if (audioQueue.length === 0 && Date.now() - lastAgentEventAt > quietMs && agentLines.length > 0) return;
+        await sleep(150);
+        if (ws.readyState !== WebSocket.OPEN) return;
+        const started = firstFrameAt > 0 || agentLines.length > 0;
+        const spokeAndDone = audioDoneAt > 0; // an AgentAudioDone fired this turn
+        const quiet = Date.now() - Math.max(lastAudioAt, audioDoneAt) > COALESCE_MS;
+        if (audioQueue.length === 0 && started && spokeAndDone && quiet) return;
       }
     };
 
     // Wait for the greeting to finish before the first caller turn.
     for (let i = 0; i < 60 && !greetingDone; i++) await sleep(200);
-    lastAgentEventAt = Date.now();
     await sleep(500);
 
     const out: RawTurn[] = [];
     for (let i = 0; i < callerTurns.length; i++) {
-      agentAudio = []; agentLines = []; userHeard = []; toolCalls = []; firstFrameAt = 0;
+      agentAudio = []; agentLines = []; userHeard = []; toolCalls = [];
+      firstFrameAt = 0; lastAudioAt = 0; audioDoneAt = 0; // per-turn endpoint state
       collecting = true;
       const turn = callerTurns[i];
       const pcm = await this.#synth(turn.text, { model: turn.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
@@ -154,8 +166,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       // excluded SLO is a v1 refinement. If the agent barges in before speech ends
       // we can't cleanly measure TTFB -> report null.
       const speechEndMs = turnStart + numSpeechFrames * 100;
-      lastAgentEventAt = Date.now();
-      await waitTurn(3000, 34000);
+      await waitTurn(34000);
       collecting = false;
       const settleAt = Date.now();
       out.push({

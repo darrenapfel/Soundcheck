@@ -42,8 +42,12 @@ test("ladder BOTTOM — bare book-modify-confirm: dirty speech + ungrounded", ()
 });
 
 test("ladder MIDDLE — hardened book-modify-confirm: clean speech, still ungrounded", () => {
+  // value_consistency=true: the agent is internally consistent (it speaks the same date
+  // it booked) but ungrounded (wrong year) — grounding is the gate that catches the real
+  // problem. (Before the turn-taking fix, smeared turns made value_consistency spuriously
+  // fail; clean segmentation now reflects the agent's true self-consistency.)
   assert.deepEqual(vector("book-modify-confirm", "tabletalk-hardened"), {
-    no_spoken_symbols: true, tool_arg_iso: true, grounding: false, required_tool: true, value_consistency: false, latency: true,
+    no_spoken_symbols: true, tool_arg_iso: true, grounding: false, required_tool: true, value_consistency: true, latency: true,
   });
 });
 

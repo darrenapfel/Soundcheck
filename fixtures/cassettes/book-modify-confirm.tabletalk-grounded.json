@@ -9,23 +9,9 @@
       "turn": 1,
       "callerSaid": "Hi, I'd like to book a table for four people this Saturday at seven thirty PM. The name is Garcia.",
       "agentHeardCallerAs": "Hi. I'd like to book a table for four people this Saturday at seven thirty PM. The name is Garcia.",
-      "agentText": "Your reservation for four people under the name Garcia is confirmed for Saturday, May thirtieth at seven thirty PM.",
-      "agentSpokenHeardBack": "Your reservation for four people under the name Garcia is confirmed for Saturday, May thirtieth at seven thirty PM.",
+      "agentText": "I have successfully booked a table for four under the name Garcia on May thirtieth at seven thirty PM. Is there anything else I can assist you with?",
+      "agentSpokenHeardBack": "I have successfully booked a table for four under the name Garcia on May thirtieth at seven thirty PM. Is there anything else I can assist you with?",
       "toolCalls": [
-        {
-          "name": "checkAvailability",
-          "args": {
-            "date": "2026-05-30",
-            "partySize": 4,
-            "time": "19:30"
-          },
-          "result": {
-            "available": true,
-            "date": "2026-05-30",
-            "time": "19:30",
-            "partySize": 4
-          }
-        },
         {
           "name": "bookReservation",
           "args": {
@@ -44,15 +30,15 @@
           }
         }
       ],
-      "ttfbMs": 3427,
-      "turnMs": 6522
+      "ttfbMs": 1886,
+      "turnMs": 8993
     },
     {
       "turn": 2,
       "callerSaid": "Actually, please change it to six thirty PM instead. Yes, go ahead and update it.",
       "agentHeardCallerAs": "Actually, please change it to six thirty PM instead. Yes. Go ahead and update it.",
-      "agentText": "Your reservation has been successfully updated to six thirty PM on Saturday, May thirtieth.",
-      "agentSpokenHeardBack": "Your reservation has been successfully updated to six thirty PM on Saturday, May thirtieth.",
+      "agentText": "I've updated your reservation for Garcia to six thirty PM on May thirtieth. Is there anything else I can help you with?",
+      "agentSpokenHeardBack": "I've updated your reservation for Garcia to six thirty PM on May thirtieth. Is there anything else I can help you with?",
       "toolCalls": [
         {
           "name": "modifyReservation",
@@ -71,15 +57,15 @@
           }
         }
       ],
-      "ttfbMs": null,
-      "turnMs": 10400
+      "ttfbMs": 2330,
+      "turnMs": 8497
     },
     {
       "turn": 3,
       "callerSaid": "What are tonight's specials, and how much is the prix fixe menu?",
-      "agentHeardCallerAs": "What are tonight's specials? And how much is the prefix menu?",
-      "agentText": "The prefix menu is forty-five dollars per person.",
-      "agentSpokenHeardBack": "The prefix menu is forty five dollars per person.",
+      "agentHeardCallerAs": "What are tonight's specials, and how much is the prefix menu?",
+      "agentText": "Tonight's specials include grilled salmon for thirty-two dollars, mushroom risotto for twenty-six dollars, and lemon tart for twelve dollars. The prefix menu is sixty-five dollars and includes a Caesar salad and ribeye. Would you like to make a reservation or need help with anything else?",
+      "agentSpokenHeardBack": "Tonight's specials include grilled salmon for thirty two dollars, mushroom risotto for twenty six dollars, and lemon tart for twelve dollars. The prefix menu is sixty five dollars and includes a Caesar salad and rib eye. Would you like to make a reservation or need help with anything else?",
       "toolCalls": [
         {
           "name": "getDailySpecials",
@@ -100,20 +86,39 @@
               }
             ]
           }
+        },
+        {
+          "name": "getMenuItems",
+          "args": {
+            "dietaryFilter": "prefix"
+          },
+          "result": {
+            "items": [
+              {
+                "name": "Caesar salad",
+                "price": 14
+              },
+              {
+                "name": "Ribeye",
+                "price": 48
+              }
+            ],
+            "prixFixe": 65
+          }
         }
       ],
-      "ttfbMs": 761,
-      "turnMs": 5210
+      "ttfbMs": 3598,
+      "turnMs": 16883
     },
     {
       "turn": 4,
       "callerSaid": "Perfect. Can you confirm all my reservation details before we finish?",
       "agentHeardCallerAs": "Perfect. Can you confirm all my reservation details before we finish?",
-      "agentText": "Sure! Your reservation is for four people under the name Garcia.",
-      "agentSpokenHeardBack": "Sure. Your reservation is for four people under the name Garcia.",
+      "agentText": "Sure! Your reservation is for Garcia, with a party of four on May thirtieth at six thirty PM. Is everything correct?",
+      "agentSpokenHeardBack": "Sure. Your reservation is for Garcia with a party of four on May thirtieth at six thirty PM. Is everything correct?",
       "toolCalls": [],
-      "ttfbMs": 708,
-      "turnMs": 4402
+      "ttfbMs": 642,
+      "turnMs": 7975
     }
   ]
 }
