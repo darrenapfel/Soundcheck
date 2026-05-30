@@ -12,14 +12,14 @@ import { buildSettings } from "../src/adapters/deepgram-va.ts";
 import { makeConfig } from "../examples/tabletalk/tabletalk.ts";
 
 test("buildSettings encodes the agreed audio formats", () => {
-  const s = buildSettings(makeConfig("t", "be nice")) as any;
+  const s = buildSettings(makeConfig("t", "be nice"));
   assert.deepEqual(s.audio.input, { encoding: "linear16", sample_rate: 16000 });
   assert.deepEqual(s.audio.output, { encoding: "linear16", sample_rate: 24000, container: "none" });
 });
 
 test("buildSettings wires listen/think/speak + tools + prompt + greeting", () => {
   const cfg = makeConfig("t", "SYSTEM PROMPT HERE");
-  const s = buildSettings(cfg) as any;
+  const s = buildSettings(cfg);
   assert.equal(s.agent.listen.provider.model, "nova-3");
   assert.equal(s.agent.think.provider.type, "open_ai"); // Deepgram-fronted; no OpenAI key passed
   assert.equal(s.agent.think.prompt, "SYSTEM PROMPT HERE");

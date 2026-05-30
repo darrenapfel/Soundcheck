@@ -324,7 +324,9 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     // truncating the most important turn from BOTH the recording and the oracle transcript.
     while (agentQ.length) recording.push(pullAgent(4800)); // 100ms @ 24kHz, agent-only (caller is done)
     recordingOn = false;
-    return { turns: out, recordingPcm: Buffer.concat(recording) };
+    // The Caller records WHY it ended; default to turn_cap if the loop hit the adapter backstop
+    // (MAX_TURNS) without the Caller ending itself. Threaded onto the Trace by buildTranscript.
+    return { turns: out, recordingPcm: Buffer.concat(recording), terminationReason: caller.terminationReason ?? "turn_cap" };
     } finally {
       clearTimeout(setupTimer);
       clearInterval(pump);

@@ -34,4 +34,3 @@ until the agent is genuinely speaking, then interrupts after a short `afterMs` d
 first, so it reads as a sequential second question instead of a real interruption.
 
 Open `runs/report-*.html` to **hear** both (full-conversation + per-turn caller/agent audio).
-```
