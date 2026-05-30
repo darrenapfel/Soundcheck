@@ -2,6 +2,20 @@
 
 All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
 
+## [Unreleased] — public-readiness pass
+
+Addressed the round-two readiness review (`docs/SOUNDCHECK_ROUND2_READINESS_REVIEW.md`) and the pinned caller Phase 1. **137 deterministic tests, 0 lint errors/warnings, fully offline CI.**
+
+### Added
+- **Publish-time build** so the installed npm package runs: `tsconfig.build.json` emits `dist/**/*.js` + `.d.ts` from `src/` (`.ts` import specifiers rewritten to `.js`), run by `prepack`; `bin`/`main`/`types`/`exports` point at `dist`. Development is unchanged (raw `.ts` via `--experimental-strip-types`); zero *runtime* deps preserved (`typescript` is a devDep). Installed-package smoke test (`scripts/smoke-package.sh`) wired as a separate CI job.
+- **Machine-readable example contract:** every scenario is replay-backed, `liveOnly`, or `fixtureOnly`; `test/example-contract.test.ts` fails on any hole. `run`/`bakeoff --replay` skip `liveOnly`/`fixtureOnly` honestly (no missing-cassette errors).
+- **Caller termination integrity** (CALLER_GAPS Phase 1): a `TerminationReason` (`goal_met` | `turn_cap` | `planner_error` | `repeat_guard` | `script_exhausted`) is tagged on every end, threaded onto the `Trace` (persisted in the cassette), shown in the report, and enforced by a synthetic `goal_reached` gate — a goal-driven call is a clean pass only when it ended `goal_met`. A wrap-up turn at the cap (H4); planner failures become a holding line + tagged `planner_error` (M4); a read-back rule before hangup (M1).
+
+### Fixed
+- **Windows cassette-path containment** uses `path.relative` (separator-agnostic), not `startsWith(root + "/")`.
+- **Strict lint clean** (`eslint . --max-warnings=0`): narrow `DeepgramListenResponse` type for the STT parse; dropped the adapter test's `as any`.
+- README Action snippet pins `@v2.0.0-rc.1` (an existing tag); example-README polish (stray fence, offline `--replay` commands, restaurant replay caveat).
+
 ## [2.0.0] — 2026-05 (the STS dream)
 
 Re-grounded the harness around coSTAR's **Scenario → Trace → Assess → Refine** for speech-to-speech, and made every capability domain-agnostic and oracle/test-verified. Each milestone independently reviewed (`docs/REVIEW_LOG.md`); a final 3-agent release panel signed off. **102+ deterministic tests, 0 lint errors, fully offline CI.** `README_ASPIRATIONAL.md` promoted to `README.md` — every promise is now true or de-scoped in writing.

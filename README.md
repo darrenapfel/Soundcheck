@@ -28,6 +28,8 @@ open runs/report-*.html                                    # 3. hear the call + 
 soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune until green — agent fixes agent
 ```
 
+**Install.** The quickstart above runs from a repo clone (`npm run soundcheck …`). To use Soundcheck in another project, `npm install soundcheck` (or `-g`) and call the `soundcheck` bin (or `npx soundcheck …`); the published package ships built JS, so it runs from `node_modules` with only Node 22 and zero runtime dependencies. Point `--aut` at your own agent's `.ts` config — it lives in your project, so Node strips its types normally.
+
 **No agent of your own yet?** Five bundled example domains show the *same* gates working everywhere:
 
 | Domain | Folder | What it exercises | Runs |

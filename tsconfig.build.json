@@ -1,0 +1,16 @@
+{
+  "// note": "Publish-time build ONLY. Development runs raw .ts via the npm scripts (Node's",
+  "// note2": "--experimental-strip-types) — there is no build step for dev. This config emits",
+  "// note3": "dist/**/*.js + *.d.ts from src/ so the PUBLISHED npm package runs from node_modules",
+  "// note4": "(Node refuses to strip TS types under node_modules). Run via `npm run build` (prepack).",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "sourceMap": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}
