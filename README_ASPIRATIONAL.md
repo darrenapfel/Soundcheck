@@ -85,8 +85,8 @@ soundcheck tune --agent ./my-agent.ts --fixer "claude -p"
 - **✅ Faithful turn-taking** — endpoints on the agent's real end-of-speech, no smeared turns.
 - **✅ Barge-in** — the caller cuts in mid-reply; the VA's server-side interruption is captured faithfully (oracle-validated: the agent truncates and re-addresses).
 - **✅ Reactive caller (Evaline).** A goal-driven synthetic caller improvises toward a goal, reacting to what the agent actually said, and hangs up when done.
-- **🚧 Adversarial discovery.** Evaline as a fuzzer/red-teamer — interruptions, confusion, topic-switches, hostile/ambiguous input (later: accents, background noise) — to *surface* failure modes, not just check known ones.
-- **🚧 A/B & vendor bake-off.** Run one suite against two prompts / `think` models / TTS voices and diff the gate + judge results.
+- **✅ Adversarial discovery.** An `adversarial` Evaline persona turns the goal-driven caller into a red-teamer — it *improvises* attacks (push to act before verifying, try to delete, alternate-verification bypasses) instead of replaying a script. Against a deliberately-insecure agent it surfaced reset-before-verify + account-deletion (oracle-confirmed tool calls), pinned as replay regressions; against the bare agent it mounted 8 bypasses and the agent held. *(Later: accents, background noise.)*
+- **✅ A/B & vendor bake-off.** `soundcheck bakeoff` runs one suite against two configs (prompts / `think` models / voices) and diffs the gate results — which config wins, on which gates — plus, with `--judge`, the advisory judge dimensions (never gating the winner). Live or offline (`--replay`).
 
 ## Autonomous — no human in the loop
 
@@ -128,8 +128,8 @@ This aspirational README is **STS-focused** by deliberate choice: STS is the hig
 | **Declarative, domain-agnostic gates** | ✅ Shipped (M1) | Composable gate registry: `tool_sequence`, `tool_args_match_schema`, `spoken_matches_tool`, `forbidden_tool`, generic grounding — restaurant coupling deleted |
 | **Non-restaurant example** | ✅ Shipped (M2) | IT-support agent (`examples/support/`); same gates, oracle-validated catching its bugs, pinned offline |
 | **First-class structured `Trace`** | ✅ Shipped (M3) | `Trace` type + versioned persistence (v2 retains the oracle); gates AND the judge run on a persisted trace offline (proven in `test/trace.test.ts`) |
-| **Adversarial / edge-case discovery** | 🚧 Aspirational | Evaline as fuzzer/red-teamer surfacing unknown failure modes |
-| **A/B & vendor bake-off** | 🚧 Aspirational | Same suite vs. multiple configs, diffed |
+| **Adversarial / edge-case discovery** | ✅ Shipped (M7) | `adversarial` red-team persona improvises attacks; surfaced reset-before-verify + account-deletion on the insecure agent (oracle-confirmed), pinned as replay regressions; bare held under 8 bypasses |
+| **A/B & vendor bake-off** | ✅ Shipped (M7) | `bakeoff` runs one suite vs two configs and diffs per-gate (live or replay) + advisory judge dimensions; live grounded-vs-bare picks the winner with the gate-level delta |
 | **Regression-from-production** | 🚧 Aspirational | Failed real call → auto-authored reproducing scenario + cassette |
 | **End-to-end Soundcheck-tests-Soundcheck CI proof** | 🚧 Aspirational | Generic gates catch a deliberately-regressed build, in CI |
 | **Bring-your-own-agent onboarding** | 🚧 Aspirational | Docs reframed around S/T/A/R + "test YOUR agent," not TableTalk |

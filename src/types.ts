@@ -1,6 +1,6 @@
 // Core Soundcheck types.
 
-export type Persona = "cooperative" | "impatient";
+export type Persona = "cooperative" | "impatient" | "adversarial";
 
 /** A declarative test case: how Evaline calls, and how we judge the result. */
 export interface Scenario {

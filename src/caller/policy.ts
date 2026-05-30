@@ -14,6 +14,7 @@ import { evalineTurns } from "./evaline.ts";
 export const PERSONA_VOICE: Record<Persona, string> = {
   cooperative: "aura-2-orion-en",
   impatient: "aura-2-orion-en",
+  adversarial: "aura-2-orion-en",
 };
 
 /** One completed exchange, as seen by the caller (agent = the agent's own text reply). */
