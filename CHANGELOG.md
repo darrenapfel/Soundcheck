@@ -2,6 +2,21 @@
 
 All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
 
+## [2.0.0] — 2026-05 (the STS dream)
+
+Re-grounded the harness around coSTAR's **Scenario → Trace → Assess → Refine** for speech-to-speech, and made every capability domain-agnostic and oracle/test-verified. Each milestone independently reviewed (`docs/REVIEW_LOG.md`); a final 3-agent release panel signed off. **102+ deterministic tests, 0 lint errors, fully offline CI.** `README_ASPIRATIONAL.md` promoted to `README.md` — every promise is now true or de-scoped in writing.
+
+### Added
+- **Declarative, domain-agnostic gate registry** (M1): a composable `REGISTRY` of `GateFn`s — `no_spoken_symbols`, `required_tool`, `forbidden_tool`, `tool_sequence`, `tool_args_match_schema`, `spoken_matches_tool`, generic `grounding`, `latency` — replacing the restaurant-coupled `tool_arg_iso`/`value_consistency` switch. Fail-closed.
+- **Second example domain** (M2): an IT-support agent (`examples/support/`) tested by the *same* gates, with bare/grounded/insecure variants + pinned cassettes.
+- **First-class versioned `Trace`** (M3): one persistable artifact (recording + oracle + turns + tools + timings); cassettes are v2 (retain the oracle), v1 still loads. Gates + judge run on a persisted Trace offline.
+- **Domain-agnostic authoring** (M4): `author --spec` derives one scenario per tool from any agent's spec.
+- **Trusted-judge alignment loop** (M5): `calibrate` reports a trust verdict (gates on problem-recall), cross-model corroboration, and a drift guard. Judge stays advisory.
+- **Trace-driven Refine** (M6): `tune` feeds the fixer a per-failure root-cause diagnosis (trace evidence + hint); held-out Goodhart guard; generalization-verified on an unseen date.
+- **Adversarial discovery** (M7): an `adversarial` Evaline persona that improvises red-team attacks; surfaced reset-before-verify + account-deletion on an insecure agent (oracle-confirmed), pinned as regressions.
+- **A/B & vendor bake-off** (M7): `bakeoff` runs one suite against two configs and diffs per-gate (+ advisory judge), live or replay.
+- **Soundcheck-tests-Soundcheck self-test** (M8): `test/self-test.test.ts` — the generic gates catch deliberately-regressed builds and pass correct ones, with a coverage contract, in CI.
+
 ## [1.0.0] — 2026-05
 
 First public release: a voice-agent test & tuning harness that runs on a single Deepgram key.

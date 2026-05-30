@@ -98,3 +98,10 @@ test("unknown gate fails closed", () => {
   const g = runGates(tx([turn(1, "hi")]), scen(["bogus" as never, { nope: 1 } as never]), TOOLS);
   assert.ok(g.every((x) => x.pass === false && x.detail.includes("unknown gate")));
 });
+
+test("malformed assert elements (null/undefined/number) fail CLOSED, never crash the run", () => {
+  // A hand-authored assert with a null/undefined/number element must not abort runGates.
+  const g = runGates(tx([turn(1, "hi")]), scen([null as never, undefined as never, 42 as never]), TOOLS);
+  assert.equal(g.length, 3);
+  assert.ok(g.every((x) => x.pass === false), "every malformed spec must fail closed");
+});

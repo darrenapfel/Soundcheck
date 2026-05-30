@@ -187,6 +187,9 @@ const gGrounding: GateFn = (spec, { transcript }) => {
 const gLatency: GateFn = (spec, { transcript }) => {
   const s = spec as { ttfb_ms?: { max: number }; turn_ms?: { max: number } };
   const problems: string[] = [];
+  // Turns with absent timing (ttfbMs/turnMs == null) are skipped, not failed — not every
+  // captured turn carries a timing (e.g. a turn with no agent reply). Latency gates the turns
+  // that DO have timings; absence is a capture gap, not a latency violation.
   for (const turn of transcript.turns) {
     if (s.ttfb_ms && turn.ttfbMs != null && turn.ttfbMs > s.ttfb_ms.max) problems.push(`turn ${turn.turn} TTFB ${turn.ttfbMs}ms > ${s.ttfb_ms.max}`);
     if (s.turn_ms && turn.turnMs != null && turn.turnMs > s.turn_ms.max) problems.push(`turn ${turn.turn} turn ${turn.turnMs}ms > ${s.turn_ms.max}`);
@@ -213,7 +216,10 @@ export const GATE_NAMES = Object.keys(REGISTRY);
 
 function splitSpec(spec: AssertSpec): { key: string; value: unknown } {
   if (typeof spec === "string") return { key: spec, value: undefined };
-  const key = Object.keys(spec)[0];
+  // Guard non-object specs (null/undefined/number from a hand-authored assert): yield a key
+  // that hits no gate, so runGates fail-CLOSES it rather than crashing the whole run.
+  if (spec === null || typeof spec !== "object") return { key: String(spec), value: undefined };
+  const key = Object.keys(spec)[0] ?? String(spec);
   return { key, value: (spec as Record<string, unknown>)[key] };
 }
 
