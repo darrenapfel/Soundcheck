@@ -15,10 +15,6 @@ export interface RawTurn {
   /** Evaline's spoken audio for this turn, linear16 @ 24kHz (for report playback).
    *  Optional: text/mock adapters don't produce caller audio. */
   callerAudioPcm?: Buffer;
-  /** Faithful per-turn timeline @ 24kHz for the stitched report, when caller and agent
-   *  audio interleave (barge-in): caller→agent-pre-cut→interrupt→agent-reaction. When set,
-   *  the report uses this instead of concatenating callerAudioPcm + agentAudioPcm. */
-  conversationPcm?: Buffer;
   toolCalls: ToolCall[];
   ttfbMs: number | null;
   turnMs: number | null;
