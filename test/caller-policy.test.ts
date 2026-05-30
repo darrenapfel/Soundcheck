@@ -35,12 +35,60 @@ test("GoalDrivenCaller reacts to the agent's last reply and stops on hangup", as
   assert.deepEqual(seen, ["Hi, how can I help?", "Tonight: salmon and risotto."]); // the brain SAW the agent's replies
 });
 
-test("GoalDrivenCaller caps at maxTurns even if the brain never hangs up", async () => {
-  const plan: PlanFn = async (input) => ({ action: "say", utterance: `unique line ${input.turnIndex}` });
+test("GoalDrivenCaller gives ONE wrap-up turn at the cap, then ends tagged turn_cap (H4)", async () => {
+  const finals: boolean[] = [];
+  const plan: PlanFn = async (input) => { finals.push(!!input.final); return { action: "say", utterance: `unique line ${input.turnIndex}` }; };
   const c = new GoalDrivenCaller({ goal: "loop", persona: "cooperative", plan, maxTurns: 3 });
   assert.ok(await c.next(ctx(0)));
   assert.ok(await c.next(ctx(2)));
-  assert.equal(await c.next(ctx(3)), null); // capped
+  assert.ok(await c.next(ctx(3))); // turnIndex===maxTurns: one wrap-up turn is allowed (not a silent cut-off)
+  assert.equal(await c.next(ctx(4)), null); // beyond the budget -> end
+  assert.equal(c.terminationReason, "turn_cap"); // and the forced end is TAGGED (can't read as goal_met)
+  assert.deepEqual(finals, [false, false, true]); // the brain was told "final" only on the wrap-up turn
+});
+
+test("GoalDrivenCaller tags goal_met when the brain hangs up", async () => {
+  const plan: PlanFn = async (input) => (input.turnIndex === 0 ? { action: "say", utterance: "hi" } : { action: "hangup", utterance: "" });
+  const c = new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan });
+  await c.next(ctx(0));
+  assert.equal(await c.next(ctx(1, "done")), null);
+  assert.equal(c.terminationReason, "goal_met");
+});
+
+test("GoalDrivenCaller tags repeat_guard on a true loop", async () => {
+  const plan: PlanFn = async () => ({ action: "say", utterance: "What are the specials?" });
+  const c = new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan });
+  await c.next(ctx(0)); await c.next(ctx(1)); // 1st, 2nd (legit re-ask)
+  assert.equal(await c.next(ctx(2)), null); // 3rd identical -> loop
+  assert.equal(c.terminationReason, "repeat_guard");
+});
+
+test("GoalDrivenCaller survives a transient planner failure with a holding line, ends planner_error if it persists (M4)", async () => {
+  // A planner that errors twice in a row: first error -> a neutral holding line keeps the call
+  // alive; second consecutive error -> end, tagged planner_error (NOT goal_met).
+  const plan: PlanFn = async () => ({ action: "error", utterance: "" });
+  const c = new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan });
+  const first = await c.next(ctx(0));
+  assert.match(first?.text ?? "", /could you say that again/i); // holding line, not a hangup
+  assert.equal(c.terminationReason, undefined); // still going after one blip
+  assert.equal(await c.next(ctx(1)), null); // second consecutive failure -> end
+  assert.equal(c.terminationReason, "planner_error");
+});
+
+test("GoalDrivenCaller: a transient failure then recovery does NOT end the call", async () => {
+  let calls = 0;
+  const plan: PlanFn = async () => (++calls === 1 ? { action: "error", utterance: "" } : { action: "say", utterance: "ok here is my real question" });
+  const c = new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan });
+  assert.match((await c.next(ctx(0)))?.text ?? "", /could you say that again/i); // 1 failure -> holding line
+  assert.equal((await c.next(ctx(1)))?.text, "ok here is my real question"); // recovered -> failure counter reset
+  assert.equal(c.terminationReason, undefined);
+});
+
+test("ScriptedCaller tags script_exhausted when the tape runs out", async () => {
+  const c = new ScriptedCaller([{ text: "one", voice: "v" }]);
+  await c.next(ctx(0));
+  assert.equal(await c.next(ctx(1)), null);
+  assert.equal(c.terminationReason, "script_exhausted");
 });
 
 test("GoalDrivenCaller allows ONE legitimate re-ask but ends on a true loop", async () => {
@@ -81,6 +129,18 @@ test("plannerPrompt: impatient persona gets impatient tactics; IDs digit-by-digi
   assert.match(imp, /eighty-nine dollars/); // but money/dates spoken naturally (counter-rule)
   // cooperative gets neither the impatient nor the red-team block
   assert.doesNotMatch(plannerPrompt({ goal: "g", persona: "cooperative", history: [], lastAgent: "hi", turnIndex: 0 }), /IMPATIENT STYLE/);
+});
+
+test("plannerPrompt requires an agent read-back before the caller hangs up done (M1)", () => {
+  const p = plannerPrompt({ goal: "book a table", persona: "cooperative", history: [], lastAgent: "I'll take care of that.", turnIndex: 1 });
+  assert.match(p, /CONFIRMED the action back to you/);
+  assert.match(p, /do NOT hang up yet/i);
+});
+
+test("plannerPrompt adds a wrap-up instruction only on the final turn (H4)", () => {
+  const base = { goal: "g", persona: "cooperative" as const, history: [], lastAgent: "hi", turnIndex: 7 };
+  assert.doesNotMatch(plannerPrompt({ ...base }), /THIS IS YOUR LAST TURN/);
+  assert.match(plannerPrompt({ ...base, final: true }), /THIS IS YOUR LAST TURN/);
 });
 
 test("plannerPrompt surfaces an agent mishearing so the caller can correct it", () => {

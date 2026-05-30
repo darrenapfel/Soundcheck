@@ -282,11 +282,25 @@ function splitSpec(spec: AssertSpec): { key: string; value: unknown } {
 
 export function runGates(t: Trace, scenario: Scenario, tools: ToolSchema[] = []): GateResult[] {
   const ctx: GateContext = { transcript: t, scenario, tools };
-  return scenario.assert.map((spec) => {
+  const gates = scenario.assert.map((spec) => {
     const { key, value } = splitSpec(spec);
     const gate = REGISTRY[key];
     if (!gate) return { name: key, pass: false, detail: `unknown gate "${key}"` };
     try { return gate(value, ctx); } // a gate must fail CLOSED, never crash the run
     catch (e) { return { name: key, pass: false, detail: `gate crashed: ${(e as Error)?.message ?? String(e)}` }; }
   });
+  // Caller termination integrity (Phase 1): a goal-driven call is a clean pass ONLY when the
+  // caller ended because the GOAL was met. A forced/aborted end (turn cap, planner error,
+  // repetition guard) must fail — otherwise a partial call whose gates happen to pass reads as
+  // satisfied. Only enforced when the reason is KNOWN (live runs / re-recorded cassettes);
+  // undefined (legacy cassette, or the fixed-list path) is left alone for back-compat.
+  if (scenario.goal && t.terminationReason) {
+    const met = t.terminationReason === "goal_met";
+    gates.push({
+      name: "goal_reached",
+      pass: met,
+      detail: met ? "caller ended because the goal was met" : `call ended "${t.terminationReason}" before the goal was met`,
+    });
+  }
+  return gates;
 }

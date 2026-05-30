@@ -7,8 +7,24 @@
   ],
   "assert": [
     "no_spoken_symbols",
-    { "required_tool": "bookReservation" },
-    { "grounding": { "tool": "bookReservation", "field": "date", "now": "2026-05-28", "expected": "2026-05-30" } },
-    { "latency": { "ttfb_ms": { "max": 12000 } } }
-  ]
+    {
+      "required_tool": "bookReservation"
+    },
+    {
+      "grounding": {
+        "tool": "bookReservation",
+        "field": "date",
+        "now": "2026-05-28",
+        "expected": "2026-05-30"
+      }
+    },
+    {
+      "latency": {
+        "ttfb_ms": {
+          "max": 12000
+        }
+      }
+    }
+  ],
+  "fixtureOnly": true
 }

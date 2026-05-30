@@ -7,8 +7,10 @@
 //   - GoalDrivenCaller : reactive — a pluggable "brain" picks the next line from the
 //                        agent's last reply + a goal, and hangs up when the goal is met.
 
-import type { Persona, Scenario } from "../types.ts";
+import type { Persona, Scenario, TerminationReason } from "../types.ts";
 import { evalineTurns } from "./evaline.ts";
+
+export type { TerminationReason };
 
 // v0 uses one known-good Aura-2 caller voice (distinct from the AUT's default thalia).
 export const PERSONA_VOICE: Record<Persona, string> = {
@@ -40,15 +42,19 @@ export interface CallerAction {
   interrupt?: { text: string; afterMs: number };
 }
 
-/** A turn-taking policy the adapter drives. Returns null to hang up (done / goal met). */
+/** A turn-taking policy the adapter drives. Returns null to hang up. The reason for the
+ *  hangup is recorded on `terminationReason` (set when next() returns null) so the adapter
+ *  can thread it onto the Trace — a non-goal_met end must not read as a satisfied caller. */
 export interface Caller {
   label: string;
+  terminationReason?: TerminationReason;
   next(ctx: CallerContext): Promise<CallerAction | null>;
 }
 
 /** Deterministic caller: replays scenario turns in order. The back-compat default. */
 export class ScriptedCaller implements Caller {
   label = "scripted";
+  terminationReason?: TerminationReason;
   #actions: CallerAction[];
   constructor(actions: CallerAction[]) {
     this.#actions = actions;
@@ -63,7 +69,9 @@ export class ScriptedCaller implements Caller {
     return new ScriptedCaller(actions);
   }
   async next(ctx: CallerContext): Promise<CallerAction | null> {
-    return this.#actions[ctx.turnIndex] ?? null;
+    const action = this.#actions[ctx.turnIndex] ?? null;
+    if (!action) this.terminationReason = "script_exhausted"; // the tape ran out — the normal scripted end
+    return action;
   }
 }
 
@@ -74,9 +82,15 @@ export interface PlanInput {
   history: CallerExchange[];
   lastAgent: string;
   turnIndex: number;
+  /** True on the final allowed turn (the turn budget is up): the brain is asked to wrap up and
+   *  note anything still unfinished, rather than be cut off silently (H4). */
+  final?: boolean;
 }
 export interface PlanDecision {
-  action: "say" | "hangup";
+  /** say = speak the utterance; hangup = the goal is met, end the call; error = the brain could
+   *  not decide (infra failure / empty plan) — distinct from hangup so an Evaline-side blip is
+   *  NOT mistaken for a satisfied caller (M4). Only the planner wrapper emits "error". */
+  action: "say" | "hangup" | "error";
   utterance: string;
 }
 export type PlanFn = (input: PlanInput) => Promise<PlanDecision>;
@@ -84,15 +98,22 @@ export type PlanFn = (input: PlanInput) => Promise<PlanDecision>;
 // Short acknowledgements a caller repeats naturally — exempt from the looping guard.
 const CALLER_ACKS = new Set(["yes", "no", "yeah", "yep", "nope", "correct", "right", "okay", "ok", "sure", "thanks", "thank you", "got it", "please", "uh huh", "mm hmm", "exactly", "perfect"]);
 
-/** Reactive caller: adapts each line to what the agent actually said, ends on goal. */
+// A neutral re-prompt the caller falls back to when its brain hiccups (timeout / empty plan),
+// so one infra blip becomes a natural "could you repeat that?" rather than a silent hangup.
+const HOLDING_LINE = "Sorry, I didn't catch that — could you say that again?";
+
+/** Reactive caller: adapts each line to what the agent actually said, ends on goal.
+ *  Every end sets `terminationReason` so a forced/aborted call can't read as goal_met. */
 export class GoalDrivenCaller implements Caller {
   label = "goal-driven";
+  terminationReason?: TerminationReason;
   #goal: string;
   #persona: Persona;
   #voice: string;
   #plan: PlanFn;
   #maxTurns: number;
   #said = new Map<string, number>();
+  #failures = 0; // consecutive planner errors / empty plans (M4)
   constructor(opts: { goal: string; persona: Persona; plan: PlanFn; maxTurns?: number }) {
     this.#goal = opts.goal;
     this.#persona = opts.persona;
@@ -101,15 +122,29 @@ export class GoalDrivenCaller implements Caller {
     this.#maxTurns = opts.maxTurns ?? 8;
   }
   async next(ctx: CallerContext): Promise<CallerAction | null> {
-    if (ctx.turnIndex >= this.#maxTurns) return null; // safety cap against a non-converging brain
-    const d = await this.#plan({
-      goal: this.#goal,
-      persona: this.#persona,
-      history: ctx.history,
-      lastAgent: ctx.lastAgent,
-      turnIndex: ctx.turnIndex,
-    });
-    if (d.action === "hangup" || !d.utterance.trim()) return null;
+    // Turn budget: turns 0..maxTurns-1 are normal; turn `maxTurns` is ONE wrap-up turn (the brain
+    // is told to close out and note what's unfinished — H4); beyond that the call ends, tagged.
+    if (ctx.turnIndex > this.#maxTurns) { this.terminationReason = "turn_cap"; return null; }
+    const final = ctx.turnIndex >= this.#maxTurns;
+
+    let d: PlanDecision;
+    try {
+      d = await this.#plan({ goal: this.#goal, persona: this.#persona, history: ctx.history, lastAgent: ctx.lastAgent, turnIndex: ctx.turnIndex, final });
+    } catch {
+      d = { action: "error", utterance: "" }; // a thrown PlanFn is an infra failure, not a goal-met end
+    }
+
+    // Planner failure or an empty/no-op plan (M4): an Evaline-side blip must not read as a
+    // satisfied caller. Offer a neutral holding line; end (tagged planner_error) only if it
+    // persists, so one transient hiccup is a re-ask, not a manufactured clean completion.
+    if (d.action === "error" || (d.action === "say" && !d.utterance.trim())) {
+      if (++this.#failures >= 2) { this.terminationReason = "planner_error"; return null; }
+      return { text: HOLDING_LINE, voice: this.#voice };
+    }
+    this.#failures = 0;
+
+    if (d.action === "hangup") { this.terminationReason = "goal_met"; return null; }
+
     // Repetition guard: a caller that re-says the EXACT same substantive line several times
     // is looping (a flaky brain) — but re-asking ONCE after the agent stalls or mishears is
     // normal human behavior, so allow up to 2 repeats and only end on the 3rd. Short acks
@@ -118,7 +153,7 @@ export class GoalDrivenCaller implements Caller {
     if (!CALLER_ACKS.has(norm)) {
       const n = (this.#said.get(norm) ?? 0) + 1;
       this.#said.set(norm, n);
-      if (n >= 3) return null;
+      if (n >= 3) { this.terminationReason = "repeat_guard"; return null; }
     }
     return { text: d.utterance.trim(), voice: this.#voice };
   }

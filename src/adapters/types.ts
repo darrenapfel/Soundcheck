@@ -1,4 +1,4 @@
-import type { AUTConfig, ToolCall } from "../types.ts";
+import type { AUTConfig, ToolCall, TerminationReason } from "../types.ts";
 
 /** One caller utterance Evaline will speak (text + the voice that conveys the persona). */
 export interface CallerTurn {
@@ -33,6 +33,9 @@ export interface RawTurn {
 export interface ConversationCapture {
   turns: RawTurn[];
   recordingPcm?: Buffer; // real-time mixed call audio @ 24kHz linear16 (live adapters only)
+  /** Why the driving Caller ended the call (Phase 1). Set by adapters that drive a Caller
+   *  (the reactive `converse` loop); omitted by the fixed-list `runConversation` path. */
+  terminationReason?: TerminationReason;
 }
 
 /**

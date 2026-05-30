@@ -72,7 +72,12 @@ export function plannerPrompt(input: PlanInput): string {
     "- If the agent MISHEARD a name, number, or code you gave (see the ⚠ lines above), correct it naturally before moving on ('No, it's S as in Sam — S, U, M, four, K, nine').",
     "- Speak any ID, code, SSN, ZIP, card, account, or phone NUMBER one digit at a time the way a real person does — separate digit words ('four four one seven', 'nine eight one zero nine'), NEVER one big number ('four thousand four hundred seventeen').",
     "- But speak dates, times, money, and quantities the NATURAL way ('March fourteenth', 'four PM', 'eighty-nine dollars', 'two bags') — only IDs and codes go digit-by-digit.",
-    "- If your goal is already fully accomplished (you got the info / the booking is confirmed), set action=\"hangup\" with an empty utterance. Do NOT keep talking.",
+    // M1: don't accept the agent's mere INTENT to act as completion — require it to confirm back.
+    "- Before you hang up as done, the agent must have CONFIRMED the action back to you (read back the booking date/time, the reset, the charge amount). If it only SAID it would act but has not confirmed the specifics, ask it to confirm — do NOT hang up yet.",
+    "- If your goal is already fully accomplished AND the agent has confirmed the specifics back to you, set action=\"hangup\" with an empty utterance. Do NOT keep talking.",
+    ...(input.final
+      ? ["- THIS IS YOUR LAST TURN (you are out of time). Say one brief closing line; if anything is still unfinished, note it plainly ('I still need the confirmation number, but I have to go'). Then the call ends."]
+      : []),
     "",
     "CONVERSATION SO FAR (most recent last):",
     convo,
@@ -145,8 +150,9 @@ async function planTurn(input: PlanInput): Promise<PlanDecision | null> {
   });
 }
 
-/** Live brain: one retry, then end the call gracefully if the planner can't decide. */
+/** Live brain: one retry, then signal an ERROR (not a hangup) if the planner can't decide —
+ *  so the caller treats an infra blip as a re-ask, never as a satisfied "goal met" (M4). */
 export const deepgramVaPlanner: PlanFn = async (input: PlanInput): Promise<PlanDecision> => {
   const d = (await planTurn(input)) ?? (await planTurn(input));
-  return d ?? { action: "hangup", utterance: "" };
+  return d ?? { action: "error", utterance: "" };
 };
