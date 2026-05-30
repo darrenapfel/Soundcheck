@@ -1,25 +1,31 @@
 // Demo fixer for `soundcheck tune --fixer "node examples/tune-demo/fixer-demo.mjs"`.
 //
-// A FIXER reads {"prompt","failures"} JSON on stdin and writes an IMPROVED system
-// prompt to stdout. This one is RULE-BASED (deterministic) so the tuning LOOP can be
-// demonstrated live without depending on an external coding-agent CLI: it appends the
-// remediations implied by the failing gates. The intelligent drop-in is a coding agent,
-// e.g.  --fixer "claude -p 'Improve this voice-agent system prompt to fix the failures.'"
-// (the spike's Stage-2 fork already proved an agent fixes a voice agent to green).
+// A FIXER reads {"prompt","diagnosis"} JSON on stdin and writes an IMPROVED system prompt to
+// stdout. `diagnosis` is Soundcheck's TRACE-DRIVEN root-cause: a list of {gate, problem, hint}
+// where `problem` is evidence from the recorded Trace and `hint` is the remediation. This demo
+// is RULE-BASED (deterministic) so the tuning LOOP can be demonstrated live without an external
+// coding-agent CLI: it appends the diagnosis's remediation hints to the prompt. The intelligent
+// drop-in is a coding agent, e.g.  --fixer "claude -p 'Improve this voice-agent system prompt to
+// fix the diagnosed failures.'" — which can reason over the per-failure evidence, not just hints.
 
 import { readFileSync } from "node:fs";
 import process from "node:process";
 
-const { prompt = "", failures = [] } = JSON.parse(readFileSync(0, "utf8"));
-const f = failures.join(" ");
-const additions = [];
+const { prompt = "", diagnosis = [] } = JSON.parse(readFileSync(0, "utf8"));
 
-if (/grounding|tool_args_match_schema|spoken_matches_tool/.test(f)) {
-  additions.push("TODAY'S DATE is Thursday, May 28th, 2026. Resolve any relative date the caller mentions (e.g. 'this Saturday') to the correct actual calendar date.");
-  additions.push("TOOL ARGUMENTS: always pass dates to tools in ISO format (YYYY-MM-DD) and times in 24-hour format (HH:MM).");
+// Apply a remediation per diagnosed failure. For grounding we READ THE EVIDENCE from the
+// trace-derived `problem` (it contains "now YYYY-MM-DD") and inject the ACTUAL date — this is
+// the point of trace-driven Refine: fix from evidence, not a generic hint.
+const fixes = [];
+for (const d of diagnosis) {
+  if (d.gate.startsWith("grounding")) {
+    const now = d.problem.match(/now (\d{4}-\d{2}-\d{2})/)?.[1];
+    fixes.push(now
+      ? `TODAY'S DATE is ${now}. Resolve any relative date the caller mentions (e.g. "this Saturday") to the correct absolute calendar date and pass it to tools in ISO format (YYYY-MM-DD).`
+      : d.hint);
+  } else {
+    fixes.push(d.hint);
+  }
 }
-if (/no_spoken_symbols|spoken_matches_tool/.test(f)) {
-  additions.push("SPEECH FORMATTING: your replies are spoken aloud. Never use Markdown (no **bold**, #headings, bullet lists, or backticks). Speak prices, times, and dates as natural words. Plain spoken sentences only.");
-}
-
-process.stdout.write(additions.length ? `${prompt}\n\n${additions.join("\n")}` : prompt);
+const unique = [...new Set(fixes.filter(Boolean))];
+process.stdout.write(unique.length ? `${prompt}\n\n${unique.map((h) => `- ${h}`).join("\n")}` : prompt);

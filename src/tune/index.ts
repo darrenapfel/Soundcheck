@@ -7,14 +7,18 @@
 // `evaluate` and `propose` are injected: deterministic mocks in tests; live (real
 // scenario runs + a local coding-agent fixer) via the CLI. (See docs/ROADMAP.md M7.)
 
+import type { Diagnosis } from "./diagnose.ts";
+export type { Diagnosis } from "./diagnose.ts";
+export { diagnose, toolSequenceSummary } from "./diagnose.ts";
+
 export interface TuneScore {
   passed: number;
   total: number;
-  failures: string[]; // gate names that failed (fed to the fixer)
+  diagnosis: Diagnosis[]; // trace-driven root-cause of the failures (fed to the fixer)
 }
 export type ScenarioSet = "train" | "heldout";
 export type EvaluateFn = (prompt: string, set: ScenarioSet) => Promise<TuneScore>;
-export type ProposeFn = (prompt: string, failures: string[]) => Promise<string>;
+export type ProposeFn = (prompt: string, diagnosis: Diagnosis[]) => Promise<string>;
 
 export interface TuneIteration {
   proposedPrompt: string;
@@ -53,7 +57,7 @@ export async function tune(
 
   for (let i = 0; i < max; i++) {
     if (bestTrain.passed === bestTrain.total) break; // converged on training
-    const proposed = await propose(bestPrompt, bestTrain.failures);
+    const proposed = await propose(bestPrompt, bestTrain.diagnosis);
     if (proposed === bestPrompt) { // fixer made no change — re-evaluating would waste live iterations
       iterations.push({ proposedPrompt: proposed, trainAfter: bestTrain, heldoutAfter: null, kept: false, reason: "stopped: fixer proposed no change" });
       break;
