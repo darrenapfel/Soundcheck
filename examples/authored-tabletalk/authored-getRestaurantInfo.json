@@ -1,13 +1,14 @@
 {
-  "name": "authored-cancel",
+  "name": "authored-getRestaurantInfo",
   "persona": "cooperative",
   "turns": [
-    "Hi, I need to cancel my reservation. The name is Garcia. Yes, please cancel it."
+    "Hi, can you get restaurant info.",
+    "Can you confirm the details before we finish?"
   ],
   "assert": [
     "no_spoken_symbols",
     {
-      "required_tool": "cancelReservation"
+      "required_tool": "getRestaurantInfo"
     },
     {
       "latency": {

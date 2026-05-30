@@ -180,7 +180,7 @@ async function cmdAuthor(opts: Record<string, string | boolean>) {
     console.log(`\nBusiness rules extracted from the spec (add assertions for these):`);
     for (const r of suite.businessRules) console.log(`  - ${r}`);
   }
-  console.log();
+  console.log(`\nNote: caller lines are mechanical starting points (templated from tool names) — review and refine them, and add assertions for the business rules above.\n`);
 }
 
 async function cmdTune(opts: Record<string, string | boolean>) {
@@ -192,7 +192,7 @@ async function cmdTune(opts: Record<string, string | boolean>) {
   getKey();
   const baseAut = await loadAut((opts.agent as string) ?? "examples/tabletalk/bare.ts");
   const trainFile = (opts.train as string) ?? "scenarios/book-modify-confirm.json";
-  const heldoutFile = (opts.heldout as string) ?? "examples/authored-tabletalk/authored-book-confirm.json";
+  const heldoutFile = (opts.heldout as string) ?? "examples/authored-tabletalk/authored-bookReservation.json";
   const loadOne = (f: string) => [JSON.parse(readFileSync(resolve(process.cwd(), f), "utf8")) as Scenario];
   const train = loadOne(trainFile);
   const heldout = loadOne(heldoutFile);

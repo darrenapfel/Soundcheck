@@ -1,9 +1,9 @@
 {
-  "name": "authored-menu",
+  "name": "authored-getDailySpecials",
   "persona": "cooperative",
   "turns": [
-    "Hi, what are tonight's specials?",
-    "And how much is the prix fixe menu?"
+    "Hi, can you get daily specials.",
+    "Can you confirm the details before we finish?"
   ],
   "assert": [
     "no_spoken_symbols",

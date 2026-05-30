@@ -1,0 +1,38 @@
+{
+  "name": "authored-checkAvailability",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, I'd like to check availability for this Saturday at seven thirty PM for four people.",
+    "Can you confirm the details before we finish?"
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    {
+      "required_tool": "checkAvailability"
+    },
+    {
+      "tool_args_match_schema": "checkAvailability"
+    },
+    {
+      "grounding": {
+        "tool": "checkAvailability",
+        "field": "date",
+        "now": "2026-05-28",
+        "expected": "2026-05-30"
+      }
+    },
+    {
+      "spoken_matches_tool": {
+        "tool": "checkAvailability",
+        "field": "date"
+      }
+    },
+    {
+      "latency": {
+        "ttfb_ms": {
+          "max": 12000
+        }
+      }
+    }
+  ]
+}

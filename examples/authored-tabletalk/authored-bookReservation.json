@@ -1,10 +1,9 @@
 {
-  "name": "authored-book-confirm",
+  "name": "authored-bookReservation",
   "persona": "cooperative",
   "turns": [
-    "Hi, I'd like to book a table for four people this Saturday at seven thirty PM. The name is Garcia.",
-    "Actually, please change it to six thirty PM instead. Yes, go ahead and update it.",
-    "Perfect. Can you confirm all my reservation details before we finish?"
+    "Hi, I'd like to book reservation under the name Garcia for four people for this Saturday at seven thirty PM.",
+    "Can you confirm the details before we finish?"
   ],
   "assert": [
     "no_spoken_symbols",
@@ -21,9 +20,6 @@
         "now": "2026-05-28",
         "expected": "2026-05-30"
       }
-    },
-    {
-      "required_tool": "modifyReservation"
     },
     {
       "spoken_matches_tool": {
