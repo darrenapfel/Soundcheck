@@ -44,3 +44,16 @@
 > *A developer can read `TESTING.md`, run `npm run validate` on a fresh clone (deterministic, green), inspect the coverage + judge-calibration numbers, and watch the self-evaluation suite catch a deliberately broken Evaline — and conclude that Soundcheck is tested more rigorously than the agent they are pointing it at.*
 
 Verified end-to-end during the M8 review: fresh-clone validate is green and deterministic with no key, coverage + `runs/calibration-live.json` are committed, and `test/selfeval.test.ts` catches a deliberately broken Evaline.
+
+---
+
+## STS-v2 (the dream) — final sign-off addendum
+
+> The checklist above certified the **v1.0** build. The **STS-v2** series (M1–M8, the coSTAR-for-voice dream — see `CHANGELOG.md` [2.0.0]) extends and supersedes it; this addendum records its own gate so the certification matches the **promoted README**.
+
+- [x] **Every 🚧 delivered + oracle/test-verified, or de-scoped in writing.** The README capability-status table is accurate; the three de-scoped items (regression-from-production, online monitoring, standalone STT/TTS) carry written rationale in the README "Future directions" note + `LIMITATIONS.md`.
+- [x] **`npm run validate` green + deterministic; fresh keyless clone validates; CI offline.** Current suite **102+ deterministic tests, 0 lint errors**; verified on a true `/tmp` keyless clone and across repeated runs (supersedes the v1.0 "65/65" figure above).
+- [x] **Soundcheck-tests-Soundcheck CI proof in place.** `test/self-test.test.ts` (generic gates catch deliberately-regressed builds + coverage contract) runs inside `npm run validate`; teeth verified (neutering a gate turns it red).
+- [x] **Self-eval + calibration green** (`test/selfeval.test.ts`, `test/calibration.test.ts`).
+- [x] **Every STS-v2 milestone independently reviewed; final multi-agent panel signed off.** `REVIEW_LOG.md` has rows for STS-v2 M1–M8 + the **final 3-agent release panel** (security+correctness → GO, docs+DX → GO, done-criteria → 4/6 with all findings addressed). The RC tag was re-cut on the reviewed HEAD.
+- [x] **`README_ASPIRATIONAL.md` promoted to `README.md`** because every promise is literally true or de-scoped in writing.

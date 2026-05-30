@@ -153,6 +153,8 @@ Everything below is shipped and oracle/test-verified (each milestone independent
 | Online / production monitoring | 🚧 Future direction |
 | Standalone STT / TTS validators | 🚧 Out of scope by design |
 
+**Future directions, de-scoped on purpose (not part of the v2 promise):** *Regression-from-production* — auto-authoring a reproducing scenario + cassette from a real failed call — is deliberately deferred: the pieces exist (a failed call already persists as a `Trace`/cassette; `author` emits scenarios), but wiring a trustworthy "production bug → regression test" path is its own milestone. *Online / production monitoring* is a separate product surface — Soundcheck is a **pre-ship** test harness, not a runtime monitor. *Standalone STT/TTS validators* are out of scope by design (see [Scope](#scope)): evaluate them after STS is great, not bundled in.
+
 ## Docs
 - 📐 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design
 - 🗺️ [`docs/ROADMAP.md`](docs/ROADMAP.md) — the milestone build plan
@@ -160,6 +162,7 @@ Everything below is shipped and oracle/test-verified (each milestone independent
 - ⚖️ [`docs/CALIBRATION.md`](docs/CALIBRATION.md) — live judge agreement numbers
 - ⚠️ [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) — honest limits
 - 🔍 [`docs/REVIEW_LOG.md`](docs/REVIEW_LOG.md) — every milestone's independent review
+- ✅ [`docs/COMPLETION_REPORT.md`](docs/COMPLETION_REPORT.md) — oracle evidence per capability
 - 🤝 [`CONTRIBUTING.md`](CONTRIBUTING.md) — add an adapter / scenario / gate
 
 ---
