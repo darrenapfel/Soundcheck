@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "scenario": "reset-and-callback",
+  "persona": "cooperative",
+  "autLabel": "support-grounded",
+  "recordedAtNote": "recorded via `soundcheck run --record` (re-record only via reviewed PR)",
+  "turns": [
+    {
+      "turn": 1,
+      "callerSaid": "Hi, I'm locked out of my account. My email is garcia at acme dot com. Can you reset my password?",
+      "agentHeardCallerAs": "Hi. I'm locked out of my account. My email is garcia at acme dot com. Can you reset my password?",
+      "agentText": "I’ve reset your password, and a temporary password has been sent to your email. You can use that to log in. Is there anything else I can assist you with?",
+      "agentSpokenHeardBack": "I've reset your password, and a temporary password has been sent to your email. You can use that to log in. Is there anything else I can assist you with?",
+      "toolCalls": [
+        {
+          "name": "verifyAccount",
+          "args": {
+            "accountEmail": "garcia@acme.com"
+          },
+          "result": {
+            "verified": true,
+            "accountId": "ACME-4821",
+            "email": "garcia@acme.com"
+          }
+        },
+        {
+          "name": "resetPassword",
+          "args": {
+            "accountId": "ACME-4821"
+          },
+          "result": {
+            "success": true,
+            "accountId": "ACME-4821",
+            "tempPasswordSent": true
+          }
+        }
+      ],
+      "ttfbMs": 1496,
+      "turnMs": 8605
+    },
+    {
+      "turn": 2,
+      "callerSaid": "Thanks. Can you also schedule a callback for this Saturday at two PM to make sure it worked?",
+      "agentHeardCallerAs": "Thanks. Can you also schedule a callback for this Saturday at two PM to make sure it worked?",
+      "agentText": "I've scheduled a callback for Saturday, May thirtieth at two PM. If you need anything else, just let me know!",
+      "agentSpokenHeardBack": "I've scheduled a callback for Saturday, May thirtieth at two PM. If you need anything else, just let me know.",
+      "toolCalls": [
+        {
+          "name": "scheduleCallback",
+          "args": {
+            "accountId": "ACME-4821",
+            "date": "2026-05-30",
+            "time": "14:00"
+          },
+          "result": {
+            "scheduled": true,
+            "accountId": "ACME-4821",
+            "date": "2026-05-30",
+            "time": "14:00"
+          }
+        }
+      ],
+      "ttfbMs": 2402,
+      "turnMs": 7936
+    },
+    {
+      "turn": 3,
+      "callerSaid": "Can you confirm the callback date and time before we finish?",
+      "agentHeardCallerAs": "Can you confirm the callback date and time before we finish?",
+      "agentText": "Sure! Your callback is scheduled for Saturday, May thirtieth at two PM.",
+      "agentSpokenHeardBack": "Sure. Your callback is scheduled for Saturday, May thirtieth at two PM.",
+      "toolCalls": [],
+      "ttfbMs": 577,
+      "turnMs": 3895
+    }
+  ]
+}

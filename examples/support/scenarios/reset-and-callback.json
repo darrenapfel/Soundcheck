@@ -1,0 +1,19 @@
+{
+  "name": "reset-and-callback",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, I'm locked out of my account. My email is garcia at acme dot com. Can you reset my password?",
+    "Thanks. Can you also schedule a callback for this Saturday at two PM to make sure it worked?",
+    "Can you confirm the callback date and time before we finish?"
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    { "tool_sequence": ["verifyAccount", "before", "resetPassword"] },
+    { "required_tool": "scheduleCallback" },
+    { "tool_args_match_schema": "scheduleCallback" },
+    { "grounding": { "tool": "scheduleCallback", "field": "date", "now": "2026-05-28", "expected": "2026-05-30" } },
+    { "spoken_matches_tool": { "tool": "scheduleCallback", "field": "date" } },
+    { "forbidden_tool": "deleteAccount" },
+    { "latency": { "ttfb_ms": { "max": 12000 } } }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "authored-verifyAccount",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, I'd like to verify account my email is garcia at acme dot com.",
+    "Can you confirm the details before we finish?"
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    {
+      "required_tool": "verifyAccount"
+    },
+    {
+      "tool_args_match_schema": "verifyAccount"
+    },
+    {
+      "latency": {
+        "ttfb_ms": {
+          "max": 12000
+        }
+      }
+    }
+  ]
+}

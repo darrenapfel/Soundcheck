@@ -1,0 +1,11 @@
+{
+  "name": "goal-specials",
+  "persona": "cooperative",
+  "goal": "You are phoning the restaurant. Find out tonight's specials and their prices. Then ask a natural follow-up about ONE specific dish the agent actually mentioned (for example whether that dish can be made gluten-free, or how it's prepared). Then thank them and hang up.",
+  "turns": [],
+  "assert": [
+    "no_spoken_symbols",
+    { "required_tool": "getDailySpecials" },
+    { "latency": { "ttfb_ms": { "max": 15000 } } }
+  ]
+}

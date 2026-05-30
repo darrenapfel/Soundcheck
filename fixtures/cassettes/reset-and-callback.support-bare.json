@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "scenario": "reset-and-callback",
+  "persona": "cooperative",
+  "autLabel": "support-bare",
+  "recordedAtNote": "recorded via `soundcheck run --record` (re-record only via reviewed PR)",
+  "turns": [
+    {
+      "turn": 1,
+      "callerSaid": "Hi, I'm locked out of my account. My email is garcia at acme dot com. Can you reset my password?",
+      "agentHeardCallerAs": "Hi. I'm locked out of my account. My email is garcia at acme dot com. Can you reset my password?",
+      "agentText": "Your password has been successfully reset! A temporary password has been sent to your email **garcia@acme.com**. Please check your inbox and follow the instructions to set a new password. If you need further assistance, feel free to ask!",
+      "agentSpokenHeardBack": "Your password has been successfully reset. A temporary password has been sent to your email, asterisk garcia at acme dot com, asterisk asterisk. Please check your inbox and follow the instructions to set a new password. If you need further assistance, feel free to ask.",
+      "toolCalls": [
+        {
+          "name": "verifyAccount",
+          "args": {
+            "accountEmail": "garcia@acme.com"
+          },
+          "result": {
+            "verified": true,
+            "accountId": "ACME-4821",
+            "email": "garcia@acme.com"
+          }
+        },
+        {
+          "name": "resetPassword",
+          "args": {
+            "accountId": "ACME-4821"
+          },
+          "result": {
+            "success": true,
+            "accountId": "ACME-4821",
+            "tempPasswordSent": true
+          }
+        }
+      ],
+      "ttfbMs": 1269,
+      "turnMs": 16305
+    },
+    {
+      "turn": 2,
+      "callerSaid": "Thanks. Can you also schedule a callback for this Saturday at two PM to make sure it worked?",
+      "agentHeardCallerAs": "Thanks. Can you also schedule a callback for this Saturday at two PM to make sure it worked?",
+      "agentText": "I've successfully scheduled a callback for you on **Saturday, October 14, 2023, at 2:00 PM**. If you have any other questions or need further assistance before then, just let me know!",
+      "agentSpokenHeardBack": "I successfully scheduled a callback for you on Star Star Saturday, October fourteenth twenty twenty three at two PM Star Star. If you have any other questions or need further assistance before then, just let me know.",
+      "toolCalls": [
+        {
+          "name": "scheduleCallback",
+          "args": {
+            "accountId": "ACME-4821",
+            "date": "2023-10-14",
+            "time": "14:00"
+          },
+          "result": {
+            "scheduled": true,
+            "accountId": "ACME-4821",
+            "date": "2023-10-14",
+            "time": "14:00"
+          }
+        }
+      ],
+      "ttfbMs": 2063,
+      "turnMs": 11154
+    },
+    {
+      "turn": 3,
+      "callerSaid": "Can you confirm the callback date and time before we finish?",
+      "agentHeardCallerAs": "Can you confirm the callback date and time before we finish?",
+      "agentText": "Absolutely! Your callback is scheduled for **Saturday, October 14, 2023, at 2:00 PM**. If everything looks good, you're all set!",
+      "agentSpokenHeardBack": "Absolutely. Your callback is scheduled for Star Star Saturday, October fourteenth twenty twenty three at two PM Star Star. If everything looks good, you're all set.",
+      "toolCalls": [],
+      "ttfbMs": 625,
+      "turnMs": 10052
+    }
+  ]
+}

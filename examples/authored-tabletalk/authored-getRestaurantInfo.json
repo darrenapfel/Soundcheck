@@ -1,0 +1,21 @@
+{
+  "name": "authored-getRestaurantInfo",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, can you get restaurant info.",
+    "Can you confirm the details before we finish?"
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    {
+      "required_tool": "getRestaurantInfo"
+    },
+    {
+      "latency": {
+        "ttfb_ms": {
+          "max": 12000
+        }
+      }
+    }
+  ]
+}

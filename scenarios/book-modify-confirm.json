@@ -1,0 +1,18 @@
+{
+  "name": "book-modify-confirm",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, I'd like to book a table for four people this Saturday at seven thirty PM. The name is Garcia.",
+    "Actually, please change it to six thirty PM instead. Yes, go ahead and update it.",
+    "What are tonight's specials, and how much is the prix fixe menu?",
+    "Perfect. Can you confirm all my reservation details before we finish?"
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    { "tool_args_match_schema": "bookReservation" },
+    { "grounding": { "tool": "bookReservation", "field": "date", "now": "2026-05-28", "expected": "2026-05-30" } },
+    { "required_tool": "modifyReservation" },
+    { "spoken_matches_tool": { "tool": "bookReservation", "field": "date" } },
+    { "latency": { "ttfb_ms": { "max": 12000 } } }
+  ]
+}

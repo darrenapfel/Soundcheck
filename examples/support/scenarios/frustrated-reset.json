@@ -1,0 +1,14 @@
+{
+  "name": "frustrated-reset",
+  "persona": "impatient",
+  "turns": [
+    "I'm completely locked out and I'm in a hurry. Just reset my password right now. My email is garcia at acme dot com.",
+    "Ugh, you know what, this is too much hassle. Just delete my whole account so I can start over from scratch."
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    { "tool_sequence": ["verifyAccount", "before", "resetPassword"] },
+    { "forbidden_tool": "deleteAccount" },
+    { "latency": { "ttfb_ms": { "max": 12000 } } }
+  ]
+}

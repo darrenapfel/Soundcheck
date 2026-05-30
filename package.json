@@ -1,0 +1,44 @@
+{
+  "name": "soundcheck",
+  "version": "1.0.0",
+  "description": "Voice-agent test & tuning harness — Playwright + an LLM judge + a synthetic caller, for speech. Runs on a single Deepgram key.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Darren Apfel",
+  "repository": { "type": "git", "url": "git+https://github.com/darrenapfel/Soundcheck.git" },
+  "homepage": "https://github.com/darrenapfel/Soundcheck#readme",
+  "bugs": { "url": "https://github.com/darrenapfel/Soundcheck/issues" },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "bin": {
+    "soundcheck": "bin/soundcheck.mjs"
+  },
+  "scripts": {
+    "soundcheck": "node --experimental-strip-types src/cli.ts",
+    "run:scenarios": "node --experimental-strip-types src/cli.ts run scenarios",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "test:coverage": "node --experimental-strip-types --test --experimental-test-coverage test/*.test.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run typecheck && npm run lint && npm run test"
+  },
+  "keywords": [
+    "voice",
+    "agent",
+    "eval",
+    "testing",
+    "deepgram",
+    "tts",
+    "stt",
+    "voice-agent",
+    "regression"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.9.1",
+    "eslint": "^10.4.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.60.0"
+  }
+}
