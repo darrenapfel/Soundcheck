@@ -87,8 +87,9 @@ async function acquireTranscript(
   const goalMode = opts.caller === "goal" || (!!scenario.goal && opts.caller !== "scripted");
   let raw: ConversationCapture;
   if (!useMockAdapter && (goalMode || scenario.bargeIn)) {
+    const maxTurns = opts.turns ? Math.min(15, Math.max(2, Number(opts.turns))) : undefined; // --turns N: deeper goal-driven calls (adapter backstop is 16)
     const caller = goalMode
-      ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner })
+      ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner, maxTurns })
       : ScriptedCaller.fromScenario(scenario);
     process.stdout.write(`[${caller.label}] `);
     raw = await (adapter as DeepgramVoiceAgentAdapter).converse(aut, caller);
