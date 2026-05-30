@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { CapturedTurn, Persona, Trace } from "../types.ts";
 
-export const CASSETTE_DIR = "fixtures/cassettes";
+export const CASSETTE_DIR = process.env.SOUNDCHECK_CASSETTE_DIR || "fixtures/cassettes"; // overridable for the GitHub Action / consumer repos
 export const TRACE_VERSION = 2; // 2 adds oracleTranscript; v1 (without it) still loads
 const SUPPORTED_VERSIONS = new Set([1, 2]);
 
@@ -23,8 +23,21 @@ interface CassetteFile {
   turns: CapturedTurn[];
 }
 
+/** Scenario names + AUT labels become path segments, so a malicious one (e.g. from a PR-provided
+ *  scenario) could escape the cassette dir. Allow only a conservative slug; reject separators + "..". */
+export function safeSegment(value: string, kind = "name"): string {
+  if (!/^[A-Za-z0-9._-]+$/.test(value) || value.includes("..")) {
+    throw new Error(`unsafe ${kind} "${value}" — use only letters, digits, dot, dash, underscore (no path separators or "..")`);
+  }
+  return value;
+}
+
 export function cassettePath(scenario: string, autLabel: string): string {
-  return resolve(process.cwd(), CASSETTE_DIR, `${scenario}.${autLabel}.json`);
+  const file = `${safeSegment(scenario, "scenario name")}.${safeSegment(autLabel, "AUT label")}.json`;
+  const root = resolve(process.cwd(), CASSETTE_DIR);
+  const p = resolve(root, file);
+  if (p !== root && !p.startsWith(root + "/")) throw new Error(`cassette path escapes ${CASSETTE_DIR}: ${p}`); // defense in depth
+  return p;
 }
 
 export function hasCassette(scenario: string, autLabel: string): boolean {

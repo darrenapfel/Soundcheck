@@ -1,6 +1,7 @@
 {
   "name": "appointment-insurance-refill",
   "persona": "cooperative",
+  "liveOnly": true,
   "turns": [
     "Hi, I'd like to book a follow-up appointment and ask about a couple of other things.",
     "My last name is Tran, date of birth March 14th, 1981."

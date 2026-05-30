@@ -1,6 +1,8 @@
-// OpenAIRealtimeAdapter — a SECOND real voice runtime, proving the AUTAdapter
-// interface generalizes beyond Deepgram. Drives OpenAI's Realtime API over its
-// WebSocket (audio in / audio out + tool calls), mirroring the Deepgram-VA adapter.
+// OpenAIRealtimeAdapter — a REFERENCE adapter only: NOT CLI-selectable, NOT live-tested, and
+// NOT exported from the public API (src/index.ts). It exists to prove the AUTAdapter interface
+// generalizes beyond Deepgram (real Realtime-API protocol over WebSocket — audio in/out + tool
+// calls, mirroring the Deepgram-VA adapter). A developer who wants it wires + validates it
+// themselves; the default + CI paths never import it (so Soundcheck stays Deepgram-key-only).
 //
 // ⚠️ REFERENCE IMPLEMENTATION — NOT CLI-SELECTABLE IN v1, NOT LIVE-TESTED HERE.
 // This shows the AUTAdapter interface generalizing to a second real runtime. It is a
@@ -78,10 +80,19 @@ export class OpenAIRealtimeAdapter implements AUTAdapter {
           let args: Record<string, unknown>;
           try { args = m.arguments ? JSON.parse(String(m.arguments)) : {}; } catch { args = {}; }
           const name = String(m.name ?? "");
-          const stub = aut.toolStubs[name];
-          toolCalls.push({ name, args, result: stub ? stub(args) : { ok: true } });
-          ws.send(JSON.stringify({ type: "conversation.item.create", item: { type: "function_call_output", call_id: m.call_id, output: JSON.stringify(toolCalls.at(-1)!.result) } }));
-          ws.send(JSON.stringify({ type: "response.create" })); // ask for the spoken reply AFTER the tool result
+          const callId = m.call_id;
+          // Tool handlers may be async and may throw — await + guard, returning a structured error.
+          void (async () => {
+            const stub = aut.toolStubs[name];
+            let result: unknown;
+            try { result = stub ? await stub(args) : { ok: true }; }
+            catch (err) { result = { error: (err as Error)?.message ?? String(err) }; }
+            toolCalls.push({ name, args, result });
+            try {
+              ws.send(JSON.stringify({ type: "conversation.item.create", item: { type: "function_call_output", call_id: callId, output: JSON.stringify(result) } }));
+              ws.send(JSON.stringify({ type: "response.create" })); // ask for the spoken reply AFTER the tool result
+            } catch { /* socket closed */ }
+          })();
           pendingFollowup = true;
           break;
         }

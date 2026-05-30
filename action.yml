@@ -5,15 +5,24 @@ branding:
   color: "purple"
 
 inputs:
+  aut:
+    description: >
+      Path (in your repo) to your agent-under-test config (default-exports an AUTConfig).
+      Required — its label keys the cassette lookup, so it is needed even for --replay.
+    required: true
   scenarios:
-    description: "Path (in your repo) to a scenarios directory or a recorded cassette directory."
+    description: "Path (in your repo) to your scenarios directory."
     required: false
     default: "scenarios"
+  cassette-dir:
+    description: "Where your recorded cassettes live (relative to your repo), used by --replay."
+    required: false
+    default: "fixtures/cassettes"
   args:
     description: >
-      Extra args passed to `soundcheck run`. Default replays recorded cassettes offline
-      (deterministic, no key). For a live run pass e.g. `--aut path/to/agent.ts` and supply
-      `deepgram-api-key`.
+      EXTRA args to `soundcheck run` (e.g. `--only book-modify-confirm`, `--judge mock`). Do NOT
+      put `--aut` here — use the `aut` input. Default `--replay` replays cassettes offline (no key);
+      for a live run set `args: ""` and supply `deepgram-api-key`.
     required: false
     default: "--replay"
   deepgram-api-key:
@@ -33,6 +42,7 @@ runs:
       shell: bash
       env:
         DEEPGRAM_API_KEY: ${{ inputs.deepgram-api-key }}
+        SOUNDCHECK_CASSETTE_DIR: ${{ inputs.cassette-dir }}
       run: >
         node --experimental-strip-types "$GITHUB_ACTION_PATH/src/cli.ts"
-        run "${{ inputs.scenarios }}" ${{ inputs.args }}
+        run "${{ inputs.scenarios }}" --aut "${{ inputs.aut }}" ${{ inputs.args }}
