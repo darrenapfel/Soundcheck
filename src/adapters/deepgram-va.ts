@@ -148,6 +148,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       }
       let m: any;
       try { m = JSON.parse(String(event.data)); } catch { return; }
+      if (process.env.SC_DEBUG) process.stderr.write(`<${m.type}@${Date.now() % 100000}> `);
       switch (m.type) {
         case "ConversationText":
           if (m.role === "assistant") agentLines.push(m.content);
@@ -156,6 +157,13 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
         case "AgentAudioDone":
           audioDoneAt = Date.now();
           if (!greetingDone) greetingDone = true;
+          break;
+        case "UserStartedSpeaking":
+          // The VA detected the caller and is barging in — a real client STOPS playing any
+          // agent audio still queued. We do the same so the recording is faithful: on a real
+          // interruption the agent's unplayed audio is dropped (it truncates mid-utterance),
+          // rather than us replaying stale buffered audio over the caller.
+          agentQ.length = 0; agentQHead = 0;
           break;
         case "FunctionCallRequest": {
           const fns = Array.isArray(m.functions) ? m.functions : [];
@@ -242,7 +250,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
         const w = Date.now();
         while (agentBytes() < TARGET_BYTES && Date.now() - w < 12000 && ws.readyState === WebSocket.OPEN) await sleep(50);
         const spokeSecs = agentBytes() / 2 / 24000;
-        process.stdout.write(spokeSecs >= 0.3 ? `[barge-in: caller cut in after agent spoke ${spokeSecs.toFixed(1)}s — see LIMITATIONS: agent usually NOT interrupted] ` : `[barge-in: agent barely started] `);
+        process.stdout.write(spokeSecs >= 0.3 ? `[barge-in: caller cut in after agent spoke ${spokeSecs.toFixed(1)}s — oracle transcript shows the agent's handling] ` : `[barge-in: agent barely started] `);
         await sleep(action.interrupt.afterMs);
         const interruptPcm = await this.#synth(action.interrupt.text, { model: action.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
         audioDoneAt = 0; lastAudioAt = 0; // re-arm the endpoint to keep capturing the agent
