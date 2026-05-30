@@ -89,6 +89,27 @@ export async function transcribe(audio: Buffer, opts: SttOpts = {}): Promise<str
   }, "Deepgram STT");
 }
 
+/** Resample mono 16-bit little-endian PCM via linear interpolation.
+ *  Used to upsample Evaline's 16kHz caller audio to the agent's 24kHz so a stitched
+ *  conversation plays at one consistent rate. Good enough for listening (not DSP-grade). */
+export function resamplePcm16le(pcm: Buffer, fromRate: number, toRate: number): Buffer {
+  if (fromRate === toRate || pcm.length < 4) return pcm;
+  const inSamples = Math.floor(pcm.length / 2);
+  const outSamples = Math.max(1, Math.round((inSamples * toRate) / fromRate));
+  const out = Buffer.alloc(outSamples * 2);
+  const ratio = (inSamples - 1) / Math.max(1, outSamples - 1);
+  for (let i = 0; i < outSamples; i++) {
+    const pos = i * ratio;
+    const i0 = Math.floor(pos);
+    const i1 = Math.min(i0 + 1, inSamples - 1);
+    const frac = pos - i0;
+    const s0 = pcm.readInt16LE(i0 * 2);
+    const s1 = pcm.readInt16LE(i1 * 2);
+    out.writeInt16LE(Math.round(s0 + (s1 - s0) * frac), i * 2);
+  }
+  return out;
+}
+
 /** Wrap raw linear16 PCM in a minimal WAV header (for browser <audio> playback). */
 export function pcmToWav(pcm: Buffer, sampleRate = 24000): Buffer {
   const numChannels = 1;
