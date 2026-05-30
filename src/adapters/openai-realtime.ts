@@ -1,6 +1,8 @@
-// OpenAIRealtimeAdapter — a SECOND real voice runtime, proving the AUTAdapter
-// interface generalizes beyond Deepgram. Drives OpenAI's Realtime API over its
-// WebSocket (audio in / audio out + tool calls), mirroring the Deepgram-VA adapter.
+// OpenAIRealtimeAdapter — a REFERENCE adapter only: NOT CLI-selectable, NOT live-tested, and
+// NOT exported from the public API (src/index.ts). It exists to prove the AUTAdapter interface
+// generalizes beyond Deepgram (real Realtime-API protocol over WebSocket — audio in/out + tool
+// calls, mirroring the Deepgram-VA adapter). A developer who wants it wires + validates it
+// themselves; the default + CI paths never import it (so Soundcheck stays Deepgram-key-only).
 //
 // ⚠️ REFERENCE IMPLEMENTATION — NOT CLI-SELECTABLE IN v1, NOT LIVE-TESTED HERE.
 // This shows the AUTAdapter interface generalizing to a second real runtime. It is a
