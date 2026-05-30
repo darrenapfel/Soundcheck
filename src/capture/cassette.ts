@@ -6,7 +6,7 @@
 // re-running the agent, and CI replays deterministically. (See docs/TESTING.md.)
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, relative, isAbsolute } from "node:path";
 import type { CapturedTurn, Persona, Trace } from "../types.ts";
 
 export const CASSETTE_DIR = process.env.SOUNDCHECK_CASSETTE_DIR || "fixtures/cassettes"; // overridable for the GitHub Action / consumer repos
@@ -32,11 +32,23 @@ export function safeSegment(value: string, kind = "name"): string {
   return value;
 }
 
+/** True iff `p` is `root` itself or lives inside it. Separator-agnostic via `path.relative`
+ *  (NOT `startsWith(root + "/")`, which rejects valid `root\file` paths on Windows). The
+ *  path module is injectable so the containment logic can be unit-tested with `path.win32`. */
+export function isWithinRoot(
+  root: string,
+  p: string,
+  pathmod: { relative: typeof relative; isAbsolute: typeof isAbsolute } = { relative, isAbsolute },
+): boolean {
+  const rel = pathmod.relative(root, p);
+  return rel === "" || (!rel.startsWith("..") && !pathmod.isAbsolute(rel));
+}
+
 export function cassettePath(scenario: string, autLabel: string): string {
   const file = `${safeSegment(scenario, "scenario name")}.${safeSegment(autLabel, "AUT label")}.json`;
   const root = resolve(process.cwd(), CASSETTE_DIR);
   const p = resolve(root, file);
-  if (p !== root && !p.startsWith(root + "/")) throw new Error(`cassette path escapes ${CASSETTE_DIR}: ${p}`); // defense in depth
+  if (!isWithinRoot(root, p)) throw new Error(`cassette path escapes ${CASSETTE_DIR}: ${p}`); // defense in depth
   return p;
 }
 

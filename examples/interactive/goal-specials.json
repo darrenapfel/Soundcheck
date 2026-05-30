@@ -5,7 +5,16 @@
   "turns": [],
   "assert": [
     "no_spoken_symbols",
-    { "required_tool": "getDailySpecials" },
-    { "latency": { "ttfb_ms": { "max": 15000 } } }
-  ]
+    {
+      "required_tool": "getDailySpecials"
+    },
+    {
+      "latency": {
+        "ttfb_ms": {
+          "max": 15000
+        }
+      }
+    }
+  ],
+  "liveOnly": true
 }

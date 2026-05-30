@@ -32,7 +32,7 @@ soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune until green
 
 | Domain | Folder | What it exercises | Runs |
 |---|---|---|---|
-| Restaurant booking | `examples/tabletalk/` | spoken symbols, ISO/grounded dates, read-back — `bare`/`hardened`/`grounded` | ✅ offline replay (cassettes) |
+| Restaurant booking | `examples/tabletalk/` | spoken symbols, ISO/grounded dates, read-back — `bare`/`hardened`/`grounded` | ✅ offline replay — `grounded` full; `bare`/`hardened` via `--only book-modify-confirm` |
 | IT support | `examples/support/` | verify-before-reset, never-delete — `bare`/`grounded`/`insecure` | ✅ offline replay (cassettes) |
 | Healthcare clinic | `examples/healthcare/` | verify-before-PHI, never-prescribe, grounded dates | live (goal-driven) |
 | Bank card services | `examples/banking/` | verify-before-any-action, never-wire, clean spoken money | live (goal-driven) |
@@ -129,7 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4   # your scenarios/ + fixtures/cassettes/ + agent.ts
-      - uses: darrenapfel/Soundcheck@v2   # pin a published release tag
+      - uses: darrenapfel/Soundcheck@v2.0.0-rc.1   # pin a published release tag (move to @v2 once cut)
         with:
           aut: agent.ts                      # your agent-under-test config (required)
           scenarios: scenarios               # dir of scenario .json files

@@ -87,6 +87,12 @@ export interface SttOpts {
   contentType?: string; // "audio/l16" for raw, "audio/wav" for wav
 }
 
+/** The slice of Deepgram's /v1/listen JSON we read — the top alternative's transcript.
+ *  Narrow on purpose: every field optional so a shape change degrades to "" (see transcribe). */
+interface DeepgramListenResponse {
+  results?: { channels?: Array<{ alternatives?: Array<{ transcript?: string }> }> };
+}
+
 /** Transcribe audio -> literal spoken words (smart_format/numerals OFF on purpose). */
 export async function transcribe(audio: Buffer, opts: SttOpts = {}): Promise<string> {
   if (audio.length === 0) return "";
@@ -102,7 +108,7 @@ export async function transcribe(audio: Buffer, opts: SttOpts = {}): Promise<str
       body: Uint8Array.from(audio),
     });
     if (!res.ok) throw httpError("STT", res.status, await res.text());
-    const j = (await res.json()) as any;
+    const j = (await res.json()) as DeepgramListenResponse;
     return j?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "";
   }, "Deepgram STT");
 }

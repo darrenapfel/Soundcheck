@@ -20,6 +20,11 @@ export interface Scenario {
    *  it can't be replayed deterministically. `run --replay` skips it (and says so); a live run
    *  exercises it. Set on goal-driven demo scenarios. */
   liveOnly?: boolean;
+  /** Fixture-only: an authoring/tuning input or generated demo (e.g. `author`/`tune` examples)
+   *  that intentionally ships WITHOUT a cassette — it is not part of the offline replay demo
+   *  set. `run --replay` skips it (and says so); a live run exercises it. The example-contract
+   *  test treats `liveOnly | fixtureOnly | has-a-cassette` as the three valid states. */
+  fixtureOnly?: boolean;
 }
 
 /** A declarative gate spec — a domain-agnostic invariant the registry enforces.
