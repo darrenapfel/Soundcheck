@@ -122,6 +122,7 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
 
   const results: ScenarioResult[] = [];
   for (const scenario of scenarios) {
+    if (replay && scenario.liveOnly) { console.log(`↷ ${scenario.name}: live-only (goal-driven) — skipped in --replay (drop --replay + set your key to run it)`); continue; }
     process.stdout.write(`▶ ${scenario.name} (persona=${scenario.persona}) … `);
     const transcript = await acquireTranscript(scenario, aut, adapter, opts);
     const gates = runGates(transcript, scenario, aut.tools);
@@ -155,6 +156,10 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
     }
   }
 
+  if (replay && results.length === 0) {
+    console.error(`\n✖ 0 scenarios replayed in ${dir} — they are all live-only (goal-driven), or were filtered out. Run live (drop --replay and set your key) to exercise them.\n`);
+    process.exit(2);
+  }
   mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
   const out = (opts.out as string) ?? `runs/report-${aut.label}.html`;
   writeFileSync(resolve(process.cwd(), out), generateReport(results, new Date().toISOString()));
@@ -306,6 +311,7 @@ async function cmdBakeoff(positional: string[], opts: Record<string, string | bo
   const runSuite = async (aut: AUTConfig): Promise<ScenarioResult[]> => {
     const out: ScenarioResult[] = [];
     for (const scenario of scenarios) {
+      if (replay && scenario.liveOnly) { console.log(`  ↷ ${scenario.name}: live-only — skipped in --replay`); continue; }
       process.stdout.write(`  ${aut.label} ▶ ${scenario.name} … `);
       const transcript = await acquireTranscript(scenario, aut, adapter, opts);
       const gates = runGates(transcript, scenario, aut.tools);
@@ -318,6 +324,7 @@ async function cmdBakeoff(positional: string[], opts: Record<string, string | bo
   };
   const a = await runSuite(autA);
   const b = await runSuite(autB);
+  if (replay && a.length === 0) { console.error(`\n✖ 0 scenarios bakeoff-replayed in ${dir} — all live-only or filtered out. Run live to compare them.\n`); process.exit(2); }
   console.log("\n" + formatBakeoff(compareRuns(autA.label, autB.label, a, b)) + "\n");
 }
 

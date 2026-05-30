@@ -26,3 +26,17 @@ test("a real replay run still works (exit 0 on a passing grounded suite)", () =>
   assert.equal(r.status, 0, `expected exit 0, got ${r.status}\n${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /all gates passed/);
 });
+
+test("replay SKIPS live-only (goal-driven) scenarios and still gates the scripted ones", () => {
+  const r = cli(["run", "examples/support/scenarios", "--aut", "examples/support/grounded.ts", "--replay", "--out", "/tmp/sc-liveonly.html"]);
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /adversarial-discovery: live-only/); // the goal-driven scenario was skipped
+  assert.match(r.stdout, /all gates passed/);                 // the 2 scripted grounded scenarios still ran + passed
+});
+
+test("replay of an all-live-only suite FAILS CLOSED (exit 2), never a vacuous green", () => {
+  const r = cli(["run", "examples/healthcare/scenarios", "--aut", "examples/healthcare/grounded.ts", "--replay"]);
+  assert.equal(r.status, 2, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /0 scenarios replayed/);
+  assert.doesNotMatch(r.stdout, /all gates passed/);
+});
