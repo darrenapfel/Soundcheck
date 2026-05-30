@@ -1,6 +1,6 @@
 # Soundcheck — Architecture
 
-> Status: v1.0. This document describes the system design. **It mixes shipped behavior with forward design** — where a section describes more than the released code (e.g. richer persona sets, goal-driven improvisation, additional gates/adapters), treat it as the design target and see [`ROADMAP.md`](ROADMAP.md) for the milestone status and [`LIMITATIONS.md`](LIMITATIONS.md) for exactly what v1.0 does and does not do. The released v1.0 ships: 6 deterministic gates, the round-trip validator, the advisory judge + calibration, autonomous authoring, the tuning loop, 2 CLI-selectable adapters (Deepgram VA + MockAUT) plus 1 reference adapter, 2 caller personas, and a reusable composite GitHub Action.
+> Status: **v2.0.0** — this document describes the system design, and the system is now built. See [`ROADMAP.md`](ROADMAP.md) for the milestone history and [`LIMITATIONS.md`](LIMITATIONS.md) for exactly what it does and does not do. Shipped: **9 deterministic gates** in a composable registry, the round-trip validator, the advisory judge + calibration/alignment, autonomous authoring, the trace-driven tuning loop, the self-improving loop (discover → promote → refine), A/B & vendor bake-off, two CLI-selectable adapters (Deepgram VA + MockAUT) plus one reference adapter (OpenAI Realtime), scripted **and** reactive goal-driven callers including an adversarial red-team persona, and a reusable composite GitHub Action.
 
 ## 1. What Soundcheck is
 
@@ -14,8 +14,8 @@ The design goal is that an autonomous agent can **build → test → tune → sh
 
 ## 2. Core concepts
 
-- **AUT — Agent Under Test.** The voice agent being tested. A black box behind a thin **adapter** (audio-in / audio-out + events). v0 ships one adapter (Deepgram Voice Agent); the interface is built so Vapi, Retell, OpenAI Realtime, a Twilio/SIP phone number, or a turn-based HTTP agent can be added later. *Soundcheck tests any voice agent; only the adapter is provider-specific.*
-- **Evaline — the synthetic caller.** A **Deepgram Voice Agent** configured as a customer with a goal + persona, who calls the AUT over real audio. Evaline is *not* pluggable in v0 — she is always a Deepgram VA (deliberately; see §6). She is the "voice agent that tests other voice agents."
+- **AUT — Agent Under Test.** The voice agent being tested. A black box behind a thin **adapter** (audio-in / audio-out + events). Three adapters ship — Deepgram Voice Agent (default), a creds-free MockAUT (the CI target), and an OpenAI-Realtime reference adapter — and the interface is built so Vapi, Retell, a Twilio/SIP phone number, or a turn-based HTTP agent can be added later. *Soundcheck tests any voice agent; only the adapter is provider-specific.*
+- **Evaline — the synthetic caller.** A **Deepgram Voice Agent** configured as a customer with a goal + persona, who calls the AUT over real audio. Evaline's *runtime* is always a Deepgram VA (deliberately; see §6); her behavior is pluggable — scripted, reactive goal-driven, or an `adversarial` red-teamer (a `PlanFn` brain picks each line). She is the "voice agent that tests other voice agents."
 - **Scenario.** A declarative spec: Evaline's goal + persona, optional turn script, the deterministic assertions, and the judge rubric. Scenarios are the *test cases*; Soundcheck is the *runner*.
 - **Run.** One Evaline↔AUT conversation, fully captured (audio, transcripts, tool calls, timings), then scored.
 
@@ -53,12 +53,15 @@ Implementation notes carried from the spike: audio must be streamed at **real ti
 Records the full exchange: Evaline's words, the AUT's emitted text/events (if the adapter exposes them), **the AUT's actual spoken audio round-tripped back through STT** (so we judge what a listener *hears*, not what the model *typed*), the **tool-call trace**, and **timings** (TTFB, turn latency, barge-in handling). The round-trip is also exposed **standalone**: `text→TTS→STT→compare` validates TTS; `known-audio→STT→compare` validates STT.
 
 ### 4.3 Deterministic gates (the regression suite)
-Pure-code, pass/fail assertions over the captured `Trace`. Soundcheck ships a built-in **voice-safety rule pack** (productized directly from spike findings):
-- **no-spoken-symbols** — the heard audio never contains "star", "pound", "hashtag", a dash read as "negative" before a price, etc.
-- **value-consistency** — a spoken value equals its tool-call value (e.g. spoken date == booked date).
-- **tool-arg-wellformed** — dates passed to tools are ISO `YYYY-MM-DD`, times are 24h `HH:MM`, etc. *(This catches the spike's "speech-fix broke the tool-arg format" regression — a class the speech oracle alone cannot see.)*
-- **grounding** — booked date resolves to the correct calendar date / not a stale year.
-- **required-tool-called**, **no-double-booking**, **latency-SLO** (TTFB / turn latency thresholds), **PII-not-leaked**.
+Pure-code, pass/fail assertions over the captured `Trace`, exposed through a **composable gate registry** (`src/gates/index.ts`): each gate is a `GateFn` registered under its assert key, so the same gates test a restaurant booker, a support bot, or a finance IVR — any STS agent. Adding a gate is a function plus one registry entry. A scenario `assert` that names an unregistered key fail-CLOSES (it does not crash the run), and a gate that throws is reported as a failure rather than aborting. The nine registered gates (productized directly from spike findings):
+- **`no_spoken_symbols`** — the heard audio never contains "star", "pound", "hashtag", a dash read as "negative" before a price, etc.
+- **`no_spoken_cardinal_ids`** — identifiers (confirmation numbers, SSNs, ZIPs) are spoken digit-by-digit, not as a cardinal number ("four thousand four hundred seventeen").
+- **`spoken_matches_tool`** — a spoken value equals its tool-call value (e.g. spoken date == booked date).
+- **`tool_args_match_schema`** — a tool call conforms to its declared schema: type / required / format / enum / pattern (e.g. `date` is ISO `YYYY-MM-DD`). *(This catches the spike's "speech-fix broke the tool-arg format" regression — a class the speech oracle alone cannot see.)*
+- **`grounding`** — a relative date ("this Saturday") resolves to the correct calendar date / not a stale year.
+- **`tool_sequence`** — ordering invariants ("verifyIdentity before accessRecord").
+- **`required_tool`** / **`forbidden_tool`** — a tool must / must never be called.
+- **`latency`** — TTFB / turn-latency thresholds.
 Teams (or an authoring agent) add their own. Deterministic gates **block CI**; they are the "Playwright assertions" of voice.
 
 ### 4.4 Judge (eval)
@@ -106,26 +109,38 @@ interface AUTAdapter {
   end(session): Promise<void>
 }
 ```
-- **v0:** `DeepgramVoiceAgentAdapter` (raw `wss://agent.deepgram.com/v1/agent/converse`) — lets us dogfood on the TableTalk agent from the spike.
-- **Later:** OpenAI Realtime, Vapi, Retell, Twilio/SIP (real phone number), turn-based HTTP, browser (Playwright-driven). The second adapter (v1) is what *proves* "any voice agent" and powers the strategic wedge: even agents built on a competitor's runtime get tested via Soundcheck → which runs on Deepgram STT/TTS.
+Three adapters ship today (`src/adapters/`):
+- **`DeepgramVoiceAgentAdapter`** (raw `wss://agent.deepgram.com/v1/agent/converse`) — the default; lets us dogfood on the TableTalk agent from the spike.
+- **`MockAUTAdapter`** — a tiny, creds-free, deterministic agent (scripted / `--buggy`) used as the CI target so the same scenarios + gates + report run unchanged against a **non-Deepgram-VA** agent, proving the abstraction.
+- **`openai-realtime`** — a **reference** adapter whose *live* run is opt-in (reads `OPENAI_API_KEY` only if a developer wires it; CI never touches it). This is what proves "any voice agent": even agents on a competitor's runtime get tested via Soundcheck → which runs on Deepgram STT/TTS.
+
+**Later:** Vapi, Retell, Twilio/SIP (real phone number), turn-based HTTP, browser (Playwright-driven) — tracked, not built.
+
+Adapters (and every other extension point — gates, judge backend, fixer, caller) are exported from the public API barrel `src/index.ts`, surfaced through the `package.json` `"exports"` map: consumers `import { … } from "soundcheck"` rather than reaching into deep `src/` paths. (Internal-only helpers — e.g. `src/selfeval/` — are intentionally not re-exported.)
 
 ## 7b. Determinism: record / replay (the trust mechanism)
 
 Live voice is stochastic, so the adapter has two modes. **record:** a live run writes a *cassette* (the full `RawTurn[]` — caller text, captured agent audio, tool calls, timings) to `fixtures/cassettes/`. **replay:** reconstructs the run from a cassette with no socket/model/credits. Everything downstream of capture (gates, judge, report) is therefore **deterministic in CI**; live runs are nightly and surface *behavior drift* separately from *logic regressions*. Cassettes are re-recorded only via a reviewed PR. This is what lets a flaky-by-nature tool be trustworthy — and what makes "Soundcheck evaluates Soundcheck" reproducible. (Full rationale: `TESTING.md`.)
 
-## 7c. v1 / v2 component detail
+## 7c. Component detail
 
-**Judge (v1).** A `judge/` module that scores the *heard* transcript against a rubric and emits a structured verdict `{ dimension: {score 1-5, why} , findings: [{tag, quote}] }`. Default backend: the **Deepgram-fronted LLM** via a grader-agent that returns the verdict through a `submitVerdict` function-call (Deepgram-key-only; §6). Backend is pluggable (bring-your-own model). Supports a **judge panel** (N graders, aggregate) for high-stakes scenarios. The judge is **advisory** — it threshold-warns, it does not hard-gate CI (only deterministic gates do). Its own trustworthiness is measured by calibration (§ TESTING 3.2).
+**Judge.** A `judge/` module that scores the *heard* transcript against a rubric and emits a structured verdict `{ dimension: {score 1-5, why} , findings: [{tag, quote}] }`. Default backend: the **Deepgram-fronted LLM** via a grader-agent that returns the verdict through a `submitVerdict` function-call (Deepgram-key-only; §6). Backend is pluggable (bring-your-own model); `--judge mock` is an offline, rule-based judge for keyless CI. Supports a **judge panel** (N graders, aggregate) for high-stakes scenarios. The judge is **advisory** — it threshold-warns, it does not hard-gate CI (only deterministic gates do). Its own trustworthiness is measured by calibration/alignment (`calibrate`; § TESTING 3.2).
 
-**Autonomous eval authoring (v1).** `author --spec <agent-spec>` ingests an agent's spec/system-prompt and emits a scenario suite: it **generates universal quality assertions + a rubric** itself, and **extracts business-rule assertions from the spec** (hours, party-size caps, etc. — domain facts it can't invent). Output is the same scenario JSON a human would write — the agent writes the test cases; the runner runs them.
+**Autonomous eval authoring.** `author --spec <agent-spec>` ingests an agent's spec/system-prompt and emits a scenario suite: one scenario per tool with **generated universal quality assertions + a rubric** (`no_spoken_symbols`, `required_tool`, `tool_args_match_schema`, date `grounding`, `latency`), destructive tools skipped and identity-gated tools given a proactive caller. It also **extracts business rules from the prompt and surfaces them as hints** (`businessRules: string[]` — hours, party-size caps, etc.) for a downstream author/agent to turn into assertions; auto-generating an assertion for an arbitrary domain rule is a tracked enhancement, not done. Output is the same scenario JSON a human would write — the agent writes the test cases; the runner runs them.
 
-**Tuning loop (v2).** `tune <agent> --spec <spec>`: run the suite → collect failures → a **fixer-agent** (a *local coding agent* — Claude Code / Codex via subscription, so still no LLM API key) proposes edits (prompt, sanitizer rules, tool schema, date-grounding) → re-run → **keep edits that raise the score on a held-out scenario set the tuner never sees** (the Goodhart guardrail) → emit a reviewable diff + before/after report. Hard iteration cap + convergence criterion.
+**Tuning loop (Refine).** `tune <agent> --spec <spec>`: run the suite → produce a root-cause diagnosis per failing gate → a **fixer** proposes edits → re-run → **keep an edit only if a held-out scenario set the tuner never sees improves** (the Goodhart guardrail) → emit a reviewable diff + before/after report, under a hard iteration cap + convergence criterion. The fixer is pluggable via `--fixer` (e.g. `--fixer "claude -p …"` — a *local coding agent*, subscription, so still no LLM API key); the bundled demo fixer is **rule-based / deterministic**, proving the loop + Goodhart-guard mechanism end-to-end rather than fixer *intelligence*.
+
+**Self-improving loop.** `run --promote-failures` freezes a failing call an adversarial caller *discovers* into a permanent scripted regression (`src/regress/promoteTrace`), which `tune` then refines against — the suite grows from failures nobody scripted. End-to-end in `examples/self-improving-loop/`; the closure is pinned offline in `test/regress.test.ts`.
+
+**Bake-off.** `bakeoff` runs one scenario suite against two AUT configs and diffs the per-gate results (and, with `--judge`, the advisory judge) — A/B and cross-vendor comparison (`src/bakeoff/`).
 
 ## 7d. Self-evaluation — Soundcheck on Soundcheck
 
 Three forms, all in `TESTING.md`: **(a)** Evaline-as-AUT — point the harness at its own caller and assert persona/goal/clean-speech, with a deliberately-broken-Evaline fixture that must fail the meta-suite; **(b)** judge calibration against a labeled corpus (precision/recall per dimension); **(c)** the bare→grounded golden ladder as a self-regression (replay-CI + live-nightly). This is the design's central trust claim: the tester is tested — including by itself — to a higher bar than what it tests.
 
 ## 8. Scenario format (DSL)
+
+On disk a scenario is **JSON** (`scenarios/*.json`); the YAML below is shown only for readability. The shape is the same either way.
 
 ```yaml
 name: book-modify-confirm
@@ -134,8 +149,9 @@ goal: "Book a table for 4 this Saturday at 7:30pm under 'Garcia', then move it t
 mode: goal-driven             # or: scripted, with `turns: [...]`
 assert:                        # deterministic gates (the dev/agent writes these)
   - no_spoken_symbols
-  - { value_consistency: { spoken: date, equals: tool.bookReservation.date } }
-  - { tool_arg_iso: bookReservation.date }
+  - no_spoken_cardinal_ids
+  - { spoken_matches_tool: { field: date, tool: bookReservation } }
+  - { tool_args_match_schema: bookReservation }
   - { latency: { ttfb_ms: { max: 800 } } }
   - { required_tool: modifyReservation }
 rubric:                        # judge dimensions
@@ -168,21 +184,34 @@ rubric:                        # judge dimensions
 | Tuning loop | the spike's closed-loop fork — an agent built a sanitizer until the voice gate went green, with no guide |
 | Deepgram-key-only think LLM | the Stage-3 runs authenticated with only the Deepgram key; the VA `think` step worked with no separate LLM key |
 
-## 12. Repo layout (target)
+## 12. Repo layout
 
 ```
 soundcheck/
 ├── src/
-│   ├── caller/          # Evaline: persona presets + Deepgram VA driver (real-time pump, settle turn-taking)
-│   ├── adapters/        # AUTAdapter interface + deepgram-va adapter (v0)
-│   ├── capture/         # round-trip oracle, transcript model, timing
-│   ├── gates/           # deterministic assertions + voice-safety rule pack
-│   ├── judge/           # LLM judge (Deepgram-fronted grader) + rubric runner
-│   ├── tune/            # fixer-agent loop (invokes a local coding agent)
-│   ├── report/          # HTML scorecard
-│   └── cli.ts           # `soundcheck run|validate|tune`
-├── scenarios/           # golden scenario library (booking / support / FAQ / ...)
-├── examples/tabletalk/  # dogfood target from the spike
-├── docs/                # ARCHITECTURE.md, ROADMAP.md
-└── .github/workflows/   # CI action
+│   ├── index.ts         # public API barrel — the one front door (see package.json "exports")
+│   ├── cli.ts           # `soundcheck run | validate | calibrate | author | tune | bakeoff`
+│   ├── types.ts         # core data model — Scenario, Trace, AUTConfig, AssertSpec, ToolSchema, …
+│   ├── deepgram.ts      # Deepgram STT/TTS/VA primitives (the single-key surface)
+│   ├── normalize.ts     # spoken-text normalization + artifact/dash detection
+│   ├── caller/          # Evaline: scripted + reactive goal-driven callers, persona presets, planner
+│   ├── adapters/        # AUTAdapter interface + deepgram-va, mock-aut, openai-realtime adapters
+│   ├── capture/         # round-trip oracle, Trace model, cassette record/replay
+│   ├── gates/           # deterministic gate registry (the 9 gates)
+│   ├── judge/           # advisory LLM judge (Deepgram-fronted grader) + rubric + panel
+│   ├── calibration/     # judge-alignment loop (trust verdict, cross-model, drift guard)
+│   ├── tune/            # trace-driven tuning loop (diagnose + Goodhart held-out guard)
+│   ├── author/          # autonomous scenario authoring from an agent's spec
+│   ├── bakeoff/         # A/B & vendor bake-off (one suite, two configs)
+│   ├── regress/         # promoteTrace — freeze a discovered failure into a regression
+│   ├── report/          # self-contained HTML scorecard (embedded audio)
+│   └── selfeval/        # Evaline self-checks (internal-only; not re-exported)
+├── scenarios/           # golden scenario library (.json)
+├── examples/            # tabletalk, support, healthcare, banking, travel, authored-*, tune-demo,
+│                        #   interactive, self-improving-loop
+├── fixtures/cassettes/  # recorded runs for deterministic replay in CI
+├── test/                # the deterministic suite (113 tests; see TESTING.md)
+├── docs/                # ARCHITECTURE.md, ROADMAP.md, TESTING.md, CALIBRATION.md, LIMITATIONS.md, …
+├── action.yml           # reusable composite GitHub Action
+└── .github/workflows/   # ci.yml (validate) + nightly.yml (live)
 ```

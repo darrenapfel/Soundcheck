@@ -6,6 +6,17 @@ overloaded (HTTP 529) and a sub-agent could not be spawned, the milestone got an
 **self-review** to keep the autonomous build moving, with an **independent re-review queued**
 (run at the next milestone when the API recovers). The build never paused for a human.
 
+> **Coverage gap to flag (post-M8, pre-self-improving-loop).** Three commits landed between the
+> M8 final panel and the self-improving-loop review without their **own** dedicated review row:
+> `9c7bc09` (the `no_spoken_cardinal_ids` gate), `18c6a38` (three more example domains — healthcare,
+> banking, travel — plus `run --turns`), and `aab622a` (the public API barrel `src/index.ts` +
+> `package.json` exports, and the Evaline caller hardening = the H1/H2/H3/M2 fixes in
+> `docs/CALLER_GAPS.md`). The self-improving-loop review (top row) ran on HEAD, so its tree *included*
+> these commits, but its scope was the `promote`/loop capability — it did not independently audit the
+> cardinal-ids gate, the new domains, the API surface, or the caller fixes as standalone capabilities.
+> All are test-covered (113/113 green) but **not individually milestone-reviewed**. Recommend a focused
+> review pass over these before the next release tag.
+
 | Milestone | Review | Verdict | Notes |
 |---|---|---|---|
 | Self-improving loop — `promote` + closed-loop example | ✅ independent sub-agent (opus) | ship-with-fixes → fixed | Closed coSTAR's open seam for voice: `run --promote-failures` freezes a *discovered* failing call (goal-driven/adversarial caller) into a SCRIPTED, replayable regression carrying the same invariants (`src/regress/promoteTrace`) — the suite grows itself. `examples/self-improving-loop/` runs the full flywheel, **oracle-validated live**: goal-driven Evaline drove bare-tabletalk to hallucinate `date="2023-10-14"` → `grounding` caught it → promoted to a regression + cassette → `tune` (demo fixer, reading the trace diagnosis) injected the real TODAY anchor → **train 0/1→1/1 AND held-out 0/1→1/1 on an unseen date** (Goodhart-guarded generalization). Deterministic closure pinned in `test/regress.test.ts` (reproduces-on-broken / green-on-fixed). Reviewer confirmed the cassette is faithful (not staged) + the test isn't tautological; fixed 2 MAJORs — `promoteTrace` now throws on a zero-usable-turns trace (no vacuous-green regression) and strips the barge-in marker from scripted turns — plus MINORs (overwrite warning + try/catch in the CLI; README "both halves automatic" softened to name the manual re-deploy step). 113/113 green, 0 lint errors. |
