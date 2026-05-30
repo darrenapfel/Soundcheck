@@ -1,6 +1,7 @@
 {
   "name": "cancelled-flight-rebook",
   "persona": "cooperative",
+  "liveOnly": true,
   "turns": [
     "Hi, my flight got cancelled and I need to get rebooked.",
     "Sure, my confirmation code is S U M 4 K 9."

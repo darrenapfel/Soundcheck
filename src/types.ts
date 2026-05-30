@@ -16,6 +16,10 @@ export interface Scenario {
   /** Declarative barge-in (B): after `afterTurn`, the scripted caller speaks `text` OVER
    *  the agent `afterMs` after it starts replying — to test interruption handling. */
   bargeIn?: { afterTurn: number; text: string; afterMs: number };
+  /** Live-only (no replay cassette): a goal-driven scenario whose lines an LLM improvises, so
+   *  it can't be replayed deterministically. `run --replay` skips it (and says so); a live run
+   *  exercises it. Set on goal-driven demo scenarios. */
+  liveOnly?: boolean;
 }
 
 /** A declarative gate spec — a domain-agnostic invariant the registry enforces.
