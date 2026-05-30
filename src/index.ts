@@ -45,5 +45,8 @@ export { authorSuite } from "./author/index.ts";
 // Bake-off — diff one suite across two configs.
 export { compareRuns, formatBakeoff } from "./bakeoff/index.ts";
 
+// Regression-from-production — freeze a discovered failure into a permanent regression scenario.
+export { promoteTrace } from "./regress/index.ts";
+
 // Report — self-contained HTML scorecard with embedded audio.
 export { generateReport } from "./report/html.ts";

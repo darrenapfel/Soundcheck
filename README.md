@@ -146,15 +146,17 @@ Everything below is shipped and oracle/test-verified (each milestone independent
 | Judge alignment loop (trust + cross-model + drift guard) | ✅ Shipped |
 | Autonomous, domain-agnostic authoring | ✅ Shipped |
 | Trace-driven Refine (red-green tuning) | ✅ Shipped |
+| Self-improving loop (discover → promote → refine) | ✅ Shipped (`examples/self-improving-loop/`) |
+| Promote a discovered failure → permanent regression (`run --promote-failures`) | ✅ Shipped |
 | Adversarial discovery (Evaline as red-teamer) | ✅ Shipped |
 | A/B & vendor bake-off | ✅ Shipped |
 | End-to-end Soundcheck-tests-Soundcheck CI proof | ✅ Shipped |
 | Two example domains (restaurant + IT-support) | ✅ Shipped |
-| Regression-from-production (auto-author from a failed call) | 🚧 Future direction |
+| Regression-from-*production* traffic (vs. an adversarial caller) | 🚧 Future direction |
 | Online / production monitoring | 🚧 Future direction |
 | Standalone STT / TTS validators | 🚧 Out of scope by design |
 
-**Future directions, de-scoped on purpose (not part of the v2 promise):** *Regression-from-production* — auto-authoring a reproducing scenario + cassette from a real failed call — is deliberately deferred: the pieces exist (a failed call already persists as a `Trace`/cassette; `author` emits scenarios), but wiring a trustworthy "production bug → regression test" path is its own milestone. *Online / production monitoring* is a separate product surface — Soundcheck is a **pre-ship** test harness, not a runtime monitor. *Standalone STT/TTS validators* are out of scope by design (see [Scope](#scope)): evaluate them after STS is great, not bundled in.
+**The self-improving loop is shipped:** a discovered failure (from the adversarial/goal-driven caller) is promoted into a permanent, replayable regression with `run --promote-failures`, and `tune` refines the agent against the grown suite — see `examples/self-improving-loop/` (run end-to-end, oracle-validated) and `test/regress.test.ts` (deterministic closure proof). **Future directions, de-scoped on purpose:** sourcing those failures from *real production traffic* (not a synthetic caller) and *online monitoring* of live calls are separate surfaces — Soundcheck is a **pre-ship** harness today. *Standalone STT/TTS validators* are out of scope by design (see [Scope](#scope)): evaluate them after STS is great, not bundled in.
 
 ## Docs
 - 📐 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design

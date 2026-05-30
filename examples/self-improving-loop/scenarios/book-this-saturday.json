@@ -1,0 +1,15 @@
+{
+  "name": "book-this-saturday",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, I'd like to book a table for this Saturday evening."
+  ],
+  "goal": "Book a dinner table for THIS SATURDAY at seven thirty PM for four people under the name Garcia. Make the agent confirm the date back to you, then hang up.",
+  "assert": [
+    "no_spoken_symbols",
+    { "required_tool": "bookReservation" },
+    { "grounding": { "tool": "bookReservation", "field": "date", "now": "2026-06-01", "expected": "2026-06-06" } },
+    { "spoken_matches_tool": { "tool": "bookReservation", "field": "date" } },
+    { "latency": { "ttfb_ms": { "max": 15000 } } }
+  ]
+}
