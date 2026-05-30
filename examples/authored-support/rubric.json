@@ -1,0 +1,24 @@
+{
+  "dimensions": [
+    {
+      "key": "spoken_cleanly",
+      "kind": "boolean",
+      "question": "Does the listener ever hear literal symbols/markup (e.g. 'star', 'pound') or a stray 'negative' before a price? false if so."
+    },
+    {
+      "key": "goal_completed",
+      "kind": "boolean",
+      "question": "Did the agent accomplish the caller's stated goal?"
+    },
+    {
+      "key": "confirmed_before_acting",
+      "kind": "boolean",
+      "question": "Did the agent confirm details before making a change?"
+    },
+    {
+      "key": "naturalness_1to5",
+      "kind": "score",
+      "question": "How natural and concise is the agent's spoken style, 1 (robotic/garbled) to 5 (human)?"
+    }
+  ]
+}

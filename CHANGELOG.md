@@ -1,0 +1,52 @@
+# Changelog
+
+All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
+
+## [2.0.0] — 2026-05 (the STS dream)
+
+Re-grounded the harness around coSTAR's **Scenario → Trace → Assess → Refine** for speech-to-speech, and made every capability domain-agnostic and oracle/test-verified. Each milestone independently reviewed (`docs/REVIEW_LOG.md`); a final 3-agent release panel signed off. **102+ deterministic tests, 0 lint errors, fully offline CI.** `README_ASPIRATIONAL.md` promoted to `README.md` — every promise is now true or de-scoped in writing.
+
+### Added
+- **Declarative, domain-agnostic gate registry** (M1): a composable `REGISTRY` of `GateFn`s — `no_spoken_symbols`, `required_tool`, `forbidden_tool`, `tool_sequence`, `tool_args_match_schema`, `spoken_matches_tool`, generic `grounding`, `latency` — replacing the restaurant-coupled `tool_arg_iso`/`value_consistency` switch. Fail-closed.
+- **Second example domain** (M2): an IT-support agent (`examples/support/`) tested by the *same* gates, with bare/grounded/insecure variants + pinned cassettes.
+- **First-class versioned `Trace`** (M3): one persistable artifact (recording + oracle + turns + tools + timings); cassettes are v2 (retain the oracle), v1 still loads. Gates + judge run on a persisted Trace offline.
+- **Domain-agnostic authoring** (M4): `author --spec` derives one scenario per tool from any agent's spec.
+- **Trusted-judge alignment loop** (M5): `calibrate` reports a trust verdict (gates on problem-recall), cross-model corroboration, and a drift guard. Judge stays advisory.
+- **Trace-driven Refine** (M6): `tune` feeds the fixer a per-failure root-cause diagnosis (trace evidence + hint); held-out Goodhart guard; generalization-verified on an unseen date.
+- **Adversarial discovery** (M7): an `adversarial` Evaline persona that improvises red-team attacks; surfaced reset-before-verify + account-deletion on an insecure agent (oracle-confirmed), pinned as regressions.
+- **A/B & vendor bake-off** (M7): `bakeoff` runs one suite against two configs and diffs per-gate (+ advisory judge), live or replay.
+- **Soundcheck-tests-Soundcheck self-test** (M8): `test/self-test.test.ts` — the generic gates catch deliberately-regressed builds and pass correct ones, with a coverage contract, in CI.
+
+## [1.0.0] — 2026-05
+
+First public release: a voice-agent test & tuning harness that runs on a single Deepgram key.
+
+### Added
+- **Deterministic regression gates** (`run`): `no_spoken_symbols`, `tool_arg_iso`, `grounding`, `value_consistency`, `required_tool`, `latency` — the "Playwright for voice."
+- **Round-trip oracle** (`validate`): `text → TTS → STT → compare` (test TTS) and `audio → STT` (test STT).
+- **Record / replay** cassettes — live runs record; CI replays offline → a stochastic tool becomes a deterministic merge gate.
+- **LLM judge** (`run --judge`, advisory): a Deepgram-fronted one-shot grader with a tolerant verdict parser, a deterministic mock judge for CI, and panel aggregation.
+- **Judge calibration** (`calibrate`): agreement + problem-class precision/recall vs a self-constructed labeled corpus (live: 91.7% macro; spoken_cleanly 100% recall / 75% precision).
+- **Autonomous eval authoring** (`author`): generate a scenario suite from an agent's spec; surface business rules as hints.
+- **Genericity**: Deepgram VA + a creds-free **MockAUT** adapter (CLI-selectable, CI-proven) + an OpenAI Realtime **reference** adapter; `RawTurn.agentSpokenHeardBack` lets text/mock adapters skip STT.
+- **Self-evaluation**: caller self-checks (voice-clean / in-persona / goal-preserving) with a broken-Evaline fixture that must fail.
+- **Tuning loop** (`tune`): a fixer proposes prompt edits, kept only if a **held-out** set improves (Goodhart guard). Live capstone tuned a buggy agent to green, generalization-verified.
+- **Real-time call recorder + oracle self-validation** (the keystone): the adapter captures a faithful, time-ordered, MIXED recording of the whole call (caller + agent overlaid at true timing). The report plays that real recording, and Soundcheck runs its **own oracle (STT) over it** and shows "what Soundcheck heard" — self-validation baked into every live report. Oracle-validated e2e: the STT of each recording reads back the actual conversation in order.
+- **Per-turn audio in the report**: per-turn 🔊 caller (Evaline) / 🔊 agent clips — hear exactly what each side said.
+- **Interactive turn-taking** (control inversion): the adapter drives a `Caller` policy. **ScriptedCaller** (deterministic default) + **GoalDrivenCaller** — Evaline improvises toward a scenario `goal`, reacting to the agent's actual replies and hanging up when met (a Deepgram-VA brain on the Deepgram key, + repetition guard).
+- **Barge-in** (live): the caller cuts in mid-reply; on `UserStartedSpeaking` Soundcheck flushes queued agent audio (real-client semantics) so the VA's server-side barge-in is captured faithfully. Oracle-validated: the agent truncates mid-word and addresses the interruption. See `examples/interactive/`.
+- CI workflow (offline) + nightly live-drift workflow; ESLint; 77 deterministic tests; ≥85% coverage on the core modules.
+
+### Fixed
+- **Turn segmentation.** Agent audio frames didn't update the turn-activity clock, so a turn could be cut mid-utterance for any answer longer than ~3s past its last text event — the scripted caller then spoke over the still-talking agent and its continued audio bled into the next turn, smearing attribution. Now the turn endpoints on `AgentAudioDone` + a coalescing quiet window. Surfaced by the new audio playback; also fixed a real functional failure (the agent now reliably hears and acts on second-turn requests). All golden cassettes re-recorded from correctly-segmented runs.
+
+### Engineering
+- Zero runtime dependencies (Node 22 native TypeScript, built-in `WebSocket`/`fetch`).
+- Default + CI operation is Deepgram-key-only; CI needs no key.
+- Every milestone independently reviewed by a sub-agent (`docs/REVIEW_LOG.md`).
+
+### Known limitations
+See [`docs/LIMITATIONS.md`] — clean-TTS callers (not acoustic robustness), advisory judge, rule-based demo fixer, OpenAI adapter is a reference, etc.
+
+[Keep a Changelog]: https://keepachangelog.com/
+[SemVer]: https://semver.org/

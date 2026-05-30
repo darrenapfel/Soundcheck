@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "scenario": "restaurant-info",
+  "persona": "impatient",
+  "autLabel": "tabletalk-grounded",
+  "recordedAtNote": "recorded via `soundcheck run --record` (re-record only via reviewed PR)",
+  "turns": [
+    {
+      "turn": 1,
+      "callerSaid": "Hi, what are your hours and where are you located?",
+      "agentHeardCallerAs": "Hi. What are your hours and where are you located?",
+      "agentText": "We are open from five PM to ten PM, and you can find us at one hundred twenty-three Main Street. We offer valet parking and have seating options on the patio, indoors, and at the bar. Is there anything else I can assist you with?",
+      "agentSpokenHeardBack": "We are open from five PM to ten PM, and you can find us at one hundred twenty three Main Street. We offer valet parking and have seating options on the patio, indoors, and at the bar. Is there anything else I can assist you with?",
+      "toolCalls": [
+        {
+          "name": "getRestaurantInfo",
+          "args": {},
+          "result": {
+            "hours": "17:00-22:00",
+            "address": "123 Main St",
+            "parking": "valet",
+            "seating": [
+              "patio",
+              "indoor",
+              "bar"
+            ]
+          }
+        },
+        {
+          "name": "getRestaurantInfo",
+          "args": {},
+          "result": {
+            "hours": "17:00-22:00",
+            "address": "123 Main St",
+            "parking": "valet",
+            "seating": [
+              "patio",
+              "indoor",
+              "bar"
+            ]
+          }
+        }
+      ],
+      "ttfbMs": 1964,
+      "turnMs": 14162
+    },
+    {
+      "turn": 2,
+      "callerSaid": "Do you have parking? Quickly, please, I'm in a hurry.",
+      "agentHeardCallerAs": "Do you have parking? Quickly, please. I'm in a hurry.",
+      "agentText": "Yes, we offer valet parking. Of course! Yes, we have valet parking.",
+      "agentSpokenHeardBack": "Yes. Of course. Yes. We have valet parking.",
+      "toolCalls": [],
+      "ttfbMs": null,
+      "turnMs": 3292
+    }
+  ]
+}
