@@ -22,6 +22,7 @@ export interface Scenario {
  *  Bare strings are param-less gates; objects carry the gate's params. */
 export type AssertSpec =
   | "no_spoken_symbols"
+  | "no_spoken_cardinal_ids"
   | { required_tool: string }
   | { forbidden_tool: string }
   | { tool_sequence: [string, "before", string] }
