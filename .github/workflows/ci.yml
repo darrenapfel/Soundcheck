@@ -19,3 +19,18 @@ jobs:
         run: npm run validate
         # No DEEPGRAM_API_KEY in CI — validate is fully offline (replays cassettes).
         # Live runs (recording cassettes, drift detection) are a separate nightly workflow.
+
+  smoke:
+    # Proves the PUBLISHED package runs: pack (prepack builds dist) → install the tarball into a
+    # throwaway consumer project → import it + run an offline replay from there. Catches the
+    # node_modules type-stripping break (round-2 P0) that `npm run validate` (raw .ts) can't.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dev dependencies
+        run: npm ci
+      - name: Installed-package smoke (pack → install → replay)
+        run: npm run smoke
