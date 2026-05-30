@@ -8,10 +8,8 @@ export interface Scenario {
   persona: Persona;
   /** Caller utterances, in order (v0 is scripted; goal-driven is v1). */
   turns: string[];
-  /** Deterministic gate specs (strings or {gate: params}). */
+  /** Deterministic gate specs (strings or {gate: params}) — domain-agnostic invariants. */
   assert: AssertSpec[];
-  /** Grounding parameters a developer/agent supplies (today + the resolved target date). */
-  grounding?: { today: string; expectedDate: string };
   /** Goal-driven caller (B): when set and selected, Evaline improvises toward this goal
    *  instead of replaying `turns`. Live-only (a brain decides each line); not for cassettes. */
   goal?: string;
@@ -20,13 +18,17 @@ export interface Scenario {
   bargeIn?: { afterTurn: number; text: string; afterMs: number };
 }
 
+/** A declarative gate spec — a domain-agnostic invariant the registry enforces.
+ *  Bare strings are param-less gates; objects carry the gate's params. */
 export type AssertSpec =
-  | string
+  | "no_spoken_symbols"
   | { required_tool: string }
-  | { value_consistency: { spoken: "date"; equalsTool: string } }
-  | { latency: { ttfb_ms?: { max: number }; turn_ms?: { max: number } } }
-  | { tool_arg_iso: string }
-  | { grounding: { tool: string } };
+  | { forbidden_tool: string }
+  | { tool_sequence: [string, "before", string] }
+  | { tool_args_match_schema: string }
+  | { spoken_matches_tool: { tool: string; field: string } }
+  | { grounding: { tool?: string; field?: string; now: string; expected: string } }
+  | { latency: { ttfb_ms?: { max: number }; turn_ms?: { max: number } } };
 
 /** A tool the agent-under-test exposes (Deepgram VA function schema). */
 export interface ToolSchema {

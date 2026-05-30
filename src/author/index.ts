@@ -60,16 +60,16 @@ export function authorSuite(spec: AgentSpec, today = "2026-05-28"): AuthoredSuit
     const assertSpecs: AssertSpec[] = [
       "no_spoken_symbols",
       { required_tool: "bookReservation" },
-      { tool_arg_iso: "bookReservation" },
-      { grounding: { tool: "bookReservation" } },
+      { tool_args_match_schema: "bookReservation" },
+      { grounding: { tool: "bookReservation", field: "date", now: today, expected: nextSaturday(today) } },
     ];
     if (has(t, "modifyReservation")) {
       turns.push("Actually, please change it to six thirty PM instead. Yes, go ahead and update it.");
       assertSpecs.push({ required_tool: "modifyReservation" });
     }
     turns.push("Perfect. Can you confirm all my reservation details before we finish?");
-    assertSpecs.push({ value_consistency: { spoken: "date", equalsTool: "bookReservation" } }, { latency: { ttfb_ms: { max: 12000 } } });
-    scenarios.push({ name: "authored-book-confirm", persona: "cooperative", turns, assert: assertSpecs, grounding: { today, expectedDate: nextSaturday(today) } });
+    assertSpecs.push({ spoken_matches_tool: { tool: "bookReservation", field: "date" } }, { latency: { ttfb_ms: { max: 12000 } } });
+    scenarios.push({ name: "authored-book-confirm", persona: "cooperative", turns, assert: assertSpecs });
   }
 
   // Menu / specials capability

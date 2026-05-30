@@ -5,10 +5,10 @@
 import type { AUTConfig, ToolSchema } from "../../src/types.ts";
 
 export const TOOLS: ToolSchema[] = [
-  { name: "bookReservation", description: "Book a new restaurant reservation. Checks availability automatically.", parameters: { type: "object", properties: { guestName: { type: "string" }, partySize: { type: "number" }, date: { type: "string" }, time: { type: "string" }, specialRequests: { type: "string" } }, required: ["guestName", "partySize", "date", "time"] } },
+  { name: "bookReservation", description: "Book a new restaurant reservation. Checks availability automatically.", parameters: { type: "object", properties: { guestName: { type: "string" }, partySize: { type: "number" }, date: { type: "string", format: "date" }, time: { type: "string", format: "time" }, specialRequests: { type: "string" } }, required: ["guestName", "partySize", "date", "time"] } },
   { name: "cancelReservation", description: "Cancel an existing reservation. Looks up by guest name or reservation ID.", parameters: { type: "object", properties: { guestName: { type: "string" }, reservationId: { type: "number" } } } },
   { name: "modifyReservation", description: "Modify an existing reservation (change time, party size, date, or special requests).", parameters: { type: "object", properties: { guestName: { type: "string" }, changes: { type: "object" } } } },
-  { name: "checkAvailability", description: "Check if a table is available for a given date, time, and party size.", parameters: { type: "object", properties: { date: { type: "string" }, time: { type: "string" }, partySize: { type: "number" } }, required: ["date", "time", "partySize"] } },
+  { name: "checkAvailability", description: "Check if a table is available for a given date, time, and party size.", parameters: { type: "object", properties: { date: { type: "string", format: "date" }, time: { type: "string", format: "time" }, partySize: { type: "number" } }, required: ["date", "time", "partySize"] } },
   { name: "getMenuItems", description: "Get menu items, optionally filtered by category or dietary tag.", parameters: { type: "object", properties: { dietaryFilter: { type: "string" } } } },
   { name: "getDailySpecials", description: "Get today's daily specials with chef descriptions.", parameters: { type: "object", properties: {} } },
   { name: "getRestaurantInfo", description: "Get restaurant information: hours, location, parking, seating options.", parameters: { type: "object", properties: {} } },

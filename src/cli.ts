@@ -105,7 +105,7 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
       transcript = await buildTranscript(scenario, aut.label, raw);
       if (record) saveCassette(transcript);
     }
-    const gates = runGates(transcript, scenario);
+    const gates = runGates(transcript, scenario, aut.tools);
     const passed = gates.every((g) => g.pass);
     let verdict;
     if (opts.judge) {
@@ -204,7 +204,7 @@ async function cmdTune(opts: Record<string, string | boolean>) {
     for (const s of scenarios) {
       const raw = await adapter.runConversation(aut, evalineTurns(s));
       const t = await buildTranscript(s, aut.label, raw);
-      const gates = runGates(t, s);
+      const gates = runGates(t, s, aut.tools);
       if (gates.every((g) => g.pass)) passed++;
       else failures.push(...gates.filter((g) => !g.pass).map((g) => g.name));
     }

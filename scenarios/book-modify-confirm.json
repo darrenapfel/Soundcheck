@@ -9,11 +9,10 @@
   ],
   "assert": [
     "no_spoken_symbols",
-    { "tool_arg_iso": "bookReservation" },
-    { "grounding": { "tool": "bookReservation" } },
+    { "tool_args_match_schema": "bookReservation" },
+    { "grounding": { "tool": "bookReservation", "field": "date", "now": "2026-05-28", "expected": "2026-05-30" } },
     { "required_tool": "modifyReservation" },
-    { "value_consistency": { "spoken": "date", "equalsTool": "bookReservation" } },
+    { "spoken_matches_tool": { "tool": "bookReservation", "field": "date" } },
     { "latency": { "ttfb_ms": { "max": 12000 } } }
-  ],
-  "grounding": { "today": "2026-05-28", "expectedDate": "2026-05-30" }
+  ]
 }

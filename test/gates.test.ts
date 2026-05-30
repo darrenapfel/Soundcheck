@@ -1,108 +1,100 @@
-// Deterministic gate unit-tests over fixture transcripts. Proves every gate —
-// including tool_arg_iso, whose LIVE trigger (a model emitting a prose date) is
-// stochastic — without any network/credits. Run: `npm test`.
+// Deterministic gate unit-tests over fixture transcripts — every gate in the registry,
+// proven (fails on bad, passes on good) without any network/credits. Run: `npm test`.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runGates } from "../src/gates/index.ts";
-import type { CapturedTurn, Scenario, Transcript, ToolCall } from "../src/types.ts";
+import type { CapturedTurn, Scenario, Transcript, ToolCall, ToolSchema } from "../src/types.ts";
+
+const TOOLS: ToolSchema[] = [
+  { name: "bookReservation", description: "", parameters: { type: "object", properties: { guestName: { type: "string" }, partySize: { type: "number" }, date: { type: "string", format: "date" }, time: { type: "string", format: "time" } }, required: ["guestName", "partySize", "date", "time"] } },
+  { name: "verifyIdentity", description: "", parameters: { type: "object", properties: {} } },
+];
 
 function turn(n: number, heard: string, toolCalls: ToolCall[] = [], ttfbMs: number | null = 1200): CapturedTurn {
   return { turn: n, callerSaid: "", agentHeardCallerAs: "", agentText: "", agentSpokenHeardBack: heard, toolCalls, ttfbMs, turnMs: 3000 };
 }
-function book(date: unknown): ToolCall {
-  return { name: "bookReservation", args: { guestName: "Garcia", partySize: 4, date, time: "19:30" }, result: { success: true } };
+function book(date: unknown, extra: Record<string, unknown> = {}): ToolCall {
+  return { name: "bookReservation", args: { guestName: "Garcia", partySize: 4, date, time: "19:30", ...extra }, result: { success: true } };
 }
-function modify(): ToolCall {
-  return { name: "modifyReservation", args: { changes: { time: "18:30" } }, result: { success: true } };
-}
+const call = (name: string, args: Record<string, unknown> = {}): ToolCall => ({ name, args, result: {} });
+const modify = (): ToolCall => ({ name: "modifyReservation", args: { changes: { time: "18:30" } }, result: {} });
 function tx(turns: CapturedTurn[]): Transcript {
-  return { scenario: "book-modify-confirm", persona: "cooperative", autLabel: "fixture", turns };
+  return { scenario: "s", persona: "cooperative", autLabel: "fixture", turns };
 }
-const SCENARIO: Scenario = {
-  name: "book-modify-confirm",
-  persona: "cooperative",
-  turns: [],
-  assert: [
-    "no_spoken_symbols",
-    { tool_arg_iso: "bookReservation" },
-    { grounding: { tool: "bookReservation" } },
-    { required_tool: "modifyReservation" },
-    { latency: { ttfb_ms: { max: 12000 } } },
-  ],
-  grounding: { today: "2026-05-28", expectedDate: "2026-05-30" },
-};
+const scen = (assertSpecs: Scenario["assert"]): Scenario => ({ name: "s", persona: "cooperative", turns: [], assert: assertSpecs });
+const run = (turns: CapturedTurn[], assertSpecs: Scenario["assert"]) => runGates(tx(turns), scen(assertSpecs), TOOLS);
 const gate = (gs: ReturnType<typeof runGates>, name: string) => gs.find((g) => g.name.startsWith(name))!;
 
+const FULL: Scenario["assert"] = [
+  "no_spoken_symbols",
+  { tool_args_match_schema: "bookReservation" },
+  { grounding: { tool: "bookReservation", field: "date", now: "2026-05-28", expected: "2026-05-30" } },
+  { required_tool: "modifyReservation" },
+  { spoken_matches_tool: { tool: "bookReservation", field: "date" } },
+  { latency: { ttfb_ms: { max: 12000 } } },
+];
+
 test("clean grounded transcript passes every gate", () => {
-  const g = runGates(tx([
-    turn(1, "Your reservation for four is confirmed for Saturday May thirtieth at seven thirty PM.", [book("2026-05-30")]),
-    turn(2, "Changed to six thirty PM.", [modify()]),
-  ]), SCENARIO);
+  const g = run([turn(1, "Your reservation for four is confirmed for May thirtieth at seven thirty PM.", [book("2026-05-30")]), turn(2, "Changed to six thirty PM.", [modify()])], FULL);
   assert.ok(g.every((x) => x.pass), JSON.stringify(g, null, 2));
 });
 
-test("no_spoken_symbols catches spoken markdown ('star')", () => {
-  const g = runGates(tx([turn(1, "star star confirmed star star", [book("2026-05-30")]), turn(2, "ok", [modify()])]), SCENARIO);
-  assert.equal(gate(g, "no_spoken_symbols").pass, false);
+test("no_spoken_symbols catches spoken markdown + dash-as-negative", () => {
+  assert.equal(gate(run([turn(1, "star star confirmed star star")], ["no_spoken_symbols"]), "no_spoken_symbols").pass, false);
+  assert.equal(gate(run([turn(1, "grilled salmon negative thirty two dollars")], ["no_spoken_symbols"]), "no_spoken_symbols").pass, false);
+  assert.equal(gate(run([turn(1, "your table is confirmed")], ["no_spoken_symbols"]), "no_spoken_symbols").pass, true);
 });
 
-test("no_spoken_symbols catches dash-as-negative price", () => {
-  const g = runGates(tx([turn(1, "the special is grilled salmon negative thirty two dollars", [book("2026-05-30")]), turn(2, "ok", [modify()])]), SCENARIO);
-  assert.equal(gate(g, "no_spoken_symbols").pass, false);
+test("required_tool — missing fails, present passes", () => {
+  assert.equal(gate(run([turn(1, "ok", [book("2026-05-30")])], [{ required_tool: "modifyReservation" }]), "required_tool").pass, false);
+  assert.equal(gate(run([turn(1, "ok", [modify()])], [{ required_tool: "modifyReservation" }]), "required_tool").pass, true);
 });
 
-test("tool_arg_iso catches a prose date passed to a tool", () => {
-  const g = runGates(tx([turn(1, "confirmed", [book("October seventh")]), turn(2, "ok", [modify()])]), SCENARIO);
-  assert.equal(gate(g, "tool_arg_iso").pass, false);
+test("forbidden_tool — called fails, absent passes", () => {
+  assert.equal(gate(run([turn(1, "ok", [call("chargeCard")])], [{ forbidden_tool: "chargeCard" }]), "forbidden_tool").pass, false);
+  assert.equal(gate(run([turn(1, "ok", [book("2026-05-30")])], [{ forbidden_tool: "chargeCard" }]), "forbidden_tool").pass, true);
 });
 
-test("grounding catches a stale/wrong year", () => {
-  const g = runGates(tx([turn(1, "confirmed", [book("2023-10-28")]), turn(2, "ok", [modify()])]), SCENARIO);
-  assert.equal(gate(g, "grounding").pass, false);
+test("tool_sequence — a-before-b passes, b-before-a fails, b-never-called passes", () => {
+  const spec: Scenario["assert"] = [{ tool_sequence: ["verifyIdentity", "before", "bookReservation"] }];
+  assert.equal(gate(run([turn(1, "", [call("verifyIdentity"), book("2026-05-30")])], spec), "tool_sequence").pass, true);
+  assert.equal(gate(run([turn(1, "", [book("2026-05-30"), call("verifyIdentity")])], spec), "tool_sequence").pass, false);
+  assert.equal(gate(run([turn(1, "", [call("verifyIdentity")])], spec), "tool_sequence").pass, true); // b never called -> no violation
 });
 
-test("required_tool catches a missing tool call", () => {
-  const g = runGates(tx([turn(1, "confirmed", [book("2026-05-30")])]), SCENARIO); // no modifyReservation
-  assert.equal(gate(g, "required_tool").pass, false);
+test("tool_args_match_schema — conforming passes; bad date, missing required, no-call, no-schema fail", () => {
+  const spec: Scenario["assert"] = [{ tool_args_match_schema: "bookReservation" }];
+  assert.equal(gate(run([turn(1, "", [book("2026-05-30")])], spec), "tool_args_match_schema").pass, true);
+  assert.equal(gate(run([turn(1, "", [book("October seventh")])], spec), "tool_args_match_schema").pass, false); // format:date violated
+  assert.equal(gate(run([turn(1, "", [{ name: "bookReservation", args: { date: "2026-05-30", time: "19:30" }, result: {} }])], spec), "tool_args_match_schema").pass, false); // missing required guestName/partySize
+  assert.equal(gate(run([turn(1, "", [])], spec), "tool_args_match_schema").pass, false); // never called
+  assert.equal(gate(runGates(tx([turn(1, "", [book("2026-05-30")])]), scen([{ tool_args_match_schema: "unknownTool" }]), []), "tool_args_match_schema").pass, false); // no schema
 });
 
-test("latency catches a slow turn", () => {
-  const g = runGates(tx([turn(1, "confirmed", [book("2026-05-30")], 99999), turn(2, "ok", [modify()])]), SCENARIO);
-  assert.equal(gate(g, "latency").pass, false);
+test("spoken_matches_tool — spoken value passes; unspoken fails; works for a string field", () => {
+  const dateSpec: Scenario["assert"] = [{ spoken_matches_tool: { tool: "bookReservation", field: "date" } }];
+  assert.equal(gate(run([turn(1, "booked for May thirtieth", [book("2026-05-30")])], dateSpec), "spoken_matches_tool").pass, true);
+  assert.equal(gate(run([turn(1, "star star booked star star", [book("2026-05-30")])], dateSpec), "spoken_matches_tool").pass, false); // never spoke the month
+  const nameSpec: Scenario["assert"] = [{ spoken_matches_tool: { tool: "bookReservation", field: "guestName" } }];
+  assert.equal(gate(run([turn(1, "confirmed for garcia", [book("2026-05-30")])], nameSpec), "spoken_matches_tool").pass, true);
 });
 
-// --- dispatcher + edge coverage ---
-
-test("string-form assertions dispatch (tool_arg_iso, grounding)", () => {
-  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: ["tool_arg_iso", "grounding"], grounding: { today: "2026-05-28", expectedDate: "2026-05-30" } };
-  const g = runGates(tx([turn(1, "confirmed", [book("2026-05-30")])]), scen);
-  assert.equal(gate(g, "tool_arg_iso").pass, true);
-  assert.equal(gate(g, "grounding").pass, true);
+test("grounding — correct passes; stale year + wrong date fail; missing params fail closed", () => {
+  const spec: Scenario["assert"] = [{ grounding: { tool: "bookReservation", field: "date", now: "2026-05-28", expected: "2026-05-30" } }];
+  assert.equal(gate(run([turn(1, "", [book("2026-05-30")])], spec), "grounding").pass, true);
+  assert.equal(gate(run([turn(1, "", [book("2023-10-28")])], spec), "grounding").pass, false); // stale year + != expected
+  assert.equal(gate(run([turn(1, "", [book("2026-06-01")])], spec), "grounding").pass, false); // != expected
+  assert.equal(gate(runGates(tx([turn(1, "", [book("2026-05-30")])]), scen([{ grounding: {} as never }]), TOOLS), "grounding").pass, false); // missing now/expected
 });
 
-test("unknown assertions (string and object) fail closed", () => {
-  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: ["bogus" as unknown as string, { nope: 1 } as unknown as never] as never };
-  const g = runGates(tx([turn(1, "hi", [])]), scen);
-  assert.ok(g.every((x) => x.pass === false && x.detail.includes("unknown assertion")));
+test("latency — slow ttfb and slow turn fail; ok passes", () => {
+  assert.equal(gate(run([turn(1, "ok", [], 99999)], [{ latency: { ttfb_ms: { max: 12000 } } }]), "latency").pass, false);
+  assert.equal(gate(run([{ turn: 1, callerSaid: "", agentHeardCallerAs: "", agentText: "", agentSpokenHeardBack: "ok", toolCalls: [], ttfbMs: 50, turnMs: 9999 }], [{ latency: { turn_ms: { max: 100 } } }]), "latency").pass, false);
+  assert.equal(gate(run([turn(1, "ok", [], 1200)], [{ latency: { ttfb_ms: { max: 12000 } } }]), "latency").pass, true);
 });
 
-test("latency turn_ms threshold is enforced", () => {
-  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: [{ latency: { turn_ms: { max: 100 } } }] };
-  const slow = tx([{ turn: 1, callerSaid: "", agentHeardCallerAs: "", agentText: "", agentSpokenHeardBack: "ok", toolCalls: [], ttfbMs: 50, turnMs: 9999 }]);
-  assert.equal(gate(runGates(slow, scen), "latency").pass, false);
-});
-
-test("value_consistency fails closed on a non-ISO booked date", () => {
-  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: [{ value_consistency: { spoken: "date", equalsTool: "bookReservation" } }] };
-  const g = runGates(tx([turn(1, "October seventh", [book("October seventh")])]), scen);
-  assert.equal(gate(g, "value_consistency").pass, false);
-});
-
-test("value_consistency fails closed (no crash) on an ISO-shaped date with an out-of-range month", () => {
-  const scen: Scenario = { name: "x", persona: "cooperative", turns: [], assert: [{ value_consistency: { spoken: "date", equalsTool: "bookReservation" } }] };
-  const g = runGates(tx([turn(1, "the thirteenth month", [book("2026-13-02")])]), scen);
-  const r = gate(g, "value_consistency");
-  assert.equal(r.pass, false);
-  assert.ok(!r.detail.includes("undefined"), `detail must not leak "undefined": ${r.detail}`);
+test("unknown gate fails closed", () => {
+  const g = runGates(tx([turn(1, "hi")]), scen(["bogus" as never, { nope: 1 } as never]), TOOLS);
+  assert.ok(g.every((x) => x.pass === false && x.detail.includes("unknown gate")));
 });
