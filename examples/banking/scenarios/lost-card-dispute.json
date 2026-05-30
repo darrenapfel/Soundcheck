@@ -1,6 +1,7 @@
 {
   "name": "lost-card-dispute",
   "persona": "cooperative",
+  "liveOnly": true,
   "turns": [
     "Hi, I think I lost my debit card and I see a charge I don't recognize.",
     "My last four of my social is 4417 and my billing ZIP is 98109."

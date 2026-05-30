@@ -22,23 +22,32 @@ echo "DEEPGRAM_API_KEY=dg_..." > .env      # the only key you need
 npm install                                 # devDeps only — zero runtime deps
 # commands below use the `soundcheck` bin (after `npm link`); in a fresh clone, prefix: npm run soundcheck --
 
-soundcheck author --spec ./my-agent.ts                     # 1. draft a suite from YOUR agent's tools + prompt
-soundcheck run scenarios --aut ./my-agent.ts               # 2. drive it live, gate it, get a debuggable trace
+soundcheck author --spec ./my-agent.ts --out scenarios     # 1. draft a suite into ./scenarios from YOUR agent's tools + prompt
+soundcheck run scenarios --aut ./my-agent.ts               # 2. drive THAT suite live, gate it, get a debuggable trace
 open runs/report-*.html                                    # 3. hear the call + read what the oracle heard
 soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune until green — agent fixes agent
 ```
 
 **No agent of your own yet?** Five bundled example domains show the *same* gates working everywhere:
 
-| Domain | Folder | What it exercises |
-|---|---|---|
-| Restaurant booking | `examples/tabletalk/` | spoken symbols, ISO/grounded dates, read-back — `bare` / `hardened` / `grounded` |
-| IT support | `examples/support/` | verify-before-reset, never-delete — `bare` / `grounded` / `insecure` |
-| Healthcare clinic | `examples/healthcare/` | verify-before-PHI, never-prescribe, grounded appointment dates |
-| Bank card services | `examples/banking/` | verify-before-any-action, never-wire, clean spoken money |
-| Airline rebooking | `examples/travel/` | lookup-before-rebook, "tomorrow" grounded, integer bag counts |
+| Domain | Folder | What it exercises | Runs |
+|---|---|---|---|
+| Restaurant booking | `examples/tabletalk/` | spoken symbols, ISO/grounded dates, read-back — `bare`/`hardened`/`grounded` | ✅ offline replay (cassettes) |
+| IT support | `examples/support/` | verify-before-reset, never-delete — `bare`/`grounded`/`insecure` | ✅ offline replay (cassettes) |
+| Healthcare clinic | `examples/healthcare/` | verify-before-PHI, never-prescribe, grounded dates | live (goal-driven) |
+| Bank card services | `examples/banking/` | verify-before-any-action, never-wire, clean spoken money | live (goal-driven) |
+| Airline rebooking | `examples/travel/` | lookup-before-rebook, "tomorrow" grounded, integer bag counts | live (goal-driven) |
 
-Run a `bare`/`insecure` config to watch the gates catch the planted bugs ("STAR STAR", dash-as-negative prices, reset-before-verify, ungrounded dates), then a `grounded` config to watch them go green.
+Offline, no key — replay the recorded ladders: watch the gates pass on the clean agent and **catch the planted bugs** on the broken one (each command below works as written):
+
+```bash
+soundcheck run scenarios --aut examples/tabletalk/grounded.ts --replay                              # ✅ all pass
+soundcheck run scenarios --aut examples/tabletalk/bare.ts --replay --only book-modify-confirm       # 🚩 catches STAR STAR + ungrounded date
+soundcheck run examples/support/scenarios --aut examples/support/grounded.ts --replay               # ✅ (skips the goal-driven demo)
+soundcheck run examples/support/scenarios --aut examples/support/insecure.ts --replay --only frustrated-reset  # 🚩 catches reset-before-verify + forbidden delete
+```
+
+The **healthcare, banking, travel** suites (and support's `adversarial-discovery`) are **goal-driven, live-only**: an LLM improvises the caller, so they can't be replayed from a cassette — run them live with your key, e.g. `soundcheck run examples/healthcare/scenarios --aut examples/healthcare/grounded.ts`. (`--replay` skips them and says so; a replay that would run *nothing* fails closed.)
 
 ## The loop: Scenario → Trace → Assess → Refine
 
@@ -120,12 +129,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4   # your scenarios/ + fixtures/cassettes/ + agent.ts
-      - uses: darrenapfel/Soundcheck@v2
+      - uses: darrenapfel/Soundcheck@v2   # pin a published release tag
         with:
+          aut: agent.ts                      # your agent-under-test config (required)
           scenarios: scenarios               # dir of scenario .json files
-          args: "--aut agent.ts --replay"    # replay recorded cassettes — deterministic, no key
-          # for a LIVE run instead (records/replays real audio):
-          #   args: "--aut agent.ts"
+          cassette-dir: fixtures/cassettes   # recorded cassettes (the --replay default)
+          # `args` defaults to --replay (offline, deterministic, no key). For a LIVE run instead:
+          #   args: ""
           #   deepgram-api-key: ${{ secrets.DEEPGRAM_API_KEY }}
 ```
 

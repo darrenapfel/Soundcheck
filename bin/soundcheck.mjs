@@ -1,6 +1,7 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env -S node --experimental-strip-types --disable-warning=ExperimentalWarning
 // Launcher so `soundcheck ...` works after `npm link` / global install.
-// Node 22 strips TS types natively (no build step, zero runtime deps).
+// Node 22 strips TS types natively (no build step, zero runtime deps). The
+// ExperimentalWarning for type-stripping is suppressed for clean CLI output.
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 

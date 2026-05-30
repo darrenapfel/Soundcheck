@@ -77,3 +77,12 @@ test("loadCassette rejects an unsupported version", () => {
     rmSync(cassettePath(SCEN, aut), { force: true });
   }
 });
+
+test("cassettePath rejects path-traversal / unsafe scenario + AUT names (P1-3)", () => {
+  for (const bad of ["../escape", "a/b", "..", "x\\y", "$(rm)"]) {
+    assert.throws(() => cassettePath(bad, "support-grounded"), /unsafe|escapes/);
+    assert.throws(() => cassettePath("reset-and-callback", bad), /unsafe|escapes/);
+  }
+  // a normal name still resolves inside fixtures/cassettes
+  assert.match(cassettePath("reset-and-callback", "support-grounded"), /fixtures\/cassettes\/reset-and-callback\.support-grounded\.json$/);
+});
