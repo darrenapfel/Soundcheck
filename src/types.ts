@@ -2,6 +2,17 @@
 
 export type Persona = "cooperative" | "impatient" | "adversarial";
 
+/** Why a driven call ended (caller termination integrity, CALLER_GAPS Phase 1).
+ *  `goal_met` is the ONLY clean end for a goal-driven scenario; the others are surfaced on
+ *  the Trace so a forced/aborted end can't be read as a satisfied caller:
+ *   - goal_met        : the brain ended because the goal was accomplished.
+ *   - turn_cap        : the goal-driven turn budget was reached (one wrap-up turn was given).
+ *   - planner_error   : Evaline's brain failed (timeout / WS / empty plan) repeatedly — an
+ *                       infra blip on the caller's side, NOT a satisfied caller.
+ *   - repeat_guard    : the caller looped (same line 3×) and was stopped.
+ *   - script_exhausted: a scripted caller played its whole tape (the normal scripted end). */
+export type TerminationReason = "goal_met" | "turn_cap" | "planner_error" | "repeat_guard" | "script_exhausted";
+
 /** A declarative test case: how Evaline calls, and how we judge the result. */
 export interface Scenario {
   name: string;
@@ -91,6 +102,10 @@ export interface Trace {
   /** Soundcheck's own oracle (STT) over the recording: what was actually heard, in order.
    *  The self-validation signal — present whenever recordingWav is. */
   oracleTranscript?: string;
+  /** Why the caller ended the call (Phase 1). For a goal-driven scenario, only `goal_met` is a
+   *  clean end; a non-`goal_met` reason fails the synthetic `goal_reached` gate (see runGates).
+   *  Undefined for legacy cassettes / paths that don't drive a Caller. */
+  terminationReason?: TerminationReason;
 }
 
 export interface GateResult {

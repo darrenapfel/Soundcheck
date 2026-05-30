@@ -37,7 +37,7 @@ export function generateReport(results: ScenarioResult[], generatedAt: string): 
       ? `<p class="judge"><strong>⚖ Judge (${esc(r.verdict.backend)}, advisory):</strong> ${r.verdict.dimensions.map((d) => `${esc(d.key)}=<code>${esc(String(d.value))}</code>`).join(" · ")}${r.verdict.findings[0] ? `<br><em>${esc(r.verdict.findings[0])}</em>` : ""}</p>`
       : "";
     return `<section class="${r.passed ? "ok" : "bad"}">
-      <h2>${esc(r.transcript.scenario)} <span class="meta">aut=${esc(r.transcript.autLabel)} · persona=${esc(r.transcript.persona)} · ${r.passed ? "PASS" : "FAIL"}</span></h2>
+      <h2>${esc(r.transcript.scenario)} <span class="meta">aut=${esc(r.transcript.autLabel)} · persona=${esc(r.transcript.persona)} · ${r.passed ? "PASS" : "FAIL"}${r.transcript.terminationReason ? ` · ended: ${esc(r.transcript.terminationReason)}` : ""}</span></h2>
       ${fullAudio}
       <table class="gates"><thead><tr><th></th><th>gate</th><th>detail</th></tr></thead><tbody>${gateRows}</tbody></table>
       ${verdictHtml}

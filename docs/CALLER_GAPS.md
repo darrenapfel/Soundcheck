@@ -11,14 +11,21 @@ Evaline has two bodies: the **scripted** caller (deterministic; plays `scenario.
 | **H3** | Persona fidelity was a near-no-op in the goal-driven path: only `adversarial` had tactics, so `impatient` read identical to `cooperative`. | Added an `IMPATIENT STYLE` tactics block (clipped lines, time pressure, rising exasperation). Unit-tested. |
 | **M2** | The new "speak IDs digit-by-digit" rule risked over-firing (a small model rendering "four PM" or "eighty-nine dollars" wrong). | Added a counter-rule: dates, times, money, and quantities are spoken the **natural** way; only IDs/codes go digit-by-digit. Unit-tested. |
 
+## ✅ Fixed (Phase 1 — termination integrity)
+
+The "every non-goal-met termination must be tagged" family. A `TerminationReason` (`goal_met` | `turn_cap` | `planner_error` | `repeat_guard` | `script_exhausted`) is now set by the caller, threaded through the adapter → capture → `Trace` (persisted in the cassette), and enforced by a synthetic **`goal_reached`** gate: a goal-driven call is a clean pass **only** when it ended `goal_met`. The report shows the reason (`ended: …`). All unit-tested against a mock `PlanFn`.
+
+| # | Gap | Fix |
+|---|---|---|
+| **H4** | On `maxTurns`/backstop, `next()` returned `null` → Evaline hung up mid-goal with no closing line, and the trace looked like a completed call. | The turn budget now allows **one final wrap-up turn** (the brain is told it's the last turn — note what's unfinished — via `PlanInput.final`); beyond it the call ends tagged `turn_cap`, which fails `goal_reached`. |
+| **M4** | A planner timeout/WS error returned `{action:"hangup"}` — an Evaline-side infra blip ended a healthy call and read as a satisfied caller. | The planner now signals `action:"error"` (distinct from `hangup`); the caller offers a neutral **holding line** on the first blip and only ends after a **second consecutive** failure, tagged `planner_error`. A transient failure that recovers does not end the call. |
+| **M1** | No goal-completion *verification* — the brain self-reported "done" and could hang up after the agent merely *said* it would act, with no read-back. | A HARD RULE in the planner prompt: the agent must have **confirmed the action back** (booking date/time, reset, charge) before the caller may hang up `goal_met`; otherwise ask for confirmation. |
+
 ## 🚧 Tracked (prioritized, not yet fixed)
 
 | # | Sev | Gap | Fix direction |
 |---|---|---|---|
-| **H4** | HIGH | On `maxTurns`/backstop, `next()` returns `null` → Evaline hangs up **mid-goal with no closing line**, and the trace looks like a completed call. Multi-part goals (3–4 sub-tasks) can blow an 8-turn budget. | On cap, give the brain one final "wrap up / note what's unfinished" turn; surface a `goal incomplete (turn cap)` signal on the Trace so the verdict can't read a forced end as clean. (Shares the "every non-goal-met termination should be tagged" theme with M4/L5.) |
-| **M1** | MED | No goal-completion *verification* — the brain self-reports "done" and can hang up after the agent merely *said* it would act, with no read-back. | Add a HARD RULE requiring an agent confirmation/read-back of any booking/reset/charge before hangup; optionally a sub-goal checklist in the prompt. |
 | **M3** | MED | Agent silence is masked: an empty reply mid-call renders as "(the call just connected)", so Evaline re-greets instead of prodding ("Hello? Are you still there?"). | Distinguish empty-because-silent from turn-0; prompt a prod on mid-call silence. |
-| **M4** | MED | A planner timeout/WS error returns `{action:"hangup"}` — an infra blip on Evaline's side ends a healthy call and reads as a satisfied caller. | On planner failure, fall back to a neutral holding line ("Sorry, could you repeat that?") and only end after repeated failures; tag the trace as a planner-induced end. |
 | **M5** | MED | No persona reacts emotionally to *bad agent behavior* (over-broad data request, wrong charge, repeated failure). A believable caller pushes back. | Cross-persona rule: react in-character to unexpected/unsafe agent behavior (question an over-broad data ask, express frustration at repeated failures). |
 | **M6** | MED | No scratchpad of committed facts — on a re-ask the brain can give a *different* DOB/time than before. | Echo prior caller turns' concrete values into the prompt as "facts you've committed to"; instruct consistency + answering clarifying questions from the goal. |
 | **L1** | LOW | All three personas share one TTS voice (`aura-2-orion-en`) — persona is text-only; a prosody-sensitive agent can't *hear* impatience. | Distinct voices/rates per persona (v1). |
@@ -26,21 +33,21 @@ Evaline has two bodies: the **scripted** caller (deterministic; plays `scenario.
 | **L4** | LOW | Goal-driven Evaline can't barge in (no interrupt action); scripted barge-in is a single fixed interruption. | Thread an optional `interrupt` through `PlanDecision`. |
 
 ## Notes
-- **L3 (goal-driven path under-tested) — partially addressed:** added deterministic `GoalDrivenCaller` unit tests (re-ask guard, ack exemption, mishearing surfacing, persona/counter-rule wiring) with a mock `PlanFn`, so the policy/prompt logic is covered even though the live brain is not.
-- The single highest-leverage remaining item is the **"every non-goal-met termination must be tagged" family (H4/M4/L5)** — today four distinct conditions (turn cap, planner failure, malformed JSON, legitimate-but-guarded repeat) can all collapse into a silent hangup that scores as a clean, satisfied call. Fixing the *result-integrity* of caller termination matters more than any single realism touch. (The public-readiness review independently raised this as **P1-5**.)
+- **L3 (goal-driven path under-tested) — partially addressed:** added deterministic `GoalDrivenCaller` unit tests (re-ask guard, ack exemption, mishearing surfacing, persona/counter-rule wiring, plus the Phase-1 termination reasons) with a mock `PlanFn`, so the policy/prompt logic is covered even though the live brain is not.
+- **L5 (malformed-JSON silent hangup) — resolved by Phase 1:** the four distinct end conditions (turn cap, planner failure, looping repeat, malformed/empty plan) no longer collapse into one silent hangup that scores clean — each is tagged, and a non-`goal_met` end fails the `goal_reached` gate. This was the highest-leverage gap (the readiness review's **P1-5**).
 
 ## Plan of attack (phased)
 
 The tracked gaps are sequenced **integrity → realism → polish**: fix what can make a result *lie* first, then what makes the caller *believable*, then cosmetics. Each phase ends green (`npm run validate`) with the new behavior unit-tested against a mock `PlanFn`, and gets its own commit + review row.
 
-### Phase 1 — Termination integrity (the trust fix) — *highest priority; = readiness review P1-5*
-A goal-driven call must never end for a non-goal reason and still read as a clean, satisfied completion. Addresses **H4, M4, M1**, and the malformed-JSON silent-hangup (L5 note).
-- Add a **termination reason** to the result — `goal_met` | `turn_cap` | `planner_error` | `repeat_guard` | `script_exhausted` — threaded from `GoalDrivenCaller.next` / `deepgramVaPlanner` through the adapter onto the `Trace` / `ScenarioResult`.
-- Surface it in the report and make a non-`goal_met` ending **visible to the verdict** (a goal-driven run that didn't reach its goal is not a clean pass).
-- On `maxTurns`, give the brain one final "wrap up / note what's unfinished" turn instead of a silent `null` (H4).
-- On planner failure, fall back to a neutral holding line and only end after repeated failures; tag `planner_error` (M4).
-- Add a HARD RULE requiring an agent read-back/confirmation of any booking/reset/charge before the brain may hang up `goal_met` (M1).
-- *Tests:* mock-`PlanFn` cases asserting each termination reason is tagged; a forced cap/planner-error does not surface as `goal_met`.
+### Phase 1 — Termination integrity (the trust fix) — ✅ DONE *(= readiness review P1-5)*
+A goal-driven call must never end for a non-goal reason and still read as a clean, satisfied completion. Addressed **H4, M4, M1**, and the malformed-JSON silent-hangup (L5 note). Shipped:
+- ✅ A **`TerminationReason`** (`goal_met` | `turn_cap` | `planner_error` | `repeat_guard` | `script_exhausted`) set by `GoalDrivenCaller`/`ScriptedCaller`, threaded through the adapter (`converse`) → `buildTranscript` onto the `Trace`, and persisted in the cassette.
+- ✅ A synthetic **`goal_reached`** gate makes a non-`goal_met` ending fail the run (not just advisory); the report shows `ended: <reason>`.
+- ✅ On the turn cap, **one wrap-up turn** (`PlanInput.final`) instead of a silent `null` (H4).
+- ✅ Planner failure → neutral **holding line**, end (`planner_error`) only after a second consecutive failure; recovery resets (M4).
+- ✅ A HARD RULE requiring an agent read-back/confirmation before `goal_met` hangup (M1).
+- ✅ *Tests:* mock-`PlanFn` cases assert each reason is tagged and that a forced cap / planner error does **not** surface as `goal_met`; a `goal_reached` gate test in `test/gates.test.ts`. (Suite: 137 tests, 0 lint errors/warnings.)
 
 ### Phase 2 — Realism of the brain
 Make the improvising caller behave more like a believable human. Addresses **M3, M5, M6**.
@@ -54,4 +61,4 @@ Cosmetic / DRY. Addresses **L1, L2, L4**.
 - **L1:** distinct voices/rates per persona so a prosody-sensitive agent can hear the difference.
 - **L4:** thread an optional `interrupt` through `PlanDecision` so the goal-driven caller can barge in, not just the scripted one.
 
-*(Pinned: Phase 1 is the one to schedule next; Phases 2–3 follow as the goal-driven caller matures.)*
+*(Phase 1 shipped. Phase 2 (realism) is next as the goal-driven caller matures; Phase 3 is polish.)*
