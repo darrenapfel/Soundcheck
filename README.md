@@ -22,8 +22,8 @@ echo "DEEPGRAM_API_KEY=dg_..." > .env      # the only key you need
 npm install                                 # devDeps only — zero runtime deps
 # commands below use the `soundcheck` bin (after `npm link`); in a fresh clone, prefix: npm run soundcheck --
 
-soundcheck author --spec ./my-agent.ts                     # 1. draft a suite from YOUR agent's tools + prompt
-soundcheck run scenarios --aut ./my-agent.ts               # 2. drive it live, gate it, get a debuggable trace
+soundcheck author --spec ./my-agent.ts --out scenarios     # 1. draft a suite into ./scenarios from YOUR agent's tools + prompt
+soundcheck run scenarios --aut ./my-agent.ts               # 2. drive THAT suite live, gate it, get a debuggable trace
 open runs/report-*.html                                    # 3. hear the call + read what the oracle heard
 soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune until green — agent fixes agent
 ```
