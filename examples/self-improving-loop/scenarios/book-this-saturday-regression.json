@@ -1,0 +1,34 @@
+{
+  "name": "book-this-saturday-regression",
+  "persona": "cooperative",
+  "turns": [
+    "Hi, I'd like to book a dinner table for four people this Saturday at seven thirty PM under the name Garcia."
+  ],
+  "assert": [
+    "no_spoken_symbols",
+    {
+      "required_tool": "bookReservation"
+    },
+    {
+      "grounding": {
+        "tool": "bookReservation",
+        "field": "date",
+        "now": "2026-06-01",
+        "expected": "2026-06-06"
+      }
+    },
+    {
+      "spoken_matches_tool": {
+        "tool": "bookReservation",
+        "field": "date"
+      }
+    },
+    {
+      "latency": {
+        "ttfb_ms": {
+          "max": 15000
+        }
+      }
+    }
+  ]
+}

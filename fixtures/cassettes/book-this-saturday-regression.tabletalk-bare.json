@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "scenario": "book-this-saturday-regression",
+  "persona": "cooperative",
+  "autLabel": "tabletalk-bare",
+  "recordedAtNote": "recorded via `soundcheck run --record` (re-record only via reviewed PR)",
+  "oracleTranscript": "Hi. Thanks for calling Table Talk. How can I help you today? Hi. I'd like to book a dinner table for four people this Saturday at seven thirty PM under the name Garcia. Your reservation for four people under the name Garcia is confirmed for this Saturday, October fourteenth at seven thirty PM. Your reservation ID is forty two. Is there anything else I can assist you with?",
+  "turns": [
+    {
+      "turn": 1,
+      "callerSaid": "Hi, I'd like to book a dinner table for four people this Saturday at seven thirty PM under the name Garcia.",
+      "agentHeardCallerAs": "Hi. I'd like to book a dinner table for four people this Saturday at seven thirty PM under the name Garcia.",
+      "agentText": "Your reservation for four people under the name Garcia is confirmed for this Saturday, October 14th at 7:30 PM. Your reservation ID is 42. Is there anything else I can assist you with?",
+      "agentSpokenHeardBack": "Your reservation for four people under the name Garcia is confirmed for this Saturday, October fourteenth at seven thirty PM. Your reservation ID is forty two. Is there anything else I can assist you with?",
+      "toolCalls": [
+        {
+          "name": "checkAvailability",
+          "args": {
+            "date": "2023-10-14",
+            "partySize": 4,
+            "time": "19:30"
+          },
+          "result": {
+            "available": true,
+            "date": "2023-10-14",
+            "time": "19:30",
+            "partySize": 4
+          }
+        },
+        {
+          "name": "bookReservation",
+          "args": {
+            "date": "2023-10-14",
+            "guestName": "Garcia",
+            "partySize": 4,
+            "time": "19:30"
+          },
+          "result": {
+            "success": true,
+            "reservationId": 42,
+            "guestName": "Garcia",
+            "partySize": 4,
+            "date": "2023-10-14",
+            "time": "19:30"
+          }
+        }
+      ],
+      "ttfbMs": 1983,
+      "turnMs": 12733
+    }
+  ]
+}
