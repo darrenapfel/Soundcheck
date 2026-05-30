@@ -8,8 +8,8 @@ Soundcheck is the **test & tuning harness for speech-to-speech (STS) voice agent
 
 ## Hard constraints
 
-- **Node 22 native TypeScript** via `--experimental-strip-types`. No build step. Use `.ts` import extensions. **Erasable-syntax only** — no `enum`, no decorators, no parameter properties, no namespaces.
-- **ZERO runtime dependencies.** Built-in `fetch`/`WebSocket`, `node:` builtins only. `package.json` `dependencies` must stay empty. Anything else is a regression.
+- **Node 22 native TypeScript** via `--experimental-strip-types`. **No build step for development** — the npm scripts, tests, and the GitHub Action all run raw `.ts`. Use `.ts` import extensions. **Erasable-syntax only** — no `enum`, no decorators, no parameter properties, no namespaces. (A *publish-time* `tsc -p tsconfig.build.json` build — `prepack` → `dist/**/*.js` + `.d.ts`, `.ts` import specifiers rewritten to `.js` — exists ONLY so the published npm package runs from `node_modules`, where Node refuses to strip types. `bin`/`main`/`types`/`exports` point at `dist`; `dist/` is gitignored and ships via the `files` allowlist. Do not import `dist/` from `src/`, and do not add a dev build step.)
+- **ZERO runtime dependencies.** Built-in `fetch`/`WebSocket`, `node:` builtins only. `package.json` `dependencies` must stay empty (`typescript` is a devDep — the publish build doesn't change this). Anything else is a regression.
 - **Deepgram-key-only.** Default + CI operation needs only `DEEPGRAM_API_KEY` — caller brain (VA `think`), TTS, STT/oracle, and judge all run on it. No OpenAI/Anthropic key. (The `openai-realtime` adapter is a non-CLI-selectable reference, imported nowhere.)
 - **Deterministic, offline CI.** `.github/workflows/ci.yml` runs `npm run validate` with **no key**, replaying cassettes. Nothing in the validate path may need a key or network. A keyless `git clone` must validate green.
 - MIT licensed; secrets gitignored (`.env*`, `*.key`, `runs/`, audio). Never commit a key — `test/security.test.ts` scans the tracked tree on every `validate`.

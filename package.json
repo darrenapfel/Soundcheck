@@ -3,13 +3,17 @@
   "version": "2.0.0",
   "description": "Voice-agent test & tuning harness — Playwright + an LLM judge + a synthetic caller, for speech. Runs on a single Deepgram key.",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
+    "dist",
     "src",
     "bin",
     "action.yml",
@@ -38,7 +42,10 @@
     "test:coverage": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test --experimental-test-coverage test/*.test.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "validate": "npm run typecheck && npm run lint && npm run test"
+    "validate": "npm run typecheck && npm run lint && npm run test",
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "smoke": "bash scripts/smoke-package.sh"
   },
   "keywords": [
     "voice",
