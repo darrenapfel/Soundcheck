@@ -44,5 +44,5 @@ export async function buildTranscript(
   const rec = cap.recordingPcm;
   const recordingWav = rec?.length ? pcmToWav(rec, PLAYBACK_RATE) : undefined;
   const oracleTranscript = rec?.length ? await transcribeFn(rec) : undefined;
-  return { scenario: scenario.name, persona: scenario.persona, autLabel, turns, recordingWav, oracleTranscript };
+  return { scenario: scenario.name, persona: scenario.persona, autLabel, turns, recordingWav, oracleTranscript, terminationReason: cap.terminationReason };
 }

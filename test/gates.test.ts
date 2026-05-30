@@ -121,3 +121,22 @@ test("malformed assert elements (null/undefined/number) fail CLOSED, never crash
   assert.equal(g.length, 3);
   assert.ok(g.every((x) => x.pass === false), "every malformed spec must fail closed");
 });
+
+test("goal_reached gate: a goal-driven call is a clean pass ONLY when it ended goal_met (Phase 1)", () => {
+  const goalScen: Scenario = { name: "g", persona: "cooperative", turns: [], goal: "book a table", assert: ["no_spoken_symbols"] };
+  const trace = (reason?: Trace["terminationReason"]): Trace =>
+    ({ scenario: "g", persona: "cooperative", autLabel: "fixture", terminationReason: reason, turns: [turn(1, "your table is booked")] });
+
+  // goal_met -> a passing goal_reached row.
+  assert.equal(gate(runGates(trace("goal_met"), goalScen, TOOLS), "goal_reached").pass, true);
+
+  // a forced/aborted end -> a FAILING row, so the run is not clean even though no_spoken_symbols passes.
+  for (const bad of ["turn_cap", "planner_error", "repeat_guard"] as const) {
+    assert.equal(gate(runGates(trace(bad), goalScen, TOOLS), "goal_reached").pass, false, bad);
+  }
+
+  // No goal (scripted) -> no goal_reached row, even with a reason set.
+  assert.equal(runGates(trace("script_exhausted"), scen(["no_spoken_symbols"]), TOOLS).find((x) => x.name === "goal_reached"), undefined);
+  // Goal-driven but reason unknown (legacy cassette) -> no row (back-compat).
+  assert.equal(runGates(trace(undefined), goalScen, TOOLS).find((x) => x.name === "goal_reached"), undefined);
+});
