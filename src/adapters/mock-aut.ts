@@ -5,7 +5,7 @@
 // gates can be shown catching a different runtime's failures. (See docs/ROADMAP.md M5.)
 
 import type { AUTConfig, ToolCall } from "../types.ts";
-import type { AUTAdapter, CallerTurn, RawTurn } from "./types.ts";
+import type { AUTAdapter, CallerTurn, RawTurn, ConversationCapture } from "./types.ts";
 
 export class MockAUTAdapter implements AUTAdapter {
   label: string;
@@ -15,8 +15,8 @@ export class MockAUTAdapter implements AUTAdapter {
     this.#buggy = opts.buggy ?? false;
   }
 
-  async runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<RawTurn[]> {
-    return callerTurns.map((turn) => {
+  async runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<ConversationCapture> {
+    const turns: RawTurn[] = callerTurns.map((turn) => {
       const t = turn.text.toLowerCase();
       const toolCalls: ToolCall[] = [];
       let heard: string;
@@ -60,5 +60,6 @@ export class MockAUTAdapter implements AUTAdapter {
         turnMs: 400,
       };
     });
+    return { turns }; // no audio recording — mock supplies heard text directly
   }
 }

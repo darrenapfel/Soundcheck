@@ -24,11 +24,23 @@ export interface RawTurn {
 }
 
 /**
+ * The full result of driving one conversation: the per-turn captures plus — for LIVE
+ * adapters — a faithful, real-time, MIXED recording of the whole call (caller + agent
+ * overlaid at true wall-clock timing, 24kHz mono). This recording is the ground truth:
+ * the report plays it and Soundcheck's own oracle (STT) transcribes it to self-validate.
+ * Text/mock adapters omit it (no audio).
+ */
+export interface ConversationCapture {
+  turns: RawTurn[];
+  recordingPcm?: Buffer; // real-time mixed call audio @ 24kHz linear16 (live adapters only)
+}
+
+/**
  * An adapter knows how to stand up + drive one agent-under-test. v0 ships the
  * Deepgram Voice Agent adapter; the interface is what lets Vapi/Retell/OpenAI
  * Realtime/SIP be added later without touching the gates, judge, or report.
  */
 export interface AUTAdapter {
   label: string;
-  runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<RawTurn[]>;
+  runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<ConversationCapture>;
 }

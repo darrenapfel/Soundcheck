@@ -17,7 +17,7 @@
 
 import { synthesize, transcribe } from "../deepgram.ts";
 import type { AUTConfig, ToolCall } from "../types.ts";
-import type { AUTAdapter, CallerTurn, RawTurn } from "./types.ts";
+import type { AUTAdapter, CallerTurn, RawTurn, ConversationCapture } from "./types.ts";
 
 const OPENAI_WS = "wss://api.openai.com/v1/realtime";
 const FRAME = 4800; // 100ms @ 24kHz 16-bit (OpenAI Realtime uses 24kHz pcm16)
@@ -34,7 +34,7 @@ export class OpenAIRealtimeAdapter implements AUTAdapter {
   #model: string;
   constructor(opts: { model?: string } = {}) { this.#model = opts.model ?? "gpt-4o-realtime-preview"; }
 
-  async runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<RawTurn[]> {
+  async runConversation(aut: AUTConfig, callerTurns: CallerTurn[]): Promise<ConversationCapture> {
     // Caller audio is still synthesized by Deepgram TTS (Evaline); the AUT is OpenAI.
     const key = openaiKey();
     const ws = new WebSocket(`${OPENAI_WS}?model=${this.#model}`, [
@@ -107,6 +107,6 @@ export class OpenAIRealtimeAdapter implements AUTAdapter {
       out.push({ callerSaid: turn.text, agentHeardCallerAs: "", agentText: agentText.join(" "), agentAudioPcm: pcmOut, agentSpokenHeardBack: heard, toolCalls: [...toolCalls], ttfbMs: null, turnMs: Date.now() - start });
     }
     try { ws.close(); } catch { /* ignore */ }
-    return out;
+    return { turns: out }; // reference adapter: no real-time mixed recording yet
   }
 }
