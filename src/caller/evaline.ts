@@ -10,6 +10,7 @@ import type { CallerTurn } from "../adapters/types.ts";
 const PERSONA_VOICE: Record<Persona, string> = {
   cooperative: "aura-2-orion-en",
   impatient: "aura-2-orion-en",
+  adversarial: "aura-2-orion-en",
 };
 
 export function evalineTurns(scenario: Scenario): CallerTurn[] {

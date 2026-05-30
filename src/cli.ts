@@ -22,6 +22,7 @@ import { tune, formatTuneResult, diagnose } from "./tune/index.ts";
 import type { ScenarioSet, TuneScore, Diagnosis } from "./tune/index.ts";
 import { spawnSync } from "node:child_process";
 import { generateReport } from "./report/html.ts";
+import { compareRuns, formatBakeoff } from "./bakeoff/index.ts";
 import type { AUTConfig, Scenario, ScenarioResult, Trace } from "./types.ts";
 import type { ConversationCapture } from "./adapters/types.ts";
 
@@ -51,7 +52,7 @@ function loadScenarios(dir: string): Scenario[] {
   const abs = resolve(process.cwd(), dir);
   const files = readdirSync(abs).filter((f) => f.endsWith(".json")).sort();
   // Keep only well-formed scenario files (skips rubric.json and any other JSON).
-  const VALID_PERSONAS = ["cooperative", "impatient"];
+  const VALID_PERSONAS = ["cooperative", "impatient", "adversarial"];
   const scenarios = files
     .map((f) => JSON.parse(readFileSync(join(abs, f), "utf8")) as Scenario)
     .filter((s) => s && typeof s.name === "string" && Array.isArray(s.assert));
@@ -62,6 +63,41 @@ function loadScenarios(dir: string): Scenario[] {
     }
   }
   return scenarios;
+}
+
+// Acquire a Trace for one scenario against one AUT — the single live/replay/caller code path,
+// shared by `run` and `bakeoff` so both drive the agent identically.
+async function acquireTranscript(
+  scenario: Scenario,
+  aut: AUTConfig,
+  adapter: DeepgramVoiceAgentAdapter | MockAUTAdapter,
+  opts: Record<string, string | boolean>,
+): Promise<Trace> {
+  const useMockAdapter = opts.adapter === "mock";
+  if (opts.replay === true) {
+    const transcript = loadCassette(scenario.name, aut.label);
+    if (transcript.scenario !== scenario.name || transcript.persona !== scenario.persona) {
+      throw new Error(`cassette for ${scenario.name}/${aut.label} doesn't match the scenario (cassette scenario="${transcript.scenario}", persona="${transcript.persona}") — re-record it`);
+    }
+    return transcript;
+  }
+  // Caller selection (B): goal-driven (reactive) or scripted (default; supports declarative
+  // barge-in). Goal-driven + barge-in are live-only via the real adapter; the mock adapter
+  // always uses the scripted list.
+  const goalMode = opts.caller === "goal" || (!!scenario.goal && opts.caller !== "scripted");
+  let raw: ConversationCapture;
+  if (!useMockAdapter && (goalMode || scenario.bargeIn)) {
+    const caller = goalMode
+      ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner })
+      : ScriptedCaller.fromScenario(scenario);
+    process.stdout.write(`[${caller.label}] `);
+    raw = await (adapter as DeepgramVoiceAgentAdapter).converse(aut, caller);
+  } else {
+    raw = await adapter.runConversation(aut, evalineTurns(scenario));
+  }
+  const transcript = await buildTranscript(scenario, aut.label, raw);
+  if (opts.record === true) saveCassette(transcript);
+  return transcript;
 }
 
 async function cmdRun(positional: string[], opts: Record<string, string | boolean>) {
@@ -81,30 +117,7 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   const results: ScenarioResult[] = [];
   for (const scenario of scenarios) {
     process.stdout.write(`▶ ${scenario.name} (persona=${scenario.persona}) … `);
-    let transcript: Trace;
-    if (replay) {
-      transcript = loadCassette(scenario.name, aut.label);
-      if (transcript.scenario !== scenario.name || transcript.persona !== scenario.persona) {
-        throw new Error(`cassette for ${scenario.name}/${aut.label} doesn't match the scenario (cassette scenario="${transcript.scenario}", persona="${transcript.persona}") — re-record it`);
-      }
-    } else {
-      // Caller selection (B): goal-driven (reactive) or scripted (default; supports
-      // declarative barge-in). Goal-driven + barge-in are live-only via the real adapter;
-      // the mock adapter always uses the scripted list.
-      const goalMode = opts.caller === "goal" || (!!scenario.goal && opts.caller !== "scripted");
-      let raw: ConversationCapture;
-      if (!useMockAdapter && (goalMode || scenario.bargeIn)) {
-        const caller = goalMode
-          ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner })
-          : ScriptedCaller.fromScenario(scenario);
-        process.stdout.write(`[${caller.label}] `);
-        raw = await (adapter as DeepgramVoiceAgentAdapter).converse(aut, caller);
-      } else {
-        raw = await adapter.runConversation(aut, evalineTurns(scenario));
-      }
-      transcript = await buildTranscript(scenario, aut.label, raw);
-      if (record) saveCassette(transcript);
-    }
+    const transcript = await acquireTranscript(scenario, aut, adapter, opts);
     const gates = runGates(transcript, scenario, aut.tools);
     const passed = gates.every((g) => g.pass);
     let verdict;
@@ -244,6 +257,40 @@ async function cmdTune(opts: Record<string, string | boolean>) {
   process.exit(result.improved ? 0 : 1);
 }
 
+// A/B bake-off — run ONE scenario suite against TWO agent configs and diff their gate results.
+// Live (two real prompts/models/voices) or replay (each config's persisted cassettes, offline).
+async function cmdBakeoff(positional: string[], opts: Record<string, string | boolean>) {
+  const aPath = opts.a as string, bPath = opts.b as string;
+  if (!aPath || !bPath) throw new Error("bakeoff needs two configs: soundcheck bakeoff <scenariosDir> --a <A.ts> --b <B.ts> [--replay]");
+  const replay = opts.replay === true;
+  const useMockAdapter = opts.adapter === "mock";
+  if (!replay && !useMockAdapter) getKey();
+  const dir = positional[0] ?? "scenarios";
+  let scenarios = loadScenarios(dir);
+  if (typeof opts.only === "string") scenarios = scenarios.filter((s) => s.name.includes(opts.only as string));
+  const autA = await loadAut(aPath), autB = await loadAut(bPath);
+  const adapter = useMockAdapter ? new MockAUTAdapter({ buggy: opts.buggy === true }) : new DeepgramVoiceAgentAdapter();
+  const judging = opts.judge !== undefined; // --judge [mock] : also diff the advisory judge across configs
+  if (judging && opts.judge !== "mock" && !replay) getKey();
+  console.log(`\nSoundcheck bake-off — A="${autA.label}" vs B="${autB.label}" over ${scenarios.length} scenario(s) — mode: ${replay ? "replay (offline)" : "live"}${judging ? " + judge" : ""}\n`);
+  const runSuite = async (aut: AUTConfig): Promise<ScenarioResult[]> => {
+    const out: ScenarioResult[] = [];
+    for (const scenario of scenarios) {
+      process.stdout.write(`  ${aut.label} ▶ ${scenario.name} … `);
+      const transcript = await acquireTranscript(scenario, aut, adapter, opts);
+      const gates = runGates(transcript, scenario, aut.tools);
+      const passed = gates.every((g) => g.pass);
+      const verdict = judging ? await judgeTranscript(transcript, opts.judge === "mock" ? mockJudge : deepgramVaJudge) : undefined;
+      out.push({ transcript, gates, passed, verdict });
+      console.log(passed ? "PASS" : "FAIL");
+    }
+    return out;
+  };
+  const a = await runSuite(autA);
+  const b = await runSuite(autB);
+  console.log("\n" + formatBakeoff(compareRuns(autA.label, autB.label, a, b)) + "\n");
+}
+
 function help() {
   console.log(`Soundcheck — voice-agent test harness (Deepgram-key-only)
 
@@ -279,6 +326,11 @@ function help() {
       (Goodhart guard — use a held-out scenario that is genuinely DIFFERENT from train). Writes the tuned
       prompt to runs/. Exits 0 iff the held-out score improved. (--fixer runs via 'sh -c' and inherits your env.)
 
+  soundcheck bakeoff <scenariosDir> --a <A.ts> --b <B.ts> [--replay] [--judge [mock]] [--only <name>]
+      Run ONE suite against TWO agent configs and diff the results — which config wins, on which
+      gates. Live (two real prompts/models/voices) or --replay (each config's cassettes, offline).
+      --judge also diffs the advisory judge dimensions (mock = offline; never changes the gate-decided winner).
+
 Requires only DEEPGRAM_API_KEY (env or .env).`);
 }
 
@@ -290,6 +342,7 @@ try {
   else if (cmd === "calibrate") await cmdCalibrate(opts);
   else if (cmd === "author") await cmdAuthor(opts);
   else if (cmd === "tune") await cmdTune(opts);
+  else if (cmd === "bakeoff") await cmdBakeoff(positional, opts);
   else help();
 } catch (e) {
   console.error(`\n✖ ${(e as Error).message}\n`);
