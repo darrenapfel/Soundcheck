@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ScriptedCaller, GoalDrivenCaller, PERSONA_VOICE as PV_POLICY, type PlanFn, type CallerContext, type CallerExchange } from "../src/caller/policy.ts";
 import { PERSONA_VOICE as PV_EVALINE } from "../src/caller/evaline.ts";
-import { parseCallerTurn, plannerPrompt } from "../src/caller/planner.ts";
+import { parseCallerTurn, plannerPrompt, committedFacts } from "../src/caller/planner.ts";
 import type { Scenario } from "../src/types.ts";
 
 const ctx = (turnIndex: number, lastAgent = "", history: CallerExchange[] = []): CallerContext => ({ turnIndex, lastAgent, history });
@@ -164,4 +164,41 @@ test("plannerPrompt surfaces an agent mishearing so the caller can correct it", 
   assert.match(p, /HEARD you say/);
   assert.match(p, /some four cane/);
   assert.match(p, /correct it/i);
+});
+
+test("plannerPrompt prods on MID-CALL silence but not on turn 0 (M3)", () => {
+  const hist: CallerExchange[] = [{ caller: "Hi, I'd like to book a table", agent: "Sure, what day?" }];
+  // mid-call empty reply = the agent went silent -> prod, don't restart
+  const silent = plannerPrompt({ goal: "g", persona: "cooperative", history: hist, lastAgent: "", turnIndex: 1 });
+  assert.match(silent, /gone SILENT/);
+  assert.match(silent, /Are you still there\?/);
+  // turn 0 with no agent words is just "the call connected" — NOT a silence prod
+  const turn0 = plannerPrompt({ goal: "g", persona: "cooperative", history: [], lastAgent: "", turnIndex: 0 });
+  assert.doesNotMatch(turn0, /gone SILENT/);
+  assert.match(turn0, /the call just connected/);
+});
+
+test("plannerPrompt push-back rule is CROSS-persona, not just adversarial (M5)", () => {
+  for (const persona of ["cooperative", "impatient", "adversarial"] as const) {
+    const p = plannerPrompt({ goal: "g", persona, history: [], lastAgent: "hi", turnIndex: 0 });
+    assert.match(p, /CHALLENGE it in character/, `${persona} must carry the push-back rule`);
+    assert.match(p, /more personal information than the task needs/, persona);
+  }
+});
+
+test("committedFacts distills concrete values; plannerPrompt surfaces them + a consistency rule (M6)", () => {
+  const history: CallerExchange[] = [
+    { caller: "I'd like to book a table for four people this Friday at seven thirty PM, the name is Garcia.", agent: "Sure." },
+    { caller: "My callback code is four four one seven.", agent: "Got it." },
+  ];
+  const facts = committedFacts(history);
+  assert.deepEqual(facts, ["name: Garcia", "party: four", "date: this Friday", "time: seven thirty PM", "code: four four one seven"]);
+  const p = plannerPrompt({ goal: "g", persona: "cooperative", history, lastAgent: "Can you repeat the time?", turnIndex: 2 });
+  assert.match(p, /FACTS YOU'VE COMMITTED TO \(stay consistent/); // the block (the rule references the phrase too)
+  assert.match(p, /seven thirty PM/);
+  assert.match(p, /four four one seven/);
+  assert.match(p, /Stay CONSISTENT with the facts/);
+  // no recognizable values -> no facts block (the consistency RULE still mentions the phrase, so target the block header)
+  const bare = plannerPrompt({ goal: "g", persona: "cooperative", history: [{ caller: "hello there", agent: "hi" }], lastAgent: "hi", turnIndex: 1 });
+  assert.doesNotMatch(bare, /FACTS YOU'VE COMMITTED TO \(stay consistent/);
 });
