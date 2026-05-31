@@ -92,6 +92,11 @@ test("latency — slow ttfb and slow turn fail; ok passes", () => {
   assert.equal(gate(run([turn(1, "ok", [], 99999)], [{ latency: { ttfb_ms: { max: 12000 } } }]), "latency").pass, false);
   assert.equal(gate(run([{ turn: 1, callerSaid: "", agentHeardCallerAs: "", agentText: "", agentSpokenHeardBack: "ok", toolCalls: [], ttfbMs: 50, turnMs: 9999 }], [{ latency: { turn_ms: { max: 100 } } }]), "latency").pass, false);
   assert.equal(gate(run([turn(1, "ok", [], 1200)], [{ latency: { ttfb_ms: { max: 12000 } } }]), "latency").pass, true);
+  // round-3 P3: when every TTFB is null the detail reads "n/a", not "n/ams".
+  const noTtfb = gate(run([turn(1, "ok", [], null)], [{ latency: { ttfb_ms: { max: 12000 } } }]), "latency");
+  assert.equal(noTtfb.pass, true);
+  assert.match(noTtfb.detail, /avg TTFB n\/a\)/);
+  assert.doesNotMatch(noTtfb.detail, /n\/ams/);
 });
 
 test("no_spoken_cardinal_ids — catches an identifier read as a cardinal; passes digit-by-digit, silent, or money", () => {

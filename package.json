@@ -59,6 +59,14 @@
     "regression"
   ],
   "dependencies": {},
+  "peerDependencies": {
+    "@types/node": ">=20"
+  },
+  "peerDependenciesMeta": {
+    "@types/node": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
