@@ -5,7 +5,7 @@
 // parseCallerTurn() is tolerant. CI/tests use a deterministic mock plan, never this.
 //
 // NOTE: this hand-rolls the same one-shot VA socket as judge/deepgram-va-judge.ts; a
-// shared va-call helper is a tracked follow-up (docs/REVIEW_LOG.md).
+// shared va-call helper is a tracked follow-up.
 
 import { getKey, synthesize } from "../deepgram.ts";
 import type { CallerExchange, PlanDecision, PlanFn, PlanInput } from "./policy.ts";

@@ -19,6 +19,11 @@ out/
 *.mp3
 report.html
 
+# Internal build/QA artifacts — never publish (autonomous-build briefs + review reports)
+/GOAL_STS*.md
+/tasks/
+/docs/SOUNDCHECK_*.md
+
 # OS / editor
 .DS_Store
 .vscode/

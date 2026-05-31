@@ -12,7 +12,7 @@
 // was reviewed and corrected (manual turn control via turn_detection:null; the tool-
 // turn response.done race is handled) but the design still needs a live validation pass
 // — and a WsFactory/SynthFn DI seam (like the Deepgram adapter) to enable an offline
-// socket-mock test (tracked, see docs/REVIEW_LOG.md). When wired, it reads OPENAI_API_KEY
+// socket-mock test (a tracked follow-up). When wired, it reads OPENAI_API_KEY
 // (for the AUT) AND the Deepgram key (for Evaline's caller TTS + the STT round-trip);
 // Soundcheck's DEFAULT + CI operation never imports this file and stays Deepgram-key-only.
 // CI proves genericity via the creds-free, deterministic MockAUTAdapter instead.

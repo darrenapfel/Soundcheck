@@ -5,7 +5,7 @@
 // Emit a reviewable before/after + diff. This turns a prototype into a shippable agent.
 //
 // `evaluate` and `propose` are injected: deterministic mocks in tests; live (real
-// scenario runs + a local coding-agent fixer) via the CLI. (See docs/ROADMAP.md M7.)
+// scenario runs + a local coding-agent fixer) via the CLI.
 
 import type { Diagnosis } from "./diagnose.ts";
 export type { Diagnosis } from "./diagnose.ts";

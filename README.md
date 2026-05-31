@@ -143,7 +143,7 @@ jobs:
 
 ## Capability status
 
-Everything below is shipped and oracle/test-verified (each milestone independently reviewed — see [`docs/REVIEW_LOG.md`](docs/REVIEW_LOG.md)).
+Everything below is shipped and oracle/test-verified.
 
 | Capability | Status |
 |---|---|
@@ -169,12 +169,9 @@ Soundcheck is a **pre-ship** harness today: sourcing discovered failures from *r
 ## Docs
 - 📖 [`docs/ABOUT.md`](docs/ABOUT.md) — what Soundcheck is, both uses, in one page
 - 📐 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design
-- 🗺️ [`docs/ROADMAP.md`](docs/ROADMAP.md) — the milestone build plan
 - 🧪 [`docs/TESTING.md`](docs/TESTING.md) — how we earn trust (record/replay, self-evaluation, calibration)
 - ⚖️ [`docs/CALIBRATION.md`](docs/CALIBRATION.md) — live judge agreement numbers
 - ⚠️ [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) — honest limits
-- 🔍 [`docs/REVIEW_LOG.md`](docs/REVIEW_LOG.md) — every milestone's independent review
-- ✅ [`docs/COMPLETION_REPORT.md`](docs/COMPLETION_REPORT.md) — oracle evidence per capability
 - 🤝 [`CONTRIBUTING.md`](CONTRIBUTING.md) — add an adapter / scenario / gate
 
 ---

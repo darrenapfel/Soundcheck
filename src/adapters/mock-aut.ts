@@ -2,7 +2,7 @@
 // abstraction generalizes beyond the Deepgram VA: the SAME caller -> capture -> gates
 // -> judge -> report pipeline runs against a non-Deepgram adapter, in CI, with no key
 // and no network. `buggy` mode injects the spoken-symbol + stale-date faults so the
-// gates can be shown catching a different runtime's failures. (See docs/ROADMAP.md M5.)
+// gates can be shown catching a different runtime's failures.
 
 import type { AUTConfig, ToolCall } from "../types.ts";
 import type { AUTAdapter, CallerTurn, RawTurn, ConversationCapture } from "./types.ts";

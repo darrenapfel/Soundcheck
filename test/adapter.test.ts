@@ -3,8 +3,8 @@
 // The full duplex socket loop (real-time pump, settle turn-taking, tool dispatch)
 // is validated end-to-end by the LIVE cassette recordings (M0) + the live-nightly
 // run. A fully-offline loop test would require injecting both the WebSocket factory
-// AND `synthesize` (network) into the adapter — tracked as a follow-up (see
-// docs/ROADMAP.md M1). Here we pin the exact Settings the adapter sends to Deepgram.
+// AND `synthesize` (network) into the adapter — a tracked follow-up. Here we pin
+// the exact Settings the adapter sends to Deepgram.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

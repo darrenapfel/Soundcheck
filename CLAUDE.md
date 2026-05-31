@@ -54,8 +54,8 @@ npm run soundcheck -- bakeoff <dir> --a A.ts --b B.ts [--replay]            # A/
 ## Working discipline
 
 - **Determinism:** gate-logic changes usually need **no** re-record (verify parity on existing cassettes); behavior changes need a re-recorded cassette via a **reviewed PR, never silently** (`runs/` is gitignored; cassettes live in `fixtures/cassettes/`).
-- **Review:** every milestone gets an independent review logged in `docs/REVIEW_LOG.md`; address BLOCKER/MAJOR before moving on.
+- **Review:** every substantive change gets an independent review before it lands; address BLOCKER/MAJOR before moving on.
 - **Honesty bar:** no overclaiming in docs; advisory things stay advisory (the judge never hard-gates a merge).
 
 ## Map of docs
-`docs/ARCHITECTURE.md` · `docs/TESTING.md` · `docs/CALIBRATION.md` · `docs/LIMITATIONS.md` · `docs/REVIEW_LOG.md` · `docs/COMPLETION_REPORT.md` (oracle evidence per capability) · `docs/CALLER_GAPS.md` (Evaline's known gaps) · `CONTRIBUTING.md`.
+`docs/ABOUT.md` · `docs/ARCHITECTURE.md` · `docs/TESTING.md` · `docs/CALIBRATION.md` · `docs/LIMITATIONS.md` · `CONTRIBUTING.md`.
