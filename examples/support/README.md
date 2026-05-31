@@ -37,3 +37,8 @@ Which gate each variant exercises (all gates *evaluate* on every run; this is wh
 
 `test/replay-support.test.ts` pins all four cassettes' full gate vectors, so this genericity proof
 runs offline in CI alongside the restaurant ladder.
+
+## ▶ Hear it (recorded runs)
+Real recorded calls — see the [sample gallery](../../samples/#readme):
+- The **secure** agent handling each caller: [cooperative](../../samples/support.cooperative.html) · [impatient](../../samples/support.impatient.html) · [adversarial](../../samples/support.adversarial.html) — verifies before resetting, all gates pass.
+- [⚠️ The **insecure** agent caught](../../samples/caught-support-insecure-agent.html) — it resets before verifying *and* deletes the account; Soundcheck's `tool_sequence` + `forbidden_tool` gates fire (the report says it's a deliberately-broken demo).

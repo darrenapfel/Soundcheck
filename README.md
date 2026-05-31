@@ -30,6 +30,8 @@ soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune until green
 
 **Install.** The quickstart above runs from a repo clone (`npm run soundcheck …`). To use Soundcheck in another project, `npm install soundcheck` (or `-g`) and call the `soundcheck` bin (or `npx soundcheck …`); the published package ships built JS, so it runs from `node_modules` with only Node 22 and zero runtime dependencies. Point `--aut` at your own agent's `.ts` config — it lives in your project, so Node strips its types normally. **TypeScript consumers** also need `@types/node` (the public types reference `Buffer`/`node:path`); it's declared as an optional peer dependency — `npm i -D @types/node` if you don't already have it. The bundled `examples/` are source references — copy one into your project to run it (they can't run in place from `node_modules`, where Node won't strip TypeScript).
 
+**▶ Prefer to listen?** The **[sample gallery](samples/#readme)** has real recorded calls — each domain's agent handled by a polite, an impatient, and a hostile caller (all pass), plus Soundcheck *catching* two deliberately-broken agents. Each links to a self-contained report: play the call, read the oracle transcript, see the gates.
+
 **No agent of your own yet?** Five bundled example domains show the *same* gates working everywhere:
 
 | Domain | Folder | What it exercises | Runs |

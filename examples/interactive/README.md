@@ -34,3 +34,7 @@ until the agent is genuinely speaking, then interrupts after a short `afterMs` d
 first, so it reads as a sequential second question instead of a real interruption.
 
 Open `runs/report-*.html` to **hear** both (full-conversation + per-turn caller/agent audio).
+
+## ▶ Hear it (recorded runs)
+Real recorded calls of `goal-specials` against the well-built restaurant agent, one per caller persona — see the [sample gallery](../../samples/#readme):
+- [Cooperative caller](../../samples/restaurant.cooperative.html) · [Impatient caller](../../samples/restaurant.impatient.html) · [Adversarial caller](../../samples/restaurant.adversarial.html) — all reach the goal with every gate passing.
