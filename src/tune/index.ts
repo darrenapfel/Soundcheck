@@ -44,11 +44,17 @@ export async function tune(
   initialPrompt: string,
   evaluate: EvaluateFn,
   propose: ProposeFn,
-  opts: { maxIterations?: number } = {},
+  opts: { maxIterations?: number; onProgress?: (msg: string) => void } = {},
 ): Promise<TuneResult> {
   const max = opts.maxIterations ?? 3;
+  // Each evaluate()/propose() is a live, multi-second call — surface progress so a live run
+  // (which can take minutes) isn't a silent banner. No-op by default (deterministic tests stay quiet).
+  const log = opts.onProgress ?? (() => {});
+  log("evaluating the baseline on the training set…");
   const trainBefore = await evaluate(initialPrompt, "train");
+  log(`  baseline train ${trainBefore.passed}/${trainBefore.total}; evaluating the held-out set…`);
   const heldoutBefore = await evaluate(initialPrompt, "heldout");
+  log(`  baseline held-out ${heldoutBefore.passed}/${heldoutBefore.total}`);
 
   let bestPrompt = initialPrompt;
   let bestTrain = trainBefore;
@@ -57,11 +63,14 @@ export async function tune(
 
   for (let i = 0; i < max; i++) {
     if (bestTrain.passed === bestTrain.total) break; // converged on training
+    log(`iteration ${i + 1}/${max}: running the fixer…`);
     const proposed = await propose(bestPrompt, bestTrain.diagnosis);
     if (proposed === bestPrompt) { // fixer made no change — re-evaluating would waste live iterations
+      log("  fixer proposed no change — stopping");
       iterations.push({ proposedPrompt: proposed, trainAfter: bestTrain, heldoutAfter: null, kept: false, reason: "stopped: fixer proposed no change" });
       break;
     }
+    log("  evaluating the proposed prompt on the training set…");
     const trainAfter = await evaluate(proposed, "train");
 
     let heldoutAfter: TuneScore | null = null;
@@ -70,6 +79,7 @@ export async function tune(
     if (frac(trainAfter) <= frac(bestTrain)) {
       reason = "rejected: training score did not improve";
     } else {
+      log("  training improved — evaluating the held-out set (Goodhart guard)…");
       heldoutAfter = await evaluate(proposed, "heldout");
       // GOODHART GUARD: keep only if the held-out set (unseen by the fixer) improves.
       if (frac(heldoutAfter) > frac(bestHeldout)) {
@@ -81,6 +91,7 @@ export async function tune(
         reason = "rejected: training improved but held-out did not (overfit)";
       }
     }
+    log(`  → ${reason}`);
     iterations.push({ proposedPrompt: proposed, trainAfter, heldoutAfter, kept, reason });
   }
 

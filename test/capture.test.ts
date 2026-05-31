@@ -61,6 +61,18 @@ test("buildTranscript yields no recording/oracle when the capture has none (mock
   assert.equal(t.turns[0].callerAudioWav, undefined);
 });
 
+test("buildTranscript carries terminationReason + goalDriven from the capture onto the Trace (round-4 P2)", async () => {
+  // the goal_reached gate depends on these surviving capture -> Trace, so pin it.
+  const driven: ConversationCapture = { turns: [raw(Buffer.alloc(10))], terminationReason: "turn_cap", goalDriven: true };
+  const t = await buildTranscript(scenario, "aut-x", driven, async () => "x");
+  assert.equal(t.terminationReason, "turn_cap");
+  assert.equal(t.goalDriven, true);
+  // absent when the capture omits them (the scripted/mock fixed-list path)
+  const t2 = await buildTranscript(scenario, "aut-x", cap([raw(Buffer.alloc(10))]), async () => "x");
+  assert.equal(t2.terminationReason, undefined);
+  assert.equal(t2.goalDriven, undefined);
+});
+
 test("resamplePcm16le scales sample count by the rate ratio and is identity at equal rates", () => {
   const pcm = Buffer.alloc(320); // 160 samples @ 16-bit
   const up = resamplePcm16le(pcm, 16000, 24000);

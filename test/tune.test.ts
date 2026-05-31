@@ -46,6 +46,14 @@ test("tune converges: a real fixer drives train AND held-out to full", async () 
   assert.ok(r.iterations.every((it) => it.kept));
 });
 
+test("tune emits onProgress so a live run isn't a silent banner (round-4 P3)", async () => {
+  const msgs: string[] = [];
+  await tune("", realEvaluate, realPropose, { maxIterations: 2, onProgress: (m) => msgs.push(m) });
+  assert.ok(msgs.some((m) => /baseline/.test(m)), "reports the baseline evaluation");
+  assert.ok(msgs.some((m) => /iteration 1\/2/.test(m)), "reports per-iteration progress");
+  assert.ok(msgs.some((m) => /held-out/.test(m)), "reports the held-out (Goodhart) step");
+});
+
 test("GOODHART GUARD: an edit that overfits training but not held-out is REJECTED", async () => {
   const overfitEval: EvaluateFn = async (prompt, set): Promise<TuneScore> =>
     set === "train"

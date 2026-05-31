@@ -1,6 +1,6 @@
 {
   "name": "soundcheck",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Voice-agent test & tuning harness — Playwright + an LLM judge + a synthetic caller, for speech. Runs on a single Deepgram key.",
   "type": "module",
   "main": "dist/index.js",
@@ -45,7 +45,8 @@
     "validate": "npm run typecheck && npm run lint && npm run test",
     "build": "tsc -p tsconfig.build.json",
     "prepack": "npm run build",
-    "smoke": "bash scripts/smoke-package.sh"
+    "smoke": "bash scripts/smoke-package.sh",
+    "release:check": "test -z \"$(git status --porcelain)\" && echo 'release: working tree clean ✓' || (echo 'release: working tree not clean — commit or stash before tagging/publishing (dist/ + runs/ are gitignored and do not count)' && exit 1)"
   },
   "keywords": [
     "voice",
