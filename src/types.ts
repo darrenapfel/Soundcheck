@@ -102,10 +102,15 @@ export interface Trace {
   /** Soundcheck's own oracle (STT) over the recording: what was actually heard, in order.
    *  The self-validation signal — present whenever recordingWav is. */
   oracleTranscript?: string;
-  /** Why the caller ended the call (Phase 1). For a goal-driven scenario, only `goal_met` is a
-   *  clean end; a non-`goal_met` reason fails the synthetic `goal_reached` gate (see runGates).
+  /** Why the caller ended the call (Phase 1). For a goal-driven run, only `goal_met` is a clean
+   *  end; a non-`goal_met` reason fails the synthetic `goal_reached` gate (see runGates).
    *  Undefined for legacy cassettes / paths that don't drive a Caller. */
   terminationReason?: TerminationReason;
+  /** True iff a GOAL-DRIVEN caller drove this call (scenario `goal` OR a forced `--caller goal`),
+   *  vs. the scripted caller. The `goal_reached` gate keys on THIS, not on whether the scenario
+   *  has a `goal` field — so it guards forced goal runs and doesn't false-fail a goal scenario
+   *  run scripted. Undefined for legacy cassettes / the fixed-list path (treated as not goal-driven). */
+  goalDriven?: boolean;
 }
 
 export interface GateResult {

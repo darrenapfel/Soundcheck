@@ -85,6 +85,17 @@ test("converse drives a REACTIVE caller and feeds the agent's reply back (contro
   assert.ok(seen[1].includes("confirmed")); // turn 2's brain SAW the agent's turn-1 reply
 }, { timeout: 20000 });
 
+test("converse records goalDriven per caller type — gates the goal_reached check (round-3 P2)", async () => {
+  const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => new MockWs(), synth: async () => Buffer.alloc(6400, 1) });
+  // A goal-driven caller -> capture.goalDriven=true, so a FORCED `--caller goal` run (even on a
+  // scenario without a `goal` field) is guarded by the goal_reached gate downstream.
+  const goalCap = await adapter.converse(makeConfig("t", "be nice"), new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan: async () => ({ action: "hangup", utterance: "" }) }));
+  assert.equal(goalCap.goalDriven, true);
+  // The scripted (fixed-list) path is NOT goal-driven.
+  const scriptedCap = await adapter.runConversation(makeConfig("t", "be nice"), [{ text: "hi", voice: "v" }]);
+  assert.ok(!scriptedCap.goalDriven);
+}, { timeout: 20000 });
+
 // Regression for the recorder's MAJOR: the VA streams faster than 1x real-time, so the final
 // reply has a backlog the pump can't drain before the turn ends — it must be flushed into the
 // recording, or the most important turn is truncated from the recording + oracle transcript.
