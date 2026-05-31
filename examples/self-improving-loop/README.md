@@ -28,6 +28,11 @@ npm run soundcheck -- run examples/self-improving-loop/scenarios \
 
 ## Phase 2 — Refine (the agent improves), held-out-guarded
 
+> **Live + multi-minute.** This step needs `DEEPGRAM_API_KEY` and makes real voice calls — each
+> train/held-out evaluation is a full conversation, so a 2-iteration run typically takes **a few
+> minutes**. It prints per-step progress (`evaluating … (train)`, `running the fixer…`,
+> `evaluating the held-out set…`), so an idle-looking banner is the call in flight, not a hang.
+
 ```bash
 npm run soundcheck -- tune \
   --agent   examples/tabletalk/bare.ts \

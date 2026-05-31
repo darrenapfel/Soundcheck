@@ -2,9 +2,9 @@
 
 All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
 
-## [Unreleased] — public-readiness pass
+## [2.0.1] — 2026-05-31 (public-readiness pass)
 
-Addressed the round-two **and round-three** readiness reviews (`docs/SOUNDCHECK_ROUND2_READINESS_REVIEW.md`, `docs/SOUNDCHECK_ROUND3_PR_REVIEW.md`) and closed **all** caller gaps (`docs/CALLER_GAPS.md`, Phases 1–3). **145 deterministic tests, 0 lint errors/warnings, fully offline CI.**
+Addressed the round-two, round-three, **and round-four** readiness reviews (`docs/SOUNDCHECK_ROUND2_READINESS_REVIEW.md`, `docs/SOUNDCHECK_ROUND3_PR_REVIEW.md`, `docs/SOUNDCHECK_ROUND4_FIX_REVIEW.md`) and closed **all** caller gaps (`docs/CALLER_GAPS.md`, Phases 1–3). **148 deterministic tests, 0 lint errors/warnings, fully offline CI.** The `v2.0.0` tag stays immutable; `v2.0.1` is cut on this commit and the `v2` major alias moves to it (round-4 P1).
 
 ### Added
 - **Publish-time build** so the installed npm package runs: `tsconfig.build.json` emits `dist/**/*.js` + `.d.ts` from `src/` (`.ts` import specifiers rewritten to `.js`), run by `prepack`; `bin`/`main`/`types`/`exports` point at `dist`. Development is unchanged (raw `.ts` via `--experimental-strip-types`); zero *runtime* deps preserved (`typescript` is a devDep). Installed-package smoke test (`scripts/smoke-package.sh`) wired as a separate CI job.
@@ -17,6 +17,7 @@ Addressed the round-two **and round-three** readiness reviews (`docs/SOUNDCHECK_
 - **Strict lint clean** (`eslint . --max-warnings=0`): narrow `DeepgramListenResponse` type for the STT parse; dropped the adapter test's `as any`.
 - README Action snippet pins `@v2` (the `v2` + `v2.0.0` stable tags are cut on the released HEAD); example-README polish (stray fence, offline `--replay` commands, restaurant replay caveat).
 - **Round-3:** `goal_reached` keys on a `goalDriven` signal (not `scenario.goal`), so it guards a forced `--caller goal` run on a no-`goal` scenario and no longer false-fails a goal scenario run scripted. The `lint` script enforces `--max-warnings=0` (so `validate`/CI fail on any warning). `@types/node` declared as an optional peer dependency for TypeScript consumers (public types reference `Buffer`/`node:path`), with a consumer `tsc --noEmit` step added to the package smoke. Latency detail prints `n/a` (not `n/ams`) when no TTFB. README notes the bundled examples are source references (copy out to run).
+- **Round-4:** cut `v2.0.1` and moved the `v2` major alias to the fixed HEAD (public-refs P1). Added a `release:check` clean-tree guard script (release only from a clean tree). Added direct round-trip tests that `buildTranscript` + the cassette preserve `terminationReason`/`goalDriven` (so a replayed goal-driven cassette keeps its `goal_reached` row). The live `tune` loop now emits per-step progress (`onProgress`), and `examples/self-improving-loop/README.md` notes the expected live duration.
 
 ## [2.0.0] — 2026-05 (the STS dream)
 
