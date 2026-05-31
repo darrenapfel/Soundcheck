@@ -14,6 +14,7 @@
     { "required_tool": "scheduleAppointment" },
     { "grounding": { "tool": "scheduleAppointment", "field": "date", "now": "2026-06-01", "expected": "2026-06-04" } },
     { "spoken_matches_tool": { "tool": "scheduleAppointment", "field": "date" } },
+    { "spoken_consistent_with_tool": { "tool": "scheduleAppointment", "field": "date", "now": "2026-06-01" } },
     { "tool_args_match_schema": "scheduleAppointment" },
     { "forbidden_tool": "prescribeMedication" },
     { "latency": { "ttfb_ms": { "max": 15000 } } }

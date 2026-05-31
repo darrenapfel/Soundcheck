@@ -25,6 +25,13 @@
       }
     },
     {
+      "spoken_consistent_with_tool": {
+        "tool": "bookReservation",
+        "field": "date",
+        "now": "2026-06-01"
+      }
+    },
+    {
       "latency": {
         "ttfb_ms": {
           "max": 15000

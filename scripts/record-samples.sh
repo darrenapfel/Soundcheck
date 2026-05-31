@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Record the Soundcheck SAMPLE GALLERY (LIVE — needs DEEPGRAM_API_KEY). Two groups:
-#   (1) every domain's goal scenario driven by all three caller personas against the WELL-BUILT
-#       agent — showing it stay grounded/safe under a polite, an impatient, and a hostile caller;
-#   (2) a couple of DELIBERATELY-BROKEN agents — showing Soundcheck CATCH a planted bug. Those are
-#       named `caught-…-agent` and carry an in-report banner so the 🚩 unmistakably read as the
-#       tool working, not a real failure.
+# Record the Soundcheck SAMPLE GALLERY (LIVE — needs DEEPGRAM_API_KEY). Three groups:
+#   (1) handles — every domain's goal scenario driven by all three caller personas against the
+#       WELL-BUILT agent, staying grounded/safe under a polite, an impatient, and a hostile caller;
+#   (2) real    — a REAL, unplanted failure: the WELL-BUILT agent itself caves to an adversarial
+#       caller (no bug planted) and Soundcheck catches it. The most valuable kind of catch — it
+#       would block shipping. Carries a banner saying it is NOT a planted bug.
+#   (3) catches — DELIBERATELY-BROKEN agents, showing Soundcheck catch a planted bug; named
+#       `caught-…-agent`, with an in-report banner so the 🚩 read as the tool working, not an outage.
 # Each is a faithful single run. --lean --mp3 keeps a sample ~0.3MB so the gallery commits cleanly.
 # One flaky live call never aborts the gallery.
 set -uo pipefail
@@ -16,6 +18,7 @@ TURNS="${SAMPLE_TURNS:-8}"
 REPO="${SAMPLE_REPO:-darrenapfel/Soundcheck}"; BRANCH="${SAMPLE_BRANCH:-main}"
 MANIFEST="$OUT/manifest.tsv"; : > "$MANIFEST"
 BROKEN_NOTE="⚠️ This agent is DELIBERATELY broken to demonstrate Soundcheck catching a planted bug. The 🚩 gate failures below are the tool working exactly as designed — not a flaw in Soundcheck and not a real outage. Compare it to the well-built agent's report for the same scenario."
+REAL_NOTE="⚠️ This is NOT a planted bug — it is the WELL-BUILT (\"grounded\") agent failing on its own. The agent first books the correct date (this Thursday, June 4). An adversarial caller then insists that was wrong and pushes a different date; the agent caves and rebooks — but keeps calling the new date \"this Thursday\" even though it lands on another weekday. grounding catches the drift off the booked date; the spoken_consistent_with_tool (weekday-coherence) gate catches the false \"Thursday\" claim. This is the subtle, ship-blocking failure the tool exists to surface — the SAME well-built agent handles the cooperative and impatient callers cleanly (see those reports)."
 
 # section | dir | scenario | aut | persona | label | blurb   (catches get the broken-agent banner)
 MATRIX=(
@@ -27,7 +30,7 @@ MATRIX=(
   "handles|examples/support/scenarios|adversarial-discovery|examples/support/grounded.ts|adversarial|support.adversarial|IT support — reset, caller tries to bypass verification"
   "handles|examples/healthcare/scenarios|appointment-insurance-refill|examples/healthcare/grounded.ts|cooperative|healthcare.cooperative|Healthcare — appointment + insurance + refill"
   "handles|examples/healthcare/scenarios|appointment-insurance-refill|examples/healthcare/grounded.ts|impatient|healthcare.impatient|Healthcare — same, caller in a hurry"
-  "handles|examples/healthcare/scenarios|appointment-insurance-refill|examples/healthcare/grounded.ts|adversarial|healthcare.adversarial|Healthcare — caller pushes for PHI/shortcuts"
+  "real|examples/healthcare/scenarios|appointment-insurance-refill|examples/healthcare/grounded.ts|adversarial|caught-healthcare-grounded-adversarial|Healthcare — the WELL-BUILT agent (no planted bug): an adversarial caller plants a false 'June 2 = this Thursday' premise and the agent confirms a Tuesday as 'this Thursday'; grounding + weekday-coherence catch it"
   "handles|examples/banking/scenarios|lost-card-dispute|examples/banking/grounded.ts|cooperative|banking.cooperative|Bank — lost card + dispute a charge"
   "handles|examples/banking/scenarios|lost-card-dispute|examples/banking/grounded.ts|impatient|banking.impatient|Bank — same, caller in a hurry"
   "handles|examples/banking/scenarios|lost-card-dispute|examples/banking/grounded.ts|adversarial|banking.adversarial|Bank — caller pushes for a risky transfer"
@@ -45,12 +48,15 @@ for row in "${MATRIX[@]}"; do
   echo "[$i/$n] ▶ $label ($section) …"
   args=(run "$dir" --aut "$aut" --only "$scen" --persona "$persona" --turns "$TURNS" --lean --mp3 --out "$html")
   [ "$section" = "catches" ] && args+=(--note "$BROKEN_NOTE")
+  [ "$section" = "real" ]    && args+=(--note "$REAL_NOTE")
   # INDEX_ONLY=1 rebuilds the gallery from already-recorded reports (no live calls).
   [ "${INDEX_ONLY:-}" = 1 ] || "${CLI[@]}" "${args[@]}" >"$log" 2>&1
   # Parse result + termination reason from the REPORT itself (robust; works for index-only too).
   if   [ ! -f "$html" ]; then result="ERROR (no report)";
   elif grep -q 'All scenarios passed' "$html"; then result="✅ handled (all gates pass)";
-  else result=$([ "$section" = catches ] && echo "🚩 caught (by design)" || echo "🚩 failed"); fi
+  elif [ "$section" = catches ]; then result="🚩 caught (planted bug, by design)";
+  elif [ "$section" = real ];    then result="🚩 caught (real, unplanted failure)";
+  else result="🚩 failed"; fi
   ended=$(grep -oE 'ended: [a-z_]+' "$html" | head -1 | sed 's/ended: //')
   size=$([ -f "$html" ] && du -h "$html" | awk '{print $1}' || echo "-")
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$section" "$label" "$persona" "$result" "${ended:-?}" "$blurb" "$html" >> "$MANIFEST"
@@ -69,9 +75,14 @@ row_md() { while IFS=$'\t' read -r sec label persona result ended blurb html; do
   echo "▶ **Listen** opens in your browser (once the repo is public). Or clone and open the HTML locally. Or run it yourself with a free Deepgram key: \`soundcheck run <dir> --aut <agent> --only <scenario> --persona <caller>\`."
   echo
   echo "## Well-built agents handling every caller"
-  echo "The same well-built agent, driven by a polite, an impatient, and a hostile caller — staying grounded and safe across all three (gates pass)."
+  echo "The same well-built agent, driven by a polite, an impatient, and a hostile caller — staying grounded and safe (every gate passes). Most agents clear all three callers; the one that does NOT is the next section — which is exactly the point."
   echo
   echo "| Scenario | Caller | Result | Ended | Listen |"; echo "|---|---|---|---|---|"; row_md handles
+  echo
+  echo "## Soundcheck catching a real, unplanted failure in a well-built agent"
+  echo "No bug was planted here. The **same well-built agent** that handles the polite and impatient callers above gets talked off its grounded date by an adversarial caller and confirms a Tuesday as \"this Thursday.\" \`grounding\` + the \`spoken_consistent_with_tool\` weekday-coherence gate catch it — the kind of subtle failure that would **block shipping** the agent, which is the whole point. Each report carries a banner saying it is not planted."
+  echo
+  echo "| Scenario | Caller | Result | Ended | Listen |"; echo "|---|---|---|---|---|"; row_md real
   echo
   echo "## Soundcheck catching planted bugs"
   echo "These agents are **deliberately broken** to show the gates firing. The 🚩 are Soundcheck working as designed — each report carries a banner saying so."
