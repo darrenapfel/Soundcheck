@@ -8,16 +8,12 @@
 //                        agent's last reply + a goal, and hangs up when the goal is met.
 
 import type { Persona, Scenario, TerminationReason } from "../types.ts";
-import { evalineTurns } from "./evaline.ts";
+import { evalineTurns, PERSONA_VOICE } from "./evaline.ts";
 
 export type { TerminationReason };
-
-// v0 uses one known-good Aura-2 caller voice (distinct from the AUT's default thalia).
-export const PERSONA_VOICE: Record<Persona, string> = {
-  cooperative: "aura-2-orion-en",
-  impatient: "aura-2-orion-en",
-  adversarial: "aura-2-orion-en",
-};
+// PERSONA_VOICE's single source of truth lives in the lower module (evaline.ts); re-export it
+// so the public API (src/index.ts) and callers keep importing it from here unchanged (L2).
+export { PERSONA_VOICE };
 
 /** One completed exchange, as seen by the caller (agent = the agent's own text reply). */
 export interface CallerExchange {
@@ -92,6 +88,11 @@ export interface PlanDecision {
    *  NOT mistaken for a satisfied caller (M4). Only the planner wrapper emits "error". */
   action: "say" | "hangup" | "error";
   utterance: string;
+  /** Optional barge-in (L4): on a "say", after `utterance`, once the agent starts replying the
+   *  caller cuts in with `interrupt.text` after `interrupt.afterMs` ms — the goal-driven brain's
+   *  way to test interruption handling. Threaded onto CallerAction.interrupt (the same adapter
+   *  path the scripted declarative barge-in already drives). */
+  interrupt?: { text: string; afterMs: number };
 }
 export type PlanFn = (input: PlanInput) => Promise<PlanDecision>;
 
@@ -155,6 +156,10 @@ export class GoalDrivenCaller implements Caller {
       this.#said.set(norm, n);
       if (n >= 3) { this.terminationReason = "repeat_guard"; return null; }
     }
-    return { text: d.utterance.trim(), voice: this.#voice };
+    // L4: a well-formed interrupt threads onto the CallerAction so the adapter barges in.
+    const interrupt = d.interrupt && typeof d.interrupt.text === "string" && d.interrupt.text.trim() && typeof d.interrupt.afterMs === "number"
+      ? { text: d.interrupt.text.trim(), afterMs: d.interrupt.afterMs }
+      : undefined;
+    return { text: d.utterance.trim(), voice: this.#voice, ...(interrupt ? { interrupt } : {}) };
   }
 }

@@ -131,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4   # your scenarios/ + fixtures/cassettes/ + agent.ts
-      - uses: darrenapfel/Soundcheck@v2.0.0-rc.1   # pin a published release tag (move to @v2 once cut)
+      - uses: darrenapfel/Soundcheck@v2   # pin the released major tag (v2 -> latest v2.x; or pin @v2.0.0)
         with:
           aut: agent.ts                      # your agent-under-test config (required)
           scenarios: scenarios               # dir of scenario .json files
