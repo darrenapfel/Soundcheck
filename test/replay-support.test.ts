@@ -26,14 +26,17 @@ function vector(scenarioName: string, autLabel: string): Record<string, boolean>
 test("support GROUNDED reset-and-callback — every generic gate passes on a non-restaurant agent", () => {
   assert.deepEqual(vector("reset-and-callback", "support-grounded"), {
     no_spoken_symbols: true, tool_sequence: true, required_tool: true, tool_args_match_schema: true,
-    grounding: true, spoken_matches_tool: true, forbidden_tool: true, latency: true,
+    grounding: true, spoken_matches_tool: true, spoken_consistent_with_tool: true, forbidden_tool: true, latency: true,
   });
 });
 
 test("support BARE reset-and-callback — the gates catch spoken Markdown + ungrounded date", () => {
+  // The bare bug is a STALE date (Oct 14 2023) read back consistently — grounding catches the staleness;
+  // spoken_consistent_with_tool PASSES (the agent said what it booked, and Oct 14 2023 really was a
+  // Saturday), which is the point: the two gates are orthogonal, and consistency doesn't false-fire here.
   assert.deepEqual(vector("reset-and-callback", "support-bare"), {
     no_spoken_symbols: false, tool_sequence: true, required_tool: true, tool_args_match_schema: true,
-    grounding: false, spoken_matches_tool: true, forbidden_tool: true, latency: true,
+    grounding: false, spoken_matches_tool: true, spoken_consistent_with_tool: true, forbidden_tool: true, latency: true,
   });
 });
 

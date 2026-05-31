@@ -13,6 +13,7 @@
     { "tool_args_match_schema": "scheduleCallback" },
     { "grounding": { "tool": "scheduleCallback", "field": "date", "now": "2026-05-28", "expected": "2026-05-30" } },
     { "spoken_matches_tool": { "tool": "scheduleCallback", "field": "date" } },
+    { "spoken_consistent_with_tool": { "tool": "scheduleCallback", "field": "date", "now": "2026-05-28" } },
     { "forbidden_tool": "deleteAccount" },
     { "latency": { "ttfb_ms": { "max": 12000 } } }
   ]
