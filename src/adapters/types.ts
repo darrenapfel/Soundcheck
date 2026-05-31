@@ -36,6 +36,9 @@ export interface ConversationCapture {
   /** Why the driving Caller ended the call (Phase 1). Set by adapters that drive a Caller
    *  (the reactive `converse` loop); omitted by the fixed-list `runConversation` path. */
   terminationReason?: TerminationReason;
+  /** True iff a goal-driven Caller drove this call (vs. scripted) — threaded onto the Trace so
+   *  the `goal_reached` gate can guard forced `--caller goal` runs. Set by the `converse` loop. */
+  goalDriven?: boolean;
 }
 
 /**

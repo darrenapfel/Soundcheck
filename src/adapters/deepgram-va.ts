@@ -325,8 +325,9 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     while (agentQ.length) recording.push(pullAgent(4800)); // 100ms @ 24kHz, agent-only (caller is done)
     recordingOn = false;
     // The Caller records WHY it ended; default to turn_cap if the loop hit the adapter backstop
-    // (MAX_TURNS) without the Caller ending itself. Threaded onto the Trace by buildTranscript.
-    return { turns: out, recordingPcm: Buffer.concat(recording), terminationReason: caller.terminationReason ?? "turn_cap" };
+    // (MAX_TURNS) without the Caller ending itself. `goalDriven` lets the gate guard forced
+    // `--caller goal` runs. Both threaded onto the Trace by buildTranscript.
+    return { turns: out, recordingPcm: Buffer.concat(recording), terminationReason: caller.terminationReason ?? "turn_cap", goalDriven: caller.label === "goal-driven" };
     } finally {
       clearTimeout(setupTimer);
       clearInterval(pump);
