@@ -21,19 +21,34 @@ The "every non-goal-met termination must be tagged" family. A `TerminationReason
 | **M4** | A planner timeout/WS error returned `{action:"hangup"}` — an Evaline-side infra blip ended a healthy call and read as a satisfied caller. | The planner now signals `action:"error"` (distinct from `hangup`); the caller offers a neutral **holding line** on the first blip and only ends after a **second consecutive** failure, tagged `planner_error`. A transient failure that recovers does not end the call. |
 | **M1** | No goal-completion *verification* — the brain self-reported "done" and could hang up after the agent merely *said* it would act, with no read-back. | A HARD RULE in the planner prompt: the agent must have **confirmed the action back** (booking date/time, reset, charge) before the caller may hang up `goal_met`; otherwise ask for confirmation. |
 
-## 🚧 Tracked (prioritized, not yet fixed)
+## ✅ Fixed (Phase 2 — realism) + (Phase 3 — polish)
 
-| # | Sev | Gap | Fix direction |
-|---|---|---|---|
-| **M3** | MED | Agent silence is masked: an empty reply mid-call renders as "(the call just connected)", so Evaline re-greets instead of prodding ("Hello? Are you still there?"). | Distinguish empty-because-silent from turn-0; prompt a prod on mid-call silence. |
-| **M5** | MED | No persona reacts emotionally to *bad agent behavior* (over-broad data request, wrong charge, repeated failure). A believable caller pushes back. | Cross-persona rule: react in-character to unexpected/unsafe agent behavior (question an over-broad data ask, express frustration at repeated failures). |
-| **M6** | MED | No scratchpad of committed facts — on a re-ask the brain can give a *different* DOB/time than before. | Echo prior caller turns' concrete values into the prompt as "facts you've committed to"; instruct consistency + answering clarifying questions from the goal. |
-| **L1** | LOW | All three personas share one TTS voice (`aura-2-orion-en`) — persona is text-only; a prosody-sensitive agent can't *hear* impatience. | Distinct voices/rates per persona (v1). |
-| **L2** | LOW | `PERSONA_VOICE` is defined twice (`evaline.ts`, `policy.ts`) — two sources of truth that can drift. | Define once (lower module) and import; mind the `policy ↔ evaline` import direction. |
-| **L4** | LOW | Goal-driven Evaline can't barge in (no interrupt action); scripted barge-in is a single fixed interruption. | Thread an optional `interrupt` through `PlanDecision`. |
+Each closed with a deterministic test (the gating proof — caller logic is what Soundcheck
+controls); L1 additionally carries a live audio artifact. All tests in `test/caller-policy.test.ts`.
+
+| # | Gap | Fix + proof |
+|---|---|---|
+| **M3** | Mid-call silence rendered as "(the call just connected)", so Evaline re-greeted instead of prodding. | `plannerPrompt` distinguishes `turnIndex>0` + blank `lastAgent` → "the agent went SILENT" + a prod rule ("Are you still there?"); turn-0 still reads "the call just connected". **Test:** *plannerPrompt prods on MID-CALL silence but not on turn 0 (M3)*. |
+| **M5** | Only the adversarial persona pushed back on bad agent behavior. | A CROSS-persona HARD RULE: challenge unsafe/wrong agent behavior (over-broad data ask, wrong charge, repeated failure) — every persona. **Test:** *push-back rule is CROSS-persona (M5)* (asserts present for cooperative, impatient, adversarial). |
+| **M6** | A re-ask could drift to a different value. | `committedFacts()` distills name/date/time/party/amount/code from prior caller turns into a "FACTS YOU'VE COMMITTED TO" block + a stay-consistent rule. **Test:** *committedFacts distills … + plannerPrompt surfaces them + a consistency rule (M6)*. |
+| **L2** | `PERSONA_VOICE` defined twice (could drift). | One source in `evaline.ts` (lower module); `policy.ts` imports + re-exports it (public API unchanged, no cycle). **Test:** *PERSONA_VOICE has ONE source of truth (L2)* (same reference). |
+| **L1** | All three personas shared `aura-2-orion-en`. | Distinct Aura-2 voice per persona — cooperative `asteria`, impatient `orion`, adversarial `orpheus` — all ≠ the AUT default (`thalia`); the report plays per-persona caller audio (acoustics aren't gate-tested). **Test:** *each persona gets a DISTINCT caller voice (L1)*. **Live:** synthesizing one line in all three yields 3 distinct, non-empty real audios (asteria 128640B `e18c15de`, orion 147840B `d9887156`, orpheus 124800B `6d12dc27`). |
+| **L4** | Goal-driven Evaline couldn't barge in. | `PlanDecision.interrupt {text, afterMs}` threads onto `CallerAction.interrupt`; the `caller_turn` schema + `parseCallerTurn` accept it. **Tests:** *parseCallerTurn parses/ignores interrupt (L4)*, *GoalDrivenCaller threads/drops it (L4)*. The adapter path it feeds is the **already-oracle-proven** scripted declarative barge-in (see REVIEW_LOG "real-time recorder + working barge-in"). |
+
+> **On the proof bar (M3/M5/M6):** what Soundcheck controls is the caller's prompt/policy, proven
+> deterministically above. The live brain's *adherence* (it actually prodding / pushing back /
+> staying consistent on a real call) is stochastic LLM behavior, which Soundcheck treats as
+> exploratory, not a gated property (the goal-driven caller is live-only — see `LIMITATIONS.md`).
+> Reproducible live demos, with the key set: `soundcheck run examples/support/scenarios --aut
+> examples/support/insecure.ts --caller goal --turns 6` (M5 push-back vs an over-asking agent;
+> M6 consistency on a re-ask) — read the report's oracle transcript.
+
+## 🚧 Tracked
+
+**None — every caller gap is closed** (H1–H4, M1–M6, L1–L5). Future realism is new work, not a tracked gap.
 
 ## Notes
-- **L3 (goal-driven path under-tested) — partially addressed:** added deterministic `GoalDrivenCaller` unit tests (re-ask guard, ack exemption, mishearing surfacing, persona/counter-rule wiring, plus the Phase-1 termination reasons) with a mock `PlanFn`, so the policy/prompt logic is covered even though the live brain is not.
+- **L3 (goal-driven path under-tested) — addressed:** the `GoalDrivenCaller` policy and the `plannerPrompt`/`committedFacts`/`parseCallerTurn` logic are now covered by deterministic unit tests against a mock `PlanFn` (re-ask guard, ack exemption, mishearing, persona wiring, termination reasons, silence prod, cross-persona push-back, committed facts, barge-in threading). The live brain itself stays exploratory (live-only) by design.
 - **L5 (malformed-JSON silent hangup) — resolved by Phase 1:** the four distinct end conditions (turn cap, planner failure, looping repeat, malformed/empty plan) no longer collapse into one silent hangup that scores clean — each is tagged, and a non-`goal_met` end fails the `goal_reached` gate. This was the highest-leverage gap (the readiness review's **P1-5**).
 
 ## Plan of attack (phased)
@@ -49,16 +64,13 @@ A goal-driven call must never end for a non-goal reason and still read as a clea
 - ✅ A HARD RULE requiring an agent read-back/confirmation before `goal_met` hangup (M1).
 - ✅ *Tests:* mock-`PlanFn` cases assert each reason is tagged and that a forced cap / planner error does **not** surface as `goal_met`; a `goal_reached` gate test in `test/gates.test.ts`. (Suite: 137 tests, 0 lint errors/warnings.)
 
-### Phase 2 — Realism of the brain
-Make the improvising caller behave more like a believable human. Addresses **M3, M5, M6**.
-- **M3:** distinguish empty-because-silent from turn 0; prompt a prod ("Hello? Are you still there?") on mid-call silence.
-- **M5:** a cross-persona rule to react in character to unsafe/wrong agent behavior (question an over-broad data request; show frustration at repeated failure).
-- **M6:** echo prior caller turns' concrete values into the prompt as "facts you've committed to," so a re-ask stays consistent (same DOB/time) and clarifying questions are answered from the goal.
+### Phase 2 — Realism of the brain — ✅ DONE
+Addressed **M3, M5, M6** (see *Fixed (Phase 2 + Phase 3)* above). Mid-call silence is told apart
+from turn 0 and prods; push-back is cross-persona; committed facts keep a re-ask consistent.
 
-### Phase 3 — Polish
-Cosmetic / DRY. Addresses **L1, L2, L4**.
-- **L2:** define `PERSONA_VOICE` once (lower module) and import — remove the `evaline.ts`/`policy.ts` duplication.
-- **L1:** distinct voices/rates per persona so a prosody-sensitive agent can hear the difference.
-- **L4:** thread an optional `interrupt` through `PlanDecision` so the goal-driven caller can barge in, not just the scripted one.
+### Phase 3 — Polish — ✅ DONE
+Addressed **L2, L1, L4**. One `PERSONA_VOICE` source (evaline.ts) re-exported by policy.ts;
+distinct per-persona Aura-2 voices (live-verified distinct audio); goal-driven barge-in via
+`PlanDecision.interrupt`.
 
-*(Phase 1 shipped. Phase 2 (realism) is next as the goal-driven caller matures; Phase 3 is polish.)*
+*(All phases shipped — the tracked-gaps table is empty. Suite: 144 tests, 0 lint errors/warnings.)*

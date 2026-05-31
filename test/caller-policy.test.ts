@@ -3,11 +3,26 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ScriptedCaller, GoalDrivenCaller, type PlanFn, type CallerContext, type CallerExchange } from "../src/caller/policy.ts";
-import { parseCallerTurn, plannerPrompt } from "../src/caller/planner.ts";
+import { ScriptedCaller, GoalDrivenCaller, PERSONA_VOICE as PV_POLICY, type PlanFn, type CallerContext, type CallerExchange } from "../src/caller/policy.ts";
+import { PERSONA_VOICE as PV_EVALINE } from "../src/caller/evaline.ts";
+import { parseCallerTurn, plannerPrompt, committedFacts } from "../src/caller/planner.ts";
 import type { Scenario } from "../src/types.ts";
 
 const ctx = (turnIndex: number, lastAgent = "", history: CallerExchange[] = []): CallerContext => ({ turnIndex, lastAgent, history });
+
+test("PERSONA_VOICE has ONE source of truth: policy re-exports evaline's (L2)", () => {
+  // policy.ts imports + re-exports the canonical map from the lower module (evaline.ts).
+  // Same reference => no second definition that can drift.
+  assert.strictEqual(PV_POLICY, PV_EVALINE, "policy must re-export evaline's PERSONA_VOICE, not redefine it");
+});
+
+test("each persona gets a DISTINCT caller voice (L1)", () => {
+  const voices = Object.values(PV_POLICY);
+  assert.equal(voices.length, 3);
+  assert.equal(new Set(voices).size, 3, `expected 3 distinct persona voices, got ${voices.join(", ")}`);
+  // and none collides with the AUT's default speaking voice (thalia) — Evaline stays audibly separate.
+  assert.ok(!voices.includes("aura-2-thalia-en"), "caller voices must differ from the AUT default (thalia)");
+});
 
 test("ScriptedCaller plays actions in order, then hangs up", async () => {
   const c = new ScriptedCaller([{ text: "one", voice: "v" }, { text: "two", voice: "v" }]);
@@ -115,6 +130,30 @@ test("parseCallerTurn tolerates valid, malformed, and hangup args", () => {
   assert.equal(parseCallerTurn("not json at all").utterance, "");
 });
 
+test("parseCallerTurn parses an optional barge-in interrupt; ignores a malformed one (L4)", () => {
+  assert.deepEqual(
+    parseCallerTurn('{"action":"say","utterance":"what are the specials?","interrupt":{"text":"sorry, what time do you close?","afterMs":250}}'),
+    { action: "say", utterance: "what are the specials?", interrupt: { text: "sorry, what time do you close?", afterMs: 250 } },
+  );
+  // missing afterMs -> not a valid interrupt -> dropped (no interrupt field)
+  assert.deepEqual(parseCallerTurn('{"action":"say","utterance":"hi","interrupt":{"text":"x"}}'), { action: "say", utterance: "hi" });
+});
+
+test("GoalDrivenCaller threads a planned interrupt onto the CallerAction (L4)", async () => {
+  // The adapter already drives CallerAction.interrupt (the oracle-proven scripted barge-in path);
+  // L4 just lets the goal-driven brain emit one. A well-formed interrupt is passed through; a
+  // malformed one (missing afterMs) is dropped.
+  const planBarge: PlanFn = async () => ({ action: "say", utterance: "what are tonight's specials?", interrupt: { text: "sorry — what time do you close?", afterMs: 250 } });
+  const c = new GoalDrivenCaller({ goal: "specials then closing time", persona: "cooperative", plan: planBarge });
+  const a = await c.next(ctx(0, "Hi, how can I help?"));
+  assert.equal(a?.text, "what are tonight's specials?");
+  assert.deepEqual(a?.interrupt, { text: "sorry — what time do you close?", afterMs: 250 });
+
+  const planBad: PlanFn = async () => ({ action: "say", utterance: "hello", interrupt: { text: "", afterMs: 250 } });
+  const c2 = new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan: planBad });
+  assert.equal((await c2.next(ctx(0)))?.interrupt, undefined, "empty interrupt text is dropped");
+});
+
 test("plannerPrompt carries the goal, persona, and the agent's last line", () => {
   const p = plannerPrompt({ goal: "book a table", persona: "impatient", history: [], lastAgent: "We open at five.", turnIndex: 0 });
   assert.match(p, /book a table/);
@@ -149,4 +188,41 @@ test("plannerPrompt surfaces an agent mishearing so the caller can correct it", 
   assert.match(p, /HEARD you say/);
   assert.match(p, /some four cane/);
   assert.match(p, /correct it/i);
+});
+
+test("plannerPrompt prods on MID-CALL silence but not on turn 0 (M3)", () => {
+  const hist: CallerExchange[] = [{ caller: "Hi, I'd like to book a table", agent: "Sure, what day?" }];
+  // mid-call empty reply = the agent went silent -> prod, don't restart
+  const silent = plannerPrompt({ goal: "g", persona: "cooperative", history: hist, lastAgent: "", turnIndex: 1 });
+  assert.match(silent, /gone SILENT/);
+  assert.match(silent, /Are you still there\?/);
+  // turn 0 with no agent words is just "the call connected" — NOT a silence prod
+  const turn0 = plannerPrompt({ goal: "g", persona: "cooperative", history: [], lastAgent: "", turnIndex: 0 });
+  assert.doesNotMatch(turn0, /gone SILENT/);
+  assert.match(turn0, /the call just connected/);
+});
+
+test("plannerPrompt push-back rule is CROSS-persona, not just adversarial (M5)", () => {
+  for (const persona of ["cooperative", "impatient", "adversarial"] as const) {
+    const p = plannerPrompt({ goal: "g", persona, history: [], lastAgent: "hi", turnIndex: 0 });
+    assert.match(p, /CHALLENGE it in character/, `${persona} must carry the push-back rule`);
+    assert.match(p, /more personal information than the task needs/, persona);
+  }
+});
+
+test("committedFacts distills concrete values; plannerPrompt surfaces them + a consistency rule (M6)", () => {
+  const history: CallerExchange[] = [
+    { caller: "I'd like to book a table for four people this Friday at seven thirty PM, the name is Garcia.", agent: "Sure." },
+    { caller: "My callback code is four four one seven.", agent: "Got it." },
+  ];
+  const facts = committedFacts(history);
+  assert.deepEqual(facts, ["name: Garcia", "party: four", "date: this Friday", "time: seven thirty PM", "code: four four one seven"]);
+  const p = plannerPrompt({ goal: "g", persona: "cooperative", history, lastAgent: "Can you repeat the time?", turnIndex: 2 });
+  assert.match(p, /FACTS YOU'VE COMMITTED TO \(stay consistent/); // the block (the rule references the phrase too)
+  assert.match(p, /seven thirty PM/);
+  assert.match(p, /four four one seven/);
+  assert.match(p, /Stay CONSISTENT with the facts/);
+  // no recognizable values -> no facts block (the consistency RULE still mentions the phrase, so target the block header)
+  const bare = plannerPrompt({ goal: "g", persona: "cooperative", history: [{ caller: "hello there", agent: "hi" }], lastAgent: "hi", turnIndex: 1 });
+  assert.doesNotMatch(bare, /FACTS YOU'VE COMMITTED TO \(stay consistent/);
 });

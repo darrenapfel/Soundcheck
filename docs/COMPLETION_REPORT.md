@@ -76,12 +76,29 @@ Default + CI operation needs **only `DEEPGRAM_API_KEY`** (caller brain, voice, S
 - Every M1–M8 milestone independently reviewed (`docs/REVIEW_LOG.md`, STS-v2 M1–M8 + the final 3-agent panel); the self-improving loop also got its own independent review. The four post-M8 additions reviewed only as part of that loop review (cardinal-ids gate, three extra domains, public API surface, caller hardening) are test-covered but lack standalone review rows — flagged in `docs/REVIEW_LOG.md`.
 - `README_ASPIRATIONAL.md` promoted to `README.md` — every promise true or de-scoped in writing (regression-from-production, online monitoring, standalone STT/TTS — rationale in README "Future directions" + `LIMITATIONS.md`).
 
+## Addendum — public-readiness + caller gaps closed (post-M8)
+
+After the M8 panel, a round-two readiness review and the caller-gap work landed. **Current tally: 144 deterministic tests, 0 lint errors AND 0 warnings (`eslint . --max-warnings=0`), plus an installed-package `smoke` CI job; the package builds to `dist` at publish time (dev stays raw `.ts`).** All caller gaps (`docs/CALLER_GAPS.md`: H1–H4, M1–M6, L1–L5) are closed.
+
+**Proof matrix — caller Phases 2 & 3** (the deterministic test is the gating proof; what Soundcheck controls is the caller's prompt/policy — the live brain's adherence is stochastic, treated as exploratory):
+
+| Gap | Proof |
+|---|---|
+| **M3** mid-call silence prod | `test/caller-policy.test.ts` *prods on MID-CALL silence but not on turn 0 (M3)* — `plannerPrompt(turnIndex>0, lastAgent="")` adds "the agent went SILENT" + the prod rule; turn-0 does not. |
+| **M5** cross-persona push-back | *push-back rule is CROSS-persona (M5)* — the challenge-unsafe/wrong-behavior rule is present for cooperative, impatient, AND adversarial. |
+| **M6** committed-facts consistency | *committedFacts distills … + a consistency rule (M6)* — values (name/date/time/party/amount/code) distilled into a "facts you've committed to" block + a stay-consistent rule. |
+| **L2** one `PERSONA_VOICE` source | *PERSONA_VOICE has ONE source of truth (L2)* — `policy` re-exports `evaline`'s map (same reference). |
+| **L1** distinct per-persona voices | *each persona gets a DISTINCT caller voice (L1)* (3 distinct models, none = the AUT default). **Live oracle:** synthesizing one line in all three yields 3 distinct, non-empty real audios (asteria `e18c15de`, orion `d9887156`, orpheus `6d12dc27`). |
+| **L4** goal-driven barge-in | *parseCallerTurn parses/ignores interrupt (L4)* + *GoalDrivenCaller threads/drops it (L4)* — `PlanDecision.interrupt` → `CallerAction.interrupt`; the adapter path it feeds is the already-oracle-proven scripted barge-in. |
+
+Phase 1 (termination integrity) proof is in `docs/CALLER_GAPS.md` + `docs/REVIEW_LOG.md`. Reproducible live goal-driven demos for M3/M5/M6 (with the key set) are noted in `CALLER_GAPS.md`.
+
 ## Honest caveats (not defects)
 - Some **legacy golden cassettes are v1** (oracle-absent); `loadCassette` tolerates both — a documented conscious call (REVIEW_LOG M3).
-- The **goal-driven / adversarial caller is live-only and non-deterministic**; the scripted caller + cassettes are what CI replays.
+- The **goal-driven / adversarial caller is live-only and non-deterministic**; the scripted caller + cassettes are what CI replays. Its prompt/policy is unit-tested deterministically (all caller gaps closed); the live brain's *adherence* stays exploratory.
 - The **judge is advisory** — deterministic gates own every merge-gating verdict.
-- 3 pre-existing `no-explicit-any` lint **warnings** (0 errors) in Deepgram-response parsing (`src/deepgram.ts`) / adapter test glue (`test/adapter.test.ts`).
+- Lint is now **warning-clean** (`eslint . --max-warnings=0`); the former 3 `no-explicit-any` warnings were resolved in the readiness pass.
 
 ---
 
-*Optional next step (human): review the PR(s), merge, cut the `v1`/`v2` stable tag, publish.*
+*Optional next step (human): review the PR(s), merge, publish to npm.*
