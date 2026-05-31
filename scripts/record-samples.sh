@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Record the Soundcheck SAMPLE GALLERY (LIVE — needs DEEPGRAM_API_KEY). Two groups:
+#   (1) every domain's goal scenario driven by all three caller personas against the WELL-BUILT
+#       agent — showing it stay grounded/safe under a polite, an impatient, and a hostile caller;
+#   (2) a couple of DELIBERATELY-BROKEN agents — showing Soundcheck CATCH a planted bug. Those are
+#       named `caught-…-agent` and carry an in-report banner so the 🚩 unmistakably read as the
+#       tool working, not a real failure.
+# Each is a faithful single run. --lean --mp3 keeps a sample ~0.3MB so the gallery commits cleanly.
+# One flaky live call never aborts the gallery.
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$ROOT"
+OUT="samples"; mkdir -p "$OUT"
+CLI=(node --experimental-strip-types --disable-warning=ExperimentalWarning src/cli.ts)
+TURNS="${SAMPLE_TURNS:-8}"
+REPO="${SAMPLE_REPO:-darrenapfel/Soundcheck}"; BRANCH="${SAMPLE_BRANCH:-main}"
+MANIFEST="$OUT/manifest.tsv"; : > "$MANIFEST"
+BROKEN_NOTE="⚠️ This agent is DELIBERATELY broken to demonstrate Soundcheck catching a planted bug. The 🚩 gate failures below are the tool working exactly as designed — not a flaw in Soundcheck and not a real outage. Compare it to the well-built agent's report for the same scenario."
+
+# section | dir | scenario | aut | persona | label | blurb   (catches get the broken-agent banner)
+MATRIX=(
+  "handles|examples/interactive|goal-specials|examples/tabletalk/grounded.ts|cooperative|restaurant.cooperative|Restaurant — tonight's specials"
+  "handles|examples/interactive|goal-specials|examples/tabletalk/grounded.ts|impatient|restaurant.impatient|Restaurant — specials, caller in a hurry"
+  "handles|examples/interactive|goal-specials|examples/tabletalk/grounded.ts|adversarial|restaurant.adversarial|Restaurant — specials, caller red-teams"
+  "handles|examples/support/scenarios|adversarial-discovery|examples/support/grounded.ts|cooperative|support.cooperative|IT support — password reset (secure agent)"
+  "handles|examples/support/scenarios|adversarial-discovery|examples/support/grounded.ts|impatient|support.impatient|IT support — reset, caller in a hurry"
+  "handles|examples/support/scenarios|adversarial-discovery|examples/support/grounded.ts|adversarial|support.adversarial|IT support — reset, caller tries to bypass verification"
+  "handles|examples/healthcare/scenarios|appointment-insurance-refill|examples/healthcare/grounded.ts|cooperative|healthcare.cooperative|Healthcare — appointment + insurance + refill"
+  "handles|examples/healthcare/scenarios|appointment-insurance-refill|examples/healthcare/grounded.ts|impatient|healthcare.impatient|Healthcare — same, caller in a hurry"
+  "handles|examples/healthcare/scenarios|appointment-insurance-refill|examples/healthcare/grounded.ts|adversarial|healthcare.adversarial|Healthcare — caller pushes for PHI/shortcuts"
+  "handles|examples/banking/scenarios|lost-card-dispute|examples/banking/grounded.ts|cooperative|banking.cooperative|Bank — lost card + dispute a charge"
+  "handles|examples/banking/scenarios|lost-card-dispute|examples/banking/grounded.ts|impatient|banking.impatient|Bank — same, caller in a hurry"
+  "handles|examples/banking/scenarios|lost-card-dispute|examples/banking/grounded.ts|adversarial|banking.adversarial|Bank — caller pushes for a risky transfer"
+  "handles|examples/travel/scenarios|cancelled-flight-rebook|examples/travel/grounded.ts|cooperative|travel.cooperative|Airline — rebook a cancelled flight"
+  "handles|examples/travel/scenarios|cancelled-flight-rebook|examples/travel/grounded.ts|impatient|travel.impatient|Airline — same, caller in a hurry"
+  "handles|examples/travel/scenarios|cancelled-flight-rebook|examples/travel/grounded.ts|adversarial|travel.adversarial|Airline — caller red-teams the rebooking"
+  "catches|examples/interactive|goal-specials|examples/tabletalk/bare.ts|cooperative|caught-restaurant-bare-agent|Restaurant — DELIBERATELY BROKEN 'bare' agent: Soundcheck catches spoken symbols + an ungrounded date"
+  "catches|examples/support/scenarios|adversarial-discovery|examples/support/insecure.ts|adversarial|caught-support-insecure-agent|IT support — DELIBERATELY BROKEN 'insecure' agent vs a hostile caller: catches reset-before-verify + account deletion"
+)
+
+i=0; n=${#MATRIX[@]}
+for row in "${MATRIX[@]}"; do
+  i=$((i+1)); IFS='|' read -r section dir scen aut persona label blurb <<< "$row"
+  html="$OUT/$label.html"; log="$OUT/$label.log"
+  echo "[$i/$n] ▶ $label ($section) …"
+  args=(run "$dir" --aut "$aut" --only "$scen" --persona "$persona" --turns "$TURNS" --lean --mp3 --out "$html")
+  [ "$section" = "catches" ] && args+=(--note "$BROKEN_NOTE")
+  "${CLI[@]}" "${args[@]}" >"$log" 2>&1
+  if   grep -q "all gates passed"      "$log"; then result="✅ handled (all gates pass)";
+  elif grep -q "gate failures present" "$log"; then result=$([ "$section" = catches ] && echo "🚩 caught (by design)" || echo "🚩 failed");
+  else result="ERROR"; fi
+  ended=$(grep -oE 'ended: [a-z_]+' "$log" | head -1 | sed 's/ended: //')
+  size=$([ -f "$html" ] && du -h "$html" | awk '{print $1}' || echo "-")
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$section" "$label" "$persona" "$result" "${ended:-?}" "$blurb" "$html" >> "$MANIFEST"
+  echo "    → $result (ended=${ended:-?}, $size)"
+done
+
+# --- gallery index ---
+row_md() { while IFS=$'\t' read -r sec label persona result ended blurb html; do
+    [ "$sec" = "$1" ] && echo "| $blurb | \`$persona\` | $result | \`$ended\` | [▶ Listen](https://raw.githack.com/$REPO/$BRANCH/$html) |"
+  done < "$MANIFEST"; }
+{
+  echo "# Soundcheck — sample gallery"
+  echo
+  echo "Real recorded calls (one faithful run each). Every row links to a self-contained report — **play the whole conversation**, read what Soundcheck's oracle (STT) actually heard, the gate results, and why the call ended. Nothing is staged."
+  echo
+  echo "▶ **Listen** opens in your browser (once the repo is public). Or clone and open the HTML locally. Or run it yourself with a free Deepgram key: \`soundcheck run <dir> --aut <agent> --only <scenario> --persona <caller>\`."
+  echo
+  echo "## Well-built agents handling every caller"
+  echo "The same well-built agent, driven by a polite, an impatient, and a hostile caller — staying grounded and safe across all three (gates pass)."
+  echo
+  echo "| Scenario | Caller | Result | Ended | Listen |"; echo "|---|---|---|---|---|"; row_md handles
+  echo
+  echo "## Soundcheck catching planted bugs"
+  echo "These agents are **deliberately broken** to show the gates firing. The 🚩 are Soundcheck working as designed — each report carries a banner saying so."
+  echo
+  echo "| Scenario | Caller | Result | Ended | Listen |"; echo "|---|---|---|---|---|"; row_md catches
+  echo
+  echo "_Listen links use raw.githack.com against \`$BRANCH\`; they resolve once this commit is on \`$BRANCH\` and the repo is public._"
+} > "$OUT/README.md"
+rm -f "$OUT"/*.log "$MANIFEST"
+echo "✓ gallery: $OUT/README.md + $i sample reports"

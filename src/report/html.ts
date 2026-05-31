@@ -8,11 +8,13 @@ const esc = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", 
  *  the per-turn audio clips — yields a smaller, still-listenable report for the sample gallery.
  *  @param opts.encodeAudio optional transcoder for embedded audio (e.g. WAV->MP3 to shrink the
  *  gallery ~10x). Omitted by default, so the shipped CLI embeds WAV with zero extra dependencies;
- *  the encoder lives in the caller (the sample harness), keeping this module pure + testable. */
+ *  the encoder lives in the caller (the sample harness), keeping this module pure + testable.
+ *  @param opts.note optional callout rendered prominently at the top — e.g. to mark a sample as a
+ *  DELIBERATELY broken agent so the 🚩 failures read as Soundcheck catching a planted bug, by design. */
 export function generateReport(
   results: ScenarioResult[],
   generatedAt: string,
-  opts: { fullCallAudioOnly?: boolean; encodeAudio?: (wav: Buffer) => { mime: string; data: Buffer } } = {},
+  opts: { fullCallAudioOnly?: boolean; encodeAudio?: (wav: Buffer) => { mime: string; data: Buffer }; note?: string } = {},
 ): string {
   const totalGates = results.reduce((a, r) => a + r.gates.length, 0);
   const passedGates = results.reduce((a, r) => a + r.gates.filter((g) => g.pass).length, 0);
@@ -69,8 +71,10 @@ th,td{border:1px solid #e3e3e3;padding:.4rem .5rem;text-align:left;vertical-alig
 tr.pass td{background:#f4fbf6} tr.fail td{background:#fdf2f2} code{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px}
 audio{height:32px} summary{cursor:pointer;font-weight:600;color:#444}
 .fullaudio{background:#f0f6ff;border:1px solid #b9d4ff;border-radius:8px;padding:.6rem .8rem;margin:.6rem 0} .fullaudio audio{height:36px;vertical-align:middle}
+.note{background:#fff7e6;border:1px solid #f0b400;border-left:4px solid #f0b400;border-radius:8px;padding:.7rem 1rem;margin:1rem 0;font-size:.95rem}
 </style></head><body>
 <h1>🎙️ Soundcheck report</h1>
+${opts.note ? `<div class="note">${esc(opts.note)}</div>` : ""}
 <div class="summary ${allPass ? "ok" : "bad"}">${allPass ? "✅ All scenarios passed" : "🚩 Failures present"} — ${passedGates}/${totalGates} gates passed across ${results.length} scenario(s). <span class="meta">${esc(generatedAt)}</span></div>
 ${sections}
 </body></html>`;

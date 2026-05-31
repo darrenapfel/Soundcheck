@@ -189,7 +189,8 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
   const out = (opts.out as string) ?? `runs/report-${aut.label}.html`;
   const encodeAudio = opts.mp3 === true ? makeMp3Encoder() : undefined;
-  writeFileSync(resolve(process.cwd(), out), generateReport(results, new Date().toISOString(), { fullCallAudioOnly: opts.lean === true, encodeAudio }));
+  const note = typeof opts.note === "string" ? opts.note : undefined;
+  writeFileSync(resolve(process.cwd(), out), generateReport(results, new Date().toISOString(), { fullCallAudioOnly: opts.lean === true, encodeAudio, note }));
   const allPass = results.every((r) => r.passed);
   console.log(`\n${allPass ? "✅ all gates passed" : "🚩 gate failures present"} — report: ${out}\n`);
   process.exit(allPass ? 0 : 1);
@@ -368,6 +369,8 @@ function help() {
                  audio clips (for the committed sample gallery).
       --mp3 : transcode embedded audio to MP3 via ffmpeg (~10x smaller; pairs with --lean for
                  a compact, committable gallery). Falls back to WAV if ffmpeg is unavailable.
+      --note "<text>" : render a callout at the top of the report (e.g. to mark a sample as a
+                 deliberately-broken agent, so its 🚩 read as Soundcheck catching a planted bug).
       --adapter mock : test a creds-free deterministic mock agent (no key/network); add --buggy to inject faults.
                        (default adapter = deepgram-va; the openai-realtime adapter is a code-level reference, not selectable here.)
       --record : live run, then save a cassette for deterministic replay.

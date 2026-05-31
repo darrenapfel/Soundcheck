@@ -79,6 +79,13 @@ test("encodeAudio injection transcodes embedded audio (WAV->MP3 for the gallery)
   assert.equal(calls.length, 1); // only the full-call recording (lean) was encoded
 });
 
+test("opts.note renders a prominent (escaped) callout banner; absent by default", () => {
+  const withNote = generateReport([result], "2026-05-30T00:00:00Z", { note: "⚠️ intentionally broken <agent>" });
+  assert.match(withNote, /class="note"/);
+  assert.match(withNote, /intentionally broken &lt;agent&gt;/); // escaped
+  assert.doesNotMatch(html, /class="note"/); // the default report (no note) has no banner
+});
+
 test("report ESCAPES untrusted text (no raw HTML injection from caller/gate output)", () => {
   assert.doesNotMatch(html, /table <for 2>/);     // caller said — must be escaped
   assert.match(html, /table &lt;for 2&gt;/);
