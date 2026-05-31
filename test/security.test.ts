@@ -13,7 +13,10 @@ const HAS_GIT = existsSync(".git");
 const SKIP_DIRS = new Set(["node_modules", ".git", "runs"]);
 const BINARY = /\.(wav|png|jpg|jpeg|gif|ico|woff2?|ttf)$/i;
 const norm = (f: string) => f.replace(/^\.\//, "");
-const excluded = (f: string) => { const n = norm(f); return n.startsWith("test/") || n.startsWith("docs/") || n.endsWith(".md"); };
+// samples/ holds generated call RECORDINGS (HTML with base64 audio), not hand-authored config —
+// a key can't land there, and 8MB of base64 could coincidentally contain a short key-prefix
+// substring (false positive). Excluded like test/ and docs/.
+const excluded = (f: string) => { const n = norm(f); return n.startsWith("test/") || n.startsWith("docs/") || n.startsWith("samples/") || n.endsWith(".md"); };
 
 /** Files to scan: the tracked tree under git, else a filesystem walk. */
 function filesToScan(): string[] {

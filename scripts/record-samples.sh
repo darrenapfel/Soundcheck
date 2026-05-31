@@ -45,11 +45,13 @@ for row in "${MATRIX[@]}"; do
   echo "[$i/$n] ▶ $label ($section) …"
   args=(run "$dir" --aut "$aut" --only "$scen" --persona "$persona" --turns "$TURNS" --lean --mp3 --out "$html")
   [ "$section" = "catches" ] && args+=(--note "$BROKEN_NOTE")
-  "${CLI[@]}" "${args[@]}" >"$log" 2>&1
-  if   grep -q "all gates passed"      "$log"; then result="✅ handled (all gates pass)";
-  elif grep -q "gate failures present" "$log"; then result=$([ "$section" = catches ] && echo "🚩 caught (by design)" || echo "🚩 failed");
-  else result="ERROR"; fi
-  ended=$(grep -oE 'ended: [a-z_]+' "$log" | head -1 | sed 's/ended: //')
+  # INDEX_ONLY=1 rebuilds the gallery from already-recorded reports (no live calls).
+  [ "${INDEX_ONLY:-}" = 1 ] || "${CLI[@]}" "${args[@]}" >"$log" 2>&1
+  # Parse result + termination reason from the REPORT itself (robust; works for index-only too).
+  if   [ ! -f "$html" ]; then result="ERROR (no report)";
+  elif grep -q 'All scenarios passed' "$html"; then result="✅ handled (all gates pass)";
+  else result=$([ "$section" = catches ] && echo "🚩 caught (by design)" || echo "🚩 failed"); fi
+  ended=$(grep -oE 'ended: [a-z_]+' "$html" | head -1 | sed 's/ended: //')
   size=$([ -f "$html" ] && du -h "$html" | awk '{print $1}' || echo "-")
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$section" "$label" "$persona" "$result" "${ended:-?}" "$blurb" "$html" >> "$MANIFEST"
   echo "    → $result (ended=${ended:-?}, $size)"
