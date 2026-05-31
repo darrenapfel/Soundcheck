@@ -122,21 +122,25 @@ test("malformed assert elements (null/undefined/number) fail CLOSED, never crash
   assert.ok(g.every((x) => x.pass === false), "every malformed spec must fail closed");
 });
 
-test("goal_reached gate: a goal-driven call is a clean pass ONLY when it ended goal_met (Phase 1)", () => {
+test("goal_reached keys on goalDriven: guards forced --caller goal, spares a scripted run of a goal scenario (Phase 1 + round-3 P2)", () => {
   const goalScen: Scenario = { name: "g", persona: "cooperative", turns: [], goal: "book a table", assert: ["no_spoken_symbols"] };
-  const trace = (reason?: Trace["terminationReason"]): Trace =>
-    ({ scenario: "g", persona: "cooperative", autLabel: "fixture", terminationReason: reason, turns: [turn(1, "your table is booked")] });
+  const noGoalScen: Scenario = { name: "g", persona: "cooperative", turns: ["hi"], assert: ["no_spoken_symbols"] }; // NO goal field
+  const trace = (reason: Trace["terminationReason"] | undefined, goalDriven?: boolean): Trace =>
+    ({ scenario: "g", persona: "cooperative", autLabel: "fixture", terminationReason: reason, goalDriven, turns: [turn(1, "your table is booked")] });
 
-  // goal_met -> a passing goal_reached row.
-  assert.equal(gate(runGates(trace("goal_met"), goalScen, TOOLS), "goal_reached").pass, true);
-
-  // a forced/aborted end -> a FAILING row, so the run is not clean even though no_spoken_symbols passes.
+  // goal-driven + goal_met -> a passing goal_reached row.
+  assert.equal(gate(runGates(trace("goal_met", true), goalScen, TOOLS), "goal_reached").pass, true);
+  // goal-driven + a forced/aborted end -> a FAILING row (even though no_spoken_symbols passes).
   for (const bad of ["turn_cap", "planner_error", "repeat_guard"] as const) {
-    assert.equal(gate(runGates(trace(bad), goalScen, TOOLS), "goal_reached").pass, false, bad);
+    assert.equal(gate(runGates(trace(bad, true), goalScen, TOOLS), "goal_reached").pass, false, bad);
   }
-
-  // No goal (scripted) -> no goal_reached row, even with a reason set.
-  assert.equal(runGates(trace("script_exhausted"), scen(["no_spoken_symbols"]), TOOLS).find((x) => x.name === "goal_reached"), undefined);
-  // Goal-driven but reason unknown (legacy cassette) -> no row (back-compat).
-  assert.equal(runGates(trace(undefined), goalScen, TOOLS).find((x) => x.name === "goal_reached"), undefined);
+  // round-3 P2: a FORCED `--caller goal` run on a scenario with NO `goal` field is still guarded.
+  assert.equal(gate(runGates(trace("turn_cap", true), noGoalScen, TOOLS), "goal_reached").pass, false, "forced --caller goal, no goal field");
+  // a goal scenario run with the SCRIPTED caller (goalDriven false) -> NO row, even though it ended
+  // script_exhausted and the scenario HAS a goal (the prior scenario.goal keying would false-fail here).
+  assert.equal(runGates(trace("script_exhausted", false), goalScen, TOOLS).find((x) => x.name === "goal_reached"), undefined, "scripted run of a goal scenario");
+  // not goal-driven (scripted, no goal) -> no row regardless of reason.
+  assert.equal(runGates(trace("script_exhausted", false), noGoalScen, TOOLS).find((x) => x.name === "goal_reached"), undefined);
+  // goal-driven but reason unknown (legacy cassette) -> no row (back-compat).
+  assert.equal(runGates(trace(undefined, true), goalScen, TOOLS).find((x) => x.name === "goal_reached"), undefined);
 });

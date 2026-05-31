@@ -40,7 +40,7 @@
     "run:scenarios": "node --experimental-strip-types --disable-warning=ExperimentalWarning src/cli.ts run scenarios",
     "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/*.test.ts",
     "test:coverage": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test --experimental-test-coverage test/*.test.ts",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "validate": "npm run typecheck && npm run lint && npm run test",
     "build": "tsc -p tsconfig.build.json",

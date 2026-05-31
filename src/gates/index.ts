@@ -252,7 +252,8 @@ const gLatency: GateFn = (spec, { transcript }) => {
   }
   const ttfbs = transcript.turns.map((x) => x.ttfbMs).filter((x): x is number => x != null);
   const avg = ttfbs.length ? Math.round(ttfbs.reduce((a, b) => a + b, 0) / ttfbs.length) : null;
-  return { name: "latency", pass: problems.length === 0, detail: problems.join("; ") || `ok (avg TTFB ${avg ?? "n/a"}ms)` };
+  const okDetail = avg == null ? "ok (avg TTFB n/a)" : `ok (avg TTFB ${avg}ms)`; // not "n/ams"
+  return { name: "latency", pass: problems.length === 0, detail: problems.join("; ") || okDetail };
 };
 
 // ---- registry ----
@@ -289,12 +290,15 @@ export function runGates(t: Trace, scenario: Scenario, tools: ToolSchema[] = [])
     try { return gate(value, ctx); } // a gate must fail CLOSED, never crash the run
     catch (e) { return { name: key, pass: false, detail: `gate crashed: ${(e as Error)?.message ?? String(e)}` }; }
   });
-  // Caller termination integrity (Phase 1): a goal-driven call is a clean pass ONLY when the
+  // Caller termination integrity (Phase 1): a GOAL-DRIVEN call is a clean pass ONLY when the
   // caller ended because the GOAL was met. A forced/aborted end (turn cap, planner error,
   // repetition guard) must fail — otherwise a partial call whose gates happen to pass reads as
-  // satisfied. Only enforced when the reason is KNOWN (live runs / re-recorded cassettes);
-  // undefined (legacy cassette, or the fixed-list path) is left alone for back-compat.
-  if (scenario.goal && t.terminationReason) {
+  // satisfied. Keyed on whether the run was goal-driven (`t.goalDriven`), NOT on whether the
+  // scenario merely HAS a `goal` field — so it (a) guards a forced `--caller goal` run on a
+  // scenario without a goal, and (b) does NOT false-fail a goal scenario deliberately run with
+  // the scripted caller. Only enforced when the reason is KNOWN (live / re-recorded cassettes);
+  // undefined (legacy cassette, or a non-goal-driven run) is left alone for back-compat.
+  if (t.goalDriven && t.terminationReason) {
     const met = t.terminationReason === "goal_met";
     gates.push({
       name: "goal_reached",
