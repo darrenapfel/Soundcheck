@@ -210,7 +210,7 @@ soundcheck/
 ├── examples/            # tabletalk, support, healthcare, banking, travel, authored-*, tune-demo,
 │                        #   interactive, self-improving-loop
 ├── fixtures/cassettes/  # recorded runs for deterministic replay in CI
-├── test/                # the deterministic suite (113 tests; see TESTING.md)
+├── test/                # the deterministic suite (144 tests; see TESTING.md)
 ├── docs/                # ARCHITECTURE.md, ROADMAP.md, TESTING.md, CALIBRATION.md, LIMITATIONS.md, …
 ├── action.yml           # reusable composite GitHub Action
 └── .github/workflows/   # ci.yml (validate) + nightly.yml (live)
