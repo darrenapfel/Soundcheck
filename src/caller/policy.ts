@@ -88,6 +88,11 @@ export interface PlanDecision {
    *  NOT mistaken for a satisfied caller (M4). Only the planner wrapper emits "error". */
   action: "say" | "hangup" | "error";
   utterance: string;
+  /** Optional barge-in (L4): on a "say", after `utterance`, once the agent starts replying the
+   *  caller cuts in with `interrupt.text` after `interrupt.afterMs` ms — the goal-driven brain's
+   *  way to test interruption handling. Threaded onto CallerAction.interrupt (the same adapter
+   *  path the scripted declarative barge-in already drives). */
+  interrupt?: { text: string; afterMs: number };
 }
 export type PlanFn = (input: PlanInput) => Promise<PlanDecision>;
 
@@ -151,6 +156,10 @@ export class GoalDrivenCaller implements Caller {
       this.#said.set(norm, n);
       if (n >= 3) { this.terminationReason = "repeat_guard"; return null; }
     }
-    return { text: d.utterance.trim(), voice: this.#voice };
+    // L4: a well-formed interrupt threads onto the CallerAction so the adapter barges in.
+    const interrupt = d.interrupt && typeof d.interrupt.text === "string" && d.interrupt.text.trim() && typeof d.interrupt.afterMs === "number"
+      ? { text: d.interrupt.text.trim(), afterMs: d.interrupt.afterMs }
+      : undefined;
+    return { text: d.utterance.trim(), voice: this.#voice, ...(interrupt ? { interrupt } : {}) };
   }
 }

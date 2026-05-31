@@ -130,6 +130,30 @@ test("parseCallerTurn tolerates valid, malformed, and hangup args", () => {
   assert.equal(parseCallerTurn("not json at all").utterance, "");
 });
 
+test("parseCallerTurn parses an optional barge-in interrupt; ignores a malformed one (L4)", () => {
+  assert.deepEqual(
+    parseCallerTurn('{"action":"say","utterance":"what are the specials?","interrupt":{"text":"sorry, what time do you close?","afterMs":250}}'),
+    { action: "say", utterance: "what are the specials?", interrupt: { text: "sorry, what time do you close?", afterMs: 250 } },
+  );
+  // missing afterMs -> not a valid interrupt -> dropped (no interrupt field)
+  assert.deepEqual(parseCallerTurn('{"action":"say","utterance":"hi","interrupt":{"text":"x"}}'), { action: "say", utterance: "hi" });
+});
+
+test("GoalDrivenCaller threads a planned interrupt onto the CallerAction (L4)", async () => {
+  // The adapter already drives CallerAction.interrupt (the oracle-proven scripted barge-in path);
+  // L4 just lets the goal-driven brain emit one. A well-formed interrupt is passed through; a
+  // malformed one (missing afterMs) is dropped.
+  const planBarge: PlanFn = async () => ({ action: "say", utterance: "what are tonight's specials?", interrupt: { text: "sorry — what time do you close?", afterMs: 250 } });
+  const c = new GoalDrivenCaller({ goal: "specials then closing time", persona: "cooperative", plan: planBarge });
+  const a = await c.next(ctx(0, "Hi, how can I help?"));
+  assert.equal(a?.text, "what are tonight's specials?");
+  assert.deepEqual(a?.interrupt, { text: "sorry — what time do you close?", afterMs: 250 });
+
+  const planBad: PlanFn = async () => ({ action: "say", utterance: "hello", interrupt: { text: "", afterMs: 250 } });
+  const c2 = new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan: planBad });
+  assert.equal((await c2.next(ctx(0)))?.interrupt, undefined, "empty interrupt text is dropped");
+});
+
 test("plannerPrompt carries the goal, persona, and the agent's last line", () => {
   const p = plannerPrompt({ goal: "book a table", persona: "impatient", history: [], lastAgent: "We open at five.", turnIndex: 0 });
   assert.match(p, /book a table/);
