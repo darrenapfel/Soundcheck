@@ -4,7 +4,7 @@ All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; ve
 
 ## [Unreleased] — public-readiness pass
 
-Addressed the round-two readiness review (`docs/SOUNDCHECK_ROUND2_READINESS_REVIEW.md`) and closed **all** caller gaps (`docs/CALLER_GAPS.md`, Phases 1–3). **144 deterministic tests, 0 lint errors/warnings, fully offline CI.**
+Addressed the round-two **and round-three** readiness reviews (`docs/SOUNDCHECK_ROUND2_READINESS_REVIEW.md`, `docs/SOUNDCHECK_ROUND3_PR_REVIEW.md`) and closed **all** caller gaps (`docs/CALLER_GAPS.md`, Phases 1–3). **145 deterministic tests, 0 lint errors/warnings, fully offline CI.**
 
 ### Added
 - **Publish-time build** so the installed npm package runs: `tsconfig.build.json` emits `dist/**/*.js` + `.d.ts` from `src/` (`.ts` import specifiers rewritten to `.js`), run by `prepack`; `bin`/`main`/`types`/`exports` point at `dist`. Development is unchanged (raw `.ts` via `--experimental-strip-types`); zero *runtime* deps preserved (`typescript` is a devDep). Installed-package smoke test (`scripts/smoke-package.sh`) wired as a separate CI job.
@@ -15,7 +15,8 @@ Addressed the round-two readiness review (`docs/SOUNDCHECK_ROUND2_READINESS_REVI
 ### Fixed
 - **Windows cassette-path containment** uses `path.relative` (separator-agnostic), not `startsWith(root + "/")`.
 - **Strict lint clean** (`eslint . --max-warnings=0`): narrow `DeepgramListenResponse` type for the STT parse; dropped the adapter test's `as any`.
-- README Action snippet pins `@v2.0.0-rc.1` (an existing tag); example-README polish (stray fence, offline `--replay` commands, restaurant replay caveat).
+- README Action snippet pins `@v2` (the `v2` + `v2.0.0` stable tags are cut on the released HEAD); example-README polish (stray fence, offline `--replay` commands, restaurant replay caveat).
+- **Round-3:** `goal_reached` keys on a `goalDriven` signal (not `scenario.goal`), so it guards a forced `--caller goal` run on a no-`goal` scenario and no longer false-fails a goal scenario run scripted. The `lint` script enforces `--max-warnings=0` (so `validate`/CI fail on any warning). `@types/node` declared as an optional peer dependency for TypeScript consumers (public types reference `Buffer`/`node:path`), with a consumer `tsc --noEmit` step added to the package smoke. Latency detail prints `n/a` (not `n/ams`) when no TTFB. README notes the bundled examples are source references (copy out to run).
 
 ## [2.0.0] — 2026-05 (the STS dream)
 
