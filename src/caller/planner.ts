@@ -47,6 +47,14 @@ const callerFunction = {
     properties: {
       action: { type: "string", enum: ["say", "hangup"], description: "say = speak the utterance; hangup = the goal is met, end the call" },
       utterance: { type: "string", description: "What the caller says next, in character (empty when hanging up)" },
+      interrupt: {
+        type: "object",
+        description: "OPTIONAL barge-in: to cut the agent off, set this — after you speak `utterance`, once the agent starts replying you talk over it. Use sparingly, only to test how it handles interruption.",
+        properties: {
+          text: { type: "string", description: "What you say while cutting in." },
+          afterMs: { type: "number", description: "Wait this many ms after the agent starts replying, then cut in (small, e.g. 250)." },
+        },
+      },
     },
     required: ["action", "utterance"],
   },
@@ -134,11 +142,16 @@ export function plannerPrompt(input: PlanInput): string {
 /** Tolerant parse of caller_turn args (small models occasionally emit malformed JSON). */
 export function parseCallerTurn(argsJson: string): PlanDecision {
   try {
-    const o = JSON.parse(argsJson) as { action?: unknown; utterance?: unknown };
-    return {
+    const o = JSON.parse(argsJson) as { action?: unknown; utterance?: unknown; interrupt?: unknown };
+    const decision: PlanDecision = {
       action: o.action === "hangup" ? "hangup" : "say",
       utterance: typeof o.utterance === "string" ? o.utterance : "",
     };
+    const it = o.interrupt as { text?: unknown; afterMs?: unknown } | undefined; // L4: optional barge-in
+    if (it && typeof it.text === "string" && typeof it.afterMs === "number") {
+      decision.interrupt = { text: it.text, afterMs: it.afterMs };
+    }
+    return decision;
   } catch {
     const action = /"action"\s*:\s*"hangup"/i.test(argsJson) ? "hangup" : "say";
     const m = argsJson.match(/"utterance"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
