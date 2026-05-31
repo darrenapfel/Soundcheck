@@ -1,7 +1,7 @@
 # Soundcheck — STS-v2 Completion Report
 
 **Build:** the "CoStar for voice" dream (Scenario → Trace → Assess → Refine), STS-focused.
-**Status:** all milestones M1–M8 shipped, oracle/test-verified, independently reviewed; final 3-agent release panel signed off; plus the post-release self-improving loop, the `no_spoken_cardinal_ids` gate, five example domains, and the public API surface (see `docs/REVIEW_LOG.md` for the standalone-review coverage note on those last four). **The M1–M8 evidence below was at 113 tests; the current suite — after the post-M8 round-two readiness work + all caller gaps closed — is 144 deterministic tests, 0 lint errors AND 0 warnings, fully offline CI (see the addendum).**
+**Status:** all milestones M1–M8 shipped, oracle/test-verified, independently reviewed; final 3-agent release panel signed off; plus the post-release self-improving loop, the `no_spoken_cardinal_ids` gate, five example domains, and the public API surface (see `docs/REVIEW_LOG.md` for the standalone-review coverage note on those last four). **The M1–M8 evidence below was at 113 tests; the current suite — after the post-M8 round-two readiness work + all caller gaps closed — is 148 deterministic tests, 0 lint errors AND 0 warnings, fully offline CI (see the addendum).**
 **Cardinal rule honored throughout:** every claim below is backed by **the oracle (Soundcheck's own STT over the real recording)** or a **deterministic test** — never a proxy.
 
 ---
@@ -70,7 +70,7 @@ Default + CI operation needs **only `DEEPGRAM_API_KEY`** (caller brain, voice, S
 
 ## Verification summary
 
-- `npm run validate` → **144/144** (was 113/113 at the M8 panel), deterministic, green on a **fresh keyless `/tmp` clone** and across repeated runs; **0 lint errors and 0 warnings**.
+- `npm run validate` → **148/148** (was 113/113 at the M8 panel), deterministic, green on a **fresh keyless `/tmp` clone** and across repeated runs; **0 lint errors and 0 warnings**.
 - CI (`.github/workflows/ci.yml`) runs `npm run validate` on Node 22 with **no key**, replaying cassettes.
 - No committed secret (`.env` untracked; key prefixes only in the scanner test).
 - Every M1–M8 milestone independently reviewed (`docs/REVIEW_LOG.md`, STS-v2 M1–M8 + the final 3-agent panel); the self-improving loop also got its own independent review. The four post-M8 additions reviewed only as part of that loop review (cardinal-ids gate, three extra domains, public API surface, caller hardening) are test-covered but lack standalone review rows — flagged in `docs/REVIEW_LOG.md`.
@@ -78,7 +78,7 @@ Default + CI operation needs **only `DEEPGRAM_API_KEY`** (caller brain, voice, S
 
 ## Addendum — public-readiness + caller gaps closed (post-M8)
 
-After the M8 panel, a round-two readiness review and the caller-gap work landed. **Current tally: 144 deterministic tests, 0 lint errors AND 0 warnings (`eslint . --max-warnings=0`), plus an installed-package `smoke` CI job; the package builds to `dist` at publish time (dev stays raw `.ts`).** All caller gaps (`docs/CALLER_GAPS.md`: H1–H4, M1–M6, L1–L5) are closed.
+After the M8 panel, a round-two readiness review and the caller-gap work landed. **Current tally: 148 deterministic tests, 0 lint errors AND 0 warnings (`eslint . --max-warnings=0`), plus an installed-package `smoke` CI job; the package builds to `dist` at publish time (dev stays raw `.ts`).** All caller gaps (`docs/CALLER_GAPS.md`: H1–H4, M1–M6, L1–L5) are closed.
 
 **Proof matrix — caller Phases 2 & 3** (the deterministic test is the gating proof; what Soundcheck controls is the caller's prompt/policy — the live brain's adherence is stochastic, treated as exploratory):
 

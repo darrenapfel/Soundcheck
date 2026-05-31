@@ -73,4 +73,4 @@ Addressed **L2, L1, L4**. One `PERSONA_VOICE` source (evaline.ts) re-exported by
 distinct per-persona Aura-2 voices (live-verified distinct audio); goal-driven barge-in via
 `PlanDecision.interrupt`.
 
-*(All phases shipped — the tracked-gaps table is empty. Suite: 144 tests, 0 lint errors/warnings.)*
+*(All phases shipped — the tracked-gaps table is empty. Suite: 148 tests, 0 lint errors/warnings.)*
