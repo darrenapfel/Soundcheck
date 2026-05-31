@@ -5,12 +5,15 @@
 import type { Persona, Scenario } from "../types.ts";
 import type { CallerTurn } from "../adapters/types.ts";
 
-// v0 uses one known-good Aura-2 voice (distinct from the AUT's default thalia).
-// Distinct per-persona voices land in v1.
-const PERSONA_VOICE: Record<Persona, string> = {
-  cooperative: "aura-2-orion-en",
+/** The caller's voice per persona — the SINGLE source of truth (re-exported by policy.ts and
+ *  the public API). DISTINCT Aura-2 voices so a prosody-sensitive agent can *hear* the persona,
+ *  and all distinct from the AUT's default (thalia): cooperative is warm, impatient is clipped,
+ *  adversarial is a different register again. (Soundcheck gates behavior, not acoustics — see
+ *  docs/LIMITATIONS.md — so the voice is for realism + report listening, not a gated signal.) */
+export const PERSONA_VOICE: Record<Persona, string> = {
+  cooperative: "aura-2-asteria-en",
   impatient: "aura-2-orion-en",
-  adversarial: "aura-2-orion-en",
+  adversarial: "aura-2-orpheus-en",
 };
 
 export function evalineTurns(scenario: Scenario): CallerTurn[] {

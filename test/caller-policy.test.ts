@@ -3,11 +3,26 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ScriptedCaller, GoalDrivenCaller, type PlanFn, type CallerContext, type CallerExchange } from "../src/caller/policy.ts";
+import { ScriptedCaller, GoalDrivenCaller, PERSONA_VOICE as PV_POLICY, type PlanFn, type CallerContext, type CallerExchange } from "../src/caller/policy.ts";
+import { PERSONA_VOICE as PV_EVALINE } from "../src/caller/evaline.ts";
 import { parseCallerTurn, plannerPrompt } from "../src/caller/planner.ts";
 import type { Scenario } from "../src/types.ts";
 
 const ctx = (turnIndex: number, lastAgent = "", history: CallerExchange[] = []): CallerContext => ({ turnIndex, lastAgent, history });
+
+test("PERSONA_VOICE has ONE source of truth: policy re-exports evaline's (L2)", () => {
+  // policy.ts imports + re-exports the canonical map from the lower module (evaline.ts).
+  // Same reference => no second definition that can drift.
+  assert.strictEqual(PV_POLICY, PV_EVALINE, "policy must re-export evaline's PERSONA_VOICE, not redefine it");
+});
+
+test("each persona gets a DISTINCT caller voice (L1)", () => {
+  const voices = Object.values(PV_POLICY);
+  assert.equal(voices.length, 3);
+  assert.equal(new Set(voices).size, 3, `expected 3 distinct persona voices, got ${voices.join(", ")}`);
+  // and none collides with the AUT's default speaking voice (thalia) — Evaline stays audibly separate.
+  assert.ok(!voices.includes("aura-2-thalia-en"), "caller voices must differ from the AUT default (thalia)");
+});
 
 test("ScriptedCaller plays actions in order, then hangs up", async () => {
   const c = new ScriptedCaller([{ text: "one", voice: "v" }, { text: "two", voice: "v" }]);

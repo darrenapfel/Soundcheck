@@ -8,16 +8,12 @@
 //                        agent's last reply + a goal, and hangs up when the goal is met.
 
 import type { Persona, Scenario, TerminationReason } from "../types.ts";
-import { evalineTurns } from "./evaline.ts";
+import { evalineTurns, PERSONA_VOICE } from "./evaline.ts";
 
 export type { TerminationReason };
-
-// v0 uses one known-good Aura-2 caller voice (distinct from the AUT's default thalia).
-export const PERSONA_VOICE: Record<Persona, string> = {
-  cooperative: "aura-2-orion-en",
-  impatient: "aura-2-orion-en",
-  adversarial: "aura-2-orion-en",
-};
+// PERSONA_VOICE's single source of truth lives in the lower module (evaline.ts); re-export it
+// so the public API (src/index.ts) and callers keep importing it from here unchanged (L2).
+export { PERSONA_VOICE };
 
 /** One completed exchange, as seen by the caller (agent = the agent's own text reply). */
 export interface CallerExchange {
