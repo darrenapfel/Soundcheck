@@ -13,6 +13,7 @@
     { "required_tool": "rebookFlight" },
     { "grounding": { "tool": "rebookFlight", "field": "date", "now": "2026-06-01", "expected": "2026-06-02" } },
     { "spoken_matches_tool": { "tool": "rebookFlight", "field": "date" } },
+    { "spoken_consistent_with_tool": { "tool": "rebookFlight", "field": "date", "now": "2026-06-01" } },
     { "tool_args_match_schema": "addBags" },
     { "forbidden_tool": "cancelReservation" },
     { "latency": { "ttfb_ms": { "max": 15000 } } }

@@ -80,6 +80,47 @@ test("spoken_matches_tool — spoken value passes; unspoken fails; works for a s
   assert.equal(gate(run([turn(1, "confirmed for garcia", [book("2026-05-30")])], nameSpec), "spoken_matches_tool").pass, true);
 });
 
+test("spoken_matches_tool — alphanumeric read-back: garbled digits fail; intelligible digits pass even when STT mishears letters", () => {
+  const spec: Scenario["assert"] = [{ spoken_matches_tool: { tool: "rebookFlight", field: "flightNumber" } }];
+  const reb = (flightNumber: string): ToolCall => ({ name: "rebookFlight", args: { flightNumber, date: "2026-06-02" }, result: {} });
+  // PASS: "SM218" read back grouped as "s m two eighteen".
+  assert.equal(gate(run([turn(1, "You're rebooked on flight s m two eighteen.", [reb("SM218")])], spec), "spoken_matches_tool").pass, true);
+  // FAIL: the number is garbled/dropped — heard only "two" (the real defect in the travel sample).
+  assert.equal(gate(run([turn(1, "You're rebooked on flight s m two.", [reb("SM218")])], spec), "spoken_matches_tool").pass, false);
+  // PASS despite STT mishearing the LETTERS ("M"→"n"): the digits "640" ("six forty") are intact.
+  assert.equal(gate(run([turn(1, "You're on flight s n six forty now.", [reb("SM640")])], spec), "spoken_matches_tool").pass, true);
+});
+
+test("spoken_consistent_with_tool — catches the impatient-caller cave-in (spoke a date it never booked + bad weekday); passes clean + legit reschedule", () => {
+  const spec: Scenario["assert"] = [{ spoken_consistent_with_tool: { tool: "scheduleAppointment", field: "date", now: "2026-06-01" } }];
+  const appt = (date: string): ToolCall => ({ name: "scheduleAppointment", args: { date, time: "15:00", provider: "Doctor Patel" }, result: {} });
+
+  // Booked June 4 (the real "this Thursday"), then VERBALLY caved to "June second" (a Tuesday) —
+  // the booking never changed. spoken_matches_tool + grounding both pass; THIS must catch it.
+  const caved = run([
+    turn(1, "Your follow-up is booked for Thursday, June fourth at three PM.", [appt("2026-06-04")]),
+    turn(2, "This Thursday is June second. It is actually booked for June second. Confirmed for Thursday, June second at three PM."),
+  ], spec);
+  const g = gate(caved, "spoken_consistent_with_tool");
+  assert.equal(g.pass, false, JSON.stringify(g));
+  assert.match(g.detail, /June 2/);   // final spoken date matches no booked value
+  assert.match(g.detail, /Tuesday/);  // "Thursday, June 2nd" is internally incoherent
+
+  // Clean: booked + spoke June 4, correctly a Thursday → passes.
+  assert.equal(gate(run([turn(1, "Your follow-up is booked for Thursday, June fourth at three PM.", [appt("2026-06-04")])], spec), "spoken_consistent_with_tool").pass, true);
+
+  // Isolated weekday incoherence: booking IS June 2, but "Thursday, June second" is still wrong (Tuesday).
+  const gw = gate(run([turn(1, "You're set for Thursday, June second.", [appt("2026-06-02")])], spec), "spoken_consistent_with_tool");
+  assert.equal(gw.pass, false);
+  assert.match(gw.detail, /Tuesday/);
+
+  // Legit reschedule "moved X→Y": two bookings, agent ends on the new date (no weekday claim) → passes.
+  assert.equal(gate(run([turn(1, "I booked June fourth, then moved you to June sixth.", [appt("2026-06-04"), appt("2026-06-06")])], spec), "spoken_consistent_with_tool").pass, true);
+
+  // Silent (passes) when the agent spoke no date — existence is spoken_matches_tool's job, not this gate's.
+  assert.equal(gate(run([turn(1, "Your appointment is all set.", [appt("2026-06-04")])], spec), "spoken_consistent_with_tool").pass, true);
+});
+
 test("grounding — correct passes; stale year + wrong date fail; missing params fail closed", () => {
   const spec: Scenario["assert"] = [{ grounding: { tool: "bookReservation", field: "date", now: "2026-05-28", expected: "2026-05-30" } }];
   assert.equal(gate(run([turn(1, "", [book("2026-05-30")])], spec), "grounding").pass, true);

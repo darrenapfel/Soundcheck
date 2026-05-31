@@ -77,6 +77,7 @@ You *declare* a scenario's invariants; the registry enforces them deterministica
   { "tool_args_match_schema": "bookAppointment" },                   // type/required/format/enum/pattern
   { "tool_sequence": ["verifyIdentity", "before", "accessRecord"] }, // ordering invariants
   { "spoken_matches_tool": { "field": "date", "tool": "bookAppointment" } }, // say what you did
+  { "spoken_consistent_with_tool": { "field": "date", "tool": "bookAppointment", "now": "2026-05-29" } }, // don't verbally cave to a date you never booked
   { "required_tool": "scheduleCallback" },
   { "forbidden_tool": "chargeCard" },
   { "grounding": { "tool": "bookAppointment", "field": "date", "now": "2026-05-29", "expected": "2026-05-30" } }, // resolve relative dates

@@ -48,6 +48,7 @@ export type AssertSpec =
   | { tool_sequence: [string, "before", string] }
   | { tool_args_match_schema: string }
   | { spoken_matches_tool: { tool: string; field: string } }
+  | { spoken_consistent_with_tool: { tool?: string; field: string; now: string } }
   | { grounding: { tool?: string; field?: string; now: string; expected: string } }
   | { latency: { ttfb_ms?: { max: number }; turn_ms?: { max: number } } };
 
