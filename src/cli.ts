@@ -24,7 +24,7 @@ import { spawnSync } from "node:child_process";
 import { generateReport } from "./report/html.ts";
 import { compareRuns, formatBakeoff } from "./bakeoff/index.ts";
 import { promoteTrace } from "./regress/index.ts";
-import type { AUTConfig, Scenario, ScenarioResult, Trace } from "./types.ts";
+import type { AUTConfig, Persona, Scenario, ScenarioResult, Trace } from "./types.ts";
 import type { ConversationCapture } from "./adapters/types.ts";
 
 function parseArgs(argv: string[]) {
@@ -49,11 +49,12 @@ async function loadAut(path: string): Promise<AUTConfig> {
   return cfg as AUTConfig;
 }
 
+const VALID_PERSONAS: Persona[] = ["cooperative", "impatient", "adversarial"];
+
 function loadScenarios(dir: string): Scenario[] {
   const abs = resolve(process.cwd(), dir);
   const files = readdirSync(abs).filter((f) => f.endsWith(".json")).sort();
   // Keep only well-formed scenario files (skips rubric.json and any other JSON).
-  const VALID_PERSONAS = ["cooperative", "impatient", "adversarial"];
   const scenarios = files
     .map((f) => JSON.parse(readFileSync(join(abs, f), "utf8")) as Scenario)
     .filter((s) => s && typeof s.name === "string" && Array.isArray(s.assert));
@@ -116,12 +117,19 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
     scenarios = scenarios.filter((s) => s.name.includes(opts.only as string));
     if (scenarios.length === 0) { console.error(`\n✖ --only "${opts.only}" matched no scenarios in ${dir} — fail-closed (a filter typo must not report green).\n`); process.exit(2); }
   }
+  // --persona: drive ANY scenario as a different caller (cooperative | impatient | adversarial)
+  // without editing the scenario file — used to record the same scenario across all three callers.
+  const personaOverride = typeof opts.persona === "string" ? opts.persona : undefined;
+  if (personaOverride && !VALID_PERSONAS.includes(personaOverride as Persona)) {
+    console.error(`\n✖ --persona "${personaOverride}" is not one of: ${VALID_PERSONAS.join(", ")}.\n`); process.exit(2);
+  }
   const adapter = useMockAdapter ? new MockAUTAdapter({ buggy: opts.buggy === true }) : new DeepgramVoiceAgentAdapter();
   const mode = useMockAdapter ? `mock (offline${opts.buggy === true ? ", buggy" : ""})` : replay ? "replay (offline)" : record ? "live + record" : "live";
   console.log(`\nSoundcheck — running ${scenarios.length} scenario(s) against AUT "${aut.label}" — mode: ${mode}\n`);
 
   const results: ScenarioResult[] = [];
-  for (const scenario of scenarios) {
+  for (const base of scenarios) {
+    const scenario = personaOverride ? { ...base, persona: personaOverride as Persona } : base;
     if (replay && (scenario.liveOnly || scenario.fixtureOnly)) {
       const why = scenario.liveOnly ? "live-only (goal-driven)" : "fixture-only (authoring/tuning input)";
       console.log(`↷ ${scenario.name}: ${why} — skipped in --replay (drop --replay + set your key to run it)`);
@@ -336,9 +344,11 @@ async function cmdBakeoff(positional: string[], opts: Record<string, string | bo
 function help() {
   console.log(`Soundcheck — voice-agent test harness (Deepgram-key-only)
 
-  soundcheck run <scenariosDir> [--aut <config.ts>] [--out <report.html>] [--record|--replay] [--only <name>]
+  soundcheck run <scenariosDir> [--aut <config.ts>] [--out <report.html>] [--record|--replay] [--only <name>] [--persona <p>]
       Drive Evaline against the agent-under-test, gate the result, write a report.
       Default --aut: examples/tabletalk/grounded.ts. Exits non-zero iff a gate fails.
+      --persona cooperative|impatient|adversarial : override the caller persona for ALL scenarios
+                 in this run (e.g. record the same scenario across all three callers).
       --adapter mock : test a creds-free deterministic mock agent (no key/network); add --buggy to inject faults.
                        (default adapter = deepgram-va; the openai-realtime adapter is a code-level reference, not selectable here.)
       --record : live run, then save a cassette for deterministic replay.

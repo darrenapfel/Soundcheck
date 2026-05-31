@@ -41,6 +41,12 @@ test("replay of an all-live-only suite FAILS CLOSED (exit 2), never a vacuous gr
   assert.doesNotMatch(r.stdout, /all gates passed/);
 });
 
+test("run --persona with an invalid value FAILS CLOSED (exit 2)", () => {
+  const r = cli(["run", "scenarios", "--aut", "examples/tabletalk/grounded.ts", "--replay", "--persona", "grumpy"]);
+  assert.equal(r.status, 2, `expected exit 2, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /not one of: cooperative, impatient, adversarial/);
+});
+
 test("the GitHub Action's run shape works: SOUNDCHECK_CASSETTE_DIR override + run --aut --replay", () => {
   // Mirrors action.yml: `run <scenarios> --aut <aut> --replay` with the cassette dir from an env var.
   const r = spawnSync("node", ["--experimental-strip-types", "src/cli.ts", "run", "scenarios", "--aut", "examples/tabletalk/grounded.ts", "--replay", "--only", "book-modify-confirm", "--out", "/tmp/sc-action.html"],
