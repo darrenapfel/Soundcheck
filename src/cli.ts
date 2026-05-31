@@ -174,7 +174,7 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   }
   mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
   const out = (opts.out as string) ?? `runs/report-${aut.label}.html`;
-  writeFileSync(resolve(process.cwd(), out), generateReport(results, new Date().toISOString()));
+  writeFileSync(resolve(process.cwd(), out), generateReport(results, new Date().toISOString(), { fullCallAudioOnly: opts.lean === true }));
   const allPass = results.every((r) => r.passed);
   console.log(`\n${allPass ? "✅ all gates passed" : "🚩 gate failures present"} — report: ${out}\n`);
   process.exit(allPass ? 0 : 1);
@@ -349,6 +349,8 @@ function help() {
       Default --aut: examples/tabletalk/grounded.ts. Exits non-zero iff a gate fails.
       --persona cooperative|impatient|adversarial : override the caller persona for ALL scenarios
                  in this run (e.g. record the same scenario across all three callers).
+      --lean : smaller report — keep the full-call recording + oracle transcript, omit the per-turn
+                 audio clips (~10x smaller; for the committed sample gallery).
       --adapter mock : test a creds-free deterministic mock agent (no key/network); add --buggy to inject faults.
                        (default adapter = deepgram-va; the openai-realtime adapter is a code-level reference, not selectable here.)
       --record : live run, then save a cassette for deterministic replay.

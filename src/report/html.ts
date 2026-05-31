@@ -4,17 +4,20 @@ import type { ScenarioResult } from "../types.ts";
 
 const esc = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 
-export function generateReport(results: ScenarioResult[], generatedAt: string): string {
+/** @param opts.fullCallAudioOnly keep the full-call recording (the listenable artifact) but omit
+ *  the per-turn audio clips — yields a ~10x smaller, still-listenable report for the sample gallery. */
+export function generateReport(results: ScenarioResult[], generatedAt: string, opts: { fullCallAudioOnly?: boolean } = {}): string {
   const totalGates = results.reduce((a, r) => a + r.gates.length, 0);
   const passedGates = results.reduce((a, r) => a + r.gates.filter((g) => g.pass).length, 0);
   const allPass = results.every((r) => r.passed);
+  const perTurnAudio = !opts.fullCallAudioOnly;
 
   const sections = results.map((r) => {
     const gateRows = r.gates.map((g) => `<tr class="${g.pass ? "pass" : "fail"}"><td>${g.pass ? "✅" : "🚩"}</td><td><code>${esc(g.name)}</code></td><td>${esc(g.detail)}</td></tr>`).join("");
     const wavEl = (buf: Buffer) => `<audio controls preload="none" src="data:audio/wav;base64,${buf.toString("base64")}"></audio>`;
     const turnRows = r.transcript.turns.map((t) => {
-      const agentAudio = t.audioWav ? wavEl(t.audioWav) : "<em>—</em>";
-      const callerAudio = t.callerAudioWav ? wavEl(t.callerAudioWav) : "<em>—</em>";
+      const agentAudio = perTurnAudio && t.audioWav ? wavEl(t.audioWav) : "<em>—</em>";
+      const callerAudio = perTurnAudio && t.callerAudioWav ? wavEl(t.callerAudioWav) : "<em>—</em>";
       const tools = t.toolCalls.map((tc) => `${esc(tc.name)}(${esc(JSON.stringify(tc.args))})`).join("<br>") || "—";
       return `<tr>
         <td>${t.turn}</td>

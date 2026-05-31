@@ -58,6 +58,15 @@ test("report shows the oracle transcript, the gate rows, and the advisory judge"
   assert.match(html, /sounded a bit terse/);  // judge finding rendered
 });
 
+test("lean report keeps the full-call audio but omits per-turn clips (gallery mode)", () => {
+  const lean = generateReport([result], "2026-05-30T00:00:00Z", { fullCallAudioOnly: true });
+  assert.match(lean, new RegExp(`data:audio/wav;base64,${Buffer.from("FULLCALLWAV").toString("base64")}`)); // full call stays
+  assert.doesNotMatch(lean, new RegExp(`data:audio/wav;base64,${Buffer.from("AGENTWAV").toString("base64")}`));  // per-turn dropped
+  assert.doesNotMatch(lean, new RegExp(`data:audio/wav;base64,${Buffer.from("CALLERWAV").toString("base64")}`)); // per-turn dropped
+  assert.match(lean, /Your table for two is booked\./); // oracle transcript still rendered
+  assert.match(lean, /no_spoken_symbols/);              // gates still rendered
+});
+
 test("report ESCAPES untrusted text (no raw HTML injection from caller/gate output)", () => {
   assert.doesNotMatch(html, /table <for 2>/);     // caller said — must be escaped
   assert.match(html, /table &lt;for 2&gt;/);
