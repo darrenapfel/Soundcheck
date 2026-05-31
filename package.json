@@ -58,6 +58,7 @@
     "voice-agent",
     "regression"
   ],
+  "dependencies": {},
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
