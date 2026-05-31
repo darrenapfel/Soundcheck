@@ -2,6 +2,15 @@
 
 All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
 
+## [2.1.0] — 2026-05-31
+
+### Fixed
+- **Recordings no longer contain inter-turn dead air.** A goal-driven caller's brain takes real time to decide each next line; the recorder now pauses during that gap (and the line synthesis) and resumes when the caller speaks, so the saved call is the conversation itself — no ~10–20 s silences between turns. Within-turn timing and barge-in overlaps are preserved; the oracle transcript and per-turn latency metrics are unchanged.
+
+### Added
+- `run --persona cooperative|impatient|adversarial` — override the caller persona for a run (drive any scenario as any of the three callers).
+- `run --lean` (embed only the full-call recording) and `run --mp3` (transcode embedded audio to MP3 via ffmpeg, ~10× smaller) — for compact, listenable sample reports. The shipped report path is unchanged (WAV, no extra dependency); the encoder is opt-in.
+
 ## [2.0.1] — 2026-05-31 (public-readiness pass)
 
 Hardened the harness across several rounds of independent readiness review and closed every synthetic-caller gap (Phases 1–3). **148 deterministic tests, 0 lint errors/warnings, fully offline CI.** The `v2.0.0` tag stays immutable; `v2.0.1` is cut on this commit and the `v2` major alias moves to it.

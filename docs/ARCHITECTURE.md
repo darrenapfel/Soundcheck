@@ -1,6 +1,6 @@
 # Soundcheck — Architecture
 
-> Status: **v2.0.1** — this document describes the system design, and the system is now built. See [`LIMITATIONS.md`](LIMITATIONS.md) for exactly what it does and does not do. Shipped: **9 deterministic gates** in a composable registry, the round-trip validator, the advisory judge + calibration/alignment, autonomous authoring, the trace-driven tuning loop, the self-improving loop (discover → promote → refine), A/B & vendor bake-off, two CLI-selectable adapters (Deepgram VA + MockAUT) plus one reference adapter (OpenAI Realtime), scripted **and** reactive goal-driven callers including an adversarial red-team persona, and a reusable composite GitHub Action.
+> Status: **v2.1.0** — this document describes the system design, and the system is now built. See [`LIMITATIONS.md`](LIMITATIONS.md) for exactly what it does and does not do. Shipped: **9 deterministic gates** in a composable registry, the round-trip validator, the advisory judge + calibration/alignment, autonomous authoring, the trace-driven tuning loop, the self-improving loop (discover → promote → refine), A/B & vendor bake-off, two CLI-selectable adapters (Deepgram VA + MockAUT) plus one reference adapter (OpenAI Realtime), scripted **and** reactive goal-driven callers including an adversarial red-team persona, and a reusable composite GitHub Action.
 
 ## 1. What Soundcheck is
 
@@ -210,7 +210,7 @@ soundcheck/
 ├── examples/            # tabletalk, support, healthcare, banking, travel, authored-*, tune-demo,
 │                        #   interactive, self-improving-loop
 ├── fixtures/cassettes/  # recorded runs for deterministic replay in CI
-├── test/                # the deterministic suite (148 tests; see TESTING.md)
+├── test/                # the deterministic suite (152 tests; see TESTING.md)
 ├── docs/                # ABOUT.md, ARCHITECTURE.md, TESTING.md, CALIBRATION.md, LIMITATIONS.md
 ├── action.yml           # reusable composite GitHub Action
 └── .github/workflows/   # ci.yml (validate) + nightly.yml (live)
