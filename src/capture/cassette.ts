@@ -21,6 +21,7 @@ interface CassetteFile {
   recordedAtNote: string; // human note; NOT a real timestamp (kept out for reproducible diffs)
   oracleTranscript?: string; // v2+: Soundcheck's own STT of the full recording (ground truth)
   terminationReason?: TerminationReason; // why the caller ended (Phase 1); replay preserves it
+  goalDriven?: boolean; // was a goal-driven caller driving (vs scripted) — gates the goal_reached check
   turns: CapturedTurn[];
 }
 
@@ -81,6 +82,7 @@ export function saveCassette(t: Trace): void {
     recordedAtNote: "recorded via `soundcheck run --record` (re-record only via reviewed PR)",
     ...(t.oracleTranscript ? { oracleTranscript: t.oracleTranscript } : {}),
     ...(t.terminationReason ? { terminationReason: t.terminationReason } : {}),
+    ...(t.goalDriven ? { goalDriven: t.goalDriven } : {}),
     turns,
   };
   writeFileSync(cassettePath(t.scenario, t.autLabel), JSON.stringify(data, null, 2) + "\n");
@@ -93,5 +95,5 @@ export function loadCassette(scenario: string, autLabel: string): Trace {
   }
   const data = JSON.parse(readFileSync(path, "utf8")) as CassetteFile;
   if (!SUPPORTED_VERSIONS.has(data.version)) throw new Error(`cassette ${path} is version ${data.version}, supported: ${[...SUPPORTED_VERSIONS].join(", ")}`);
-  return { scenario: data.scenario, persona: data.persona, autLabel: data.autLabel, turns: data.turns, oracleTranscript: data.oracleTranscript, terminationReason: data.terminationReason };
+  return { scenario: data.scenario, persona: data.persona, autLabel: data.autLabel, turns: data.turns, oracleTranscript: data.oracleTranscript, terminationReason: data.terminationReason, goalDriven: data.goalDriven };
 }
