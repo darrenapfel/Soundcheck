@@ -4,12 +4,13 @@ All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; ve
 
 ## [Unreleased] — public-readiness pass
 
-Addressed the round-two readiness review (`docs/SOUNDCHECK_ROUND2_READINESS_REVIEW.md`) and the pinned caller Phase 1. **137 deterministic tests, 0 lint errors/warnings, fully offline CI.**
+Addressed the round-two readiness review (`docs/SOUNDCHECK_ROUND2_READINESS_REVIEW.md`) and closed **all** caller gaps (`docs/CALLER_GAPS.md`, Phases 1–3). **144 deterministic tests, 0 lint errors/warnings, fully offline CI.**
 
 ### Added
 - **Publish-time build** so the installed npm package runs: `tsconfig.build.json` emits `dist/**/*.js` + `.d.ts` from `src/` (`.ts` import specifiers rewritten to `.js`), run by `prepack`; `bin`/`main`/`types`/`exports` point at `dist`. Development is unchanged (raw `.ts` via `--experimental-strip-types`); zero *runtime* deps preserved (`typescript` is a devDep). Installed-package smoke test (`scripts/smoke-package.sh`) wired as a separate CI job.
 - **Machine-readable example contract:** every scenario is replay-backed, `liveOnly`, or `fixtureOnly`; `test/example-contract.test.ts` fails on any hole. `run`/`bakeoff --replay` skip `liveOnly`/`fixtureOnly` honestly (no missing-cassette errors).
 - **Caller termination integrity** (CALLER_GAPS Phase 1): a `TerminationReason` (`goal_met` | `turn_cap` | `planner_error` | `repeat_guard` | `script_exhausted`) is tagged on every end, threaded onto the `Trace` (persisted in the cassette), shown in the report, and enforced by a synthetic `goal_reached` gate — a goal-driven call is a clean pass only when it ended `goal_met`. A wrap-up turn at the cap (H4); planner failures become a holding line + tagged `planner_error` (M4); a read-back rule before hangup (M1).
+- **Caller realism + polish (CALLER_GAPS Phases 2–3 — all gaps now closed):** mid-call silence is told apart from turn 0 and prods ("Are you still there?") instead of re-greeting (M3); a cross-persona rule challenges unsafe/wrong agent behavior, not just the adversarial persona (M5); a `committedFacts()` "facts you've committed to" block keeps a re-ask consistent (M6); distinct Aura-2 voice per persona — cooperative `asteria`, impatient `orion`, adversarial `orpheus` (live-verified distinct audio) (L1); one `PERSONA_VOICE` source in `evaline.ts` re-exported by `policy.ts` (L2); goal-driven barge-in via `PlanDecision.interrupt` → `CallerAction.interrupt` (L4).
 
 ### Fixed
 - **Windows cassette-path containment** uses `path.relative` (separator-agnostic), not `startsWith(root + "/")`.
