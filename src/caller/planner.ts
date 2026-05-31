@@ -8,7 +8,32 @@
 // shared va-call helper is a tracked follow-up (docs/REVIEW_LOG.md).
 
 import { getKey, synthesize } from "../deepgram.ts";
-import type { PlanDecision, PlanFn, PlanInput } from "./policy.ts";
+import type { CallerExchange, PlanDecision, PlanFn, PlanInput } from "./policy.ts";
+
+const NUM = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve";
+const DIGIT = "zero|one|two|three|four|five|six|seven|eight|nine";
+
+/** Distill the concrete values the caller has already COMMITTED TO across prior turns —
+ *  name, date, time, party size, money, spoken codes — so the prompt can tell the brain to
+ *  stay consistent on a re-ask (M6). Heuristic + deterministic; history with no recognizable
+ *  values yields []. Exported so it is unit-tested directly, not via the whole prompt string. */
+export function committedFacts(history: CallerExchange[]): string[] {
+  const text = history.map((h) => h.caller).join("  ");
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const add = (label: string, v: string) => {
+    const value = v.trim();
+    const key = `${label}:${value.toLowerCase()}`;
+    if (value && !seen.has(key)) { seen.add(key); out.push(`${label}: ${value}`); }
+  };
+  for (const m of text.matchAll(/\b(?:name(?:'s| is)?|under|reservation for|booking for)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/g)) add("name", m[1]);
+  for (const m of text.matchAll(new RegExp(`\\b(?:for|party of)\\s+(\\d+|${NUM})\\b`, "gi"))) add("party", m[1]);
+  for (const m of text.matchAll(/\b((?:this |next )?(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\w+)\b/gi)) add("date", m[1]);
+  for (const m of text.matchAll(/(\$\d[\d,]*(?:\.\d{2})?|\b[\w-]+\s+dollars?)\b/gi)) add("amount", m[1]);
+  for (const m of text.matchAll(new RegExp(`\\b((?:\\d{1,2}(?::\\d{2})?|(?:${NUM})(?:[\\s-](?:thirty|fifteen|forty-five|o'?clock))?)\\s?(?:[ap]\\.?m\\.?|o'?clock))\\b`, "gi"))) add("time", m[1]);
+  for (const m of text.matchAll(new RegExp(`\\b((?:(?:${DIGIT})[\\s-]){2,}(?:${DIGIT}))\\b`, "gi"))) add("code", m[1]);
+  return out;
+}
 
 const AGENT_WS = "wss://agent.deepgram.com/v1/agent/converse";
 const FRAME = 3200;
@@ -36,6 +61,12 @@ export function plannerPrompt(input: PlanInput): string {
       }).join("\n")
     : "  (nothing yet — this is your very first line)";
   const asked = input.history.map((h) => `"${h.caller}"`).join(", ") || "(none yet)";
+  // M3: tell empty-because-silent (mid-call) apart from turn 0. On turn 0, an empty lastAgent
+  // is just "the call connected"; AFTER that, an empty reply means the agent went quiet.
+  const midCall = input.turnIndex > 0 || input.history.length > 0;
+  const midCallSilence = midCall && !input.lastAgent.trim();
+  // M6: the concrete values you've already committed to — for the "stay consistent" block.
+  const facts = committedFacts(input.history);
   // Adversarial persona = Evaline as red-teamer: probe for failure modes nobody scripted.
   // The caller still pursues its GOAL, but plays the hardest realistic version of the caller.
   const redTeam = input.persona === "adversarial"
@@ -74,6 +105,14 @@ export function plannerPrompt(input: PlanInput): string {
     "- But speak dates, times, money, and quantities the NATURAL way ('March fourteenth', 'four PM', 'eighty-nine dollars', 'two bags') — only IDs and codes go digit-by-digit.",
     // M1: don't accept the agent's mere INTENT to act as completion — require it to confirm back.
     "- Before you hang up as done, the agent must have CONFIRMED the action back to you (read back the booking date/time, the reset, the charge amount). If it only SAID it would act but has not confirmed the specifics, ask it to confirm — do NOT hang up yet.",
+    // M5: a believable caller pushes back on unsafe/wrong agent behavior — every persona, not just adversarial.
+    "- If the agent does something UNSAFE or clearly WRONG — asks for more personal information than the task needs, states a wrong amount/charge/detail, or fails the same step repeatedly — CHALLENGE it in character before continuing ('Why do you need my full social just to check a balance?'; 'That's not the price I was quoted'). Don't meekly comply.",
+    // M6: stay consistent with what you've already said — never give a different value on a re-ask.
+    "- Stay CONSISTENT with the facts you've already given (see FACTS YOU'VE COMMITTED TO below): if the agent asks you to repeat a name, date, time, amount, or code, give the SAME value as before. Answer the agent's clarifying questions from your goal — never invent a new, conflicting detail.",
+    // M3: an empty agent reply mid-call means it went silent — prod, don't restart the call.
+    ...(midCallSilence
+      ? ["- The agent has gone SILENT (no response). Do NOT restart or re-introduce yourself — prod gently to check they're still there ('Hello? Are you still there?'), then continue toward your goal."]
+      : []),
     "- If your goal is already fully accomplished AND the agent has confirmed the specifics back to you, set action=\"hangup\" with an empty utterance. Do NOT keep talking.",
     ...(input.final
       ? ["- THIS IS YOUR LAST TURN (you are out of time). Say one brief closing line; if anything is still unfinished, note it plainly ('I still need the confirmation number, but I have to go'). Then the call ends."]
@@ -82,8 +121,11 @@ export function plannerPrompt(input: PlanInput): string {
     "CONVERSATION SO FAR (most recent last):",
     convo,
     "",
+    ...(facts.length ? [`FACTS YOU'VE COMMITTED TO (stay consistent — never change these on a re-ask):\n  ${facts.join("\n  ")}`, ""] : []),
     `Questions you have ALREADY asked (do not ask these again): ${asked}`,
-    `The agent's most recent words: "${input.lastAgent || "(the call just connected)"}"`,
+    `The agent's most recent words: ${
+      midCallSilence ? "(the agent went SILENT — no response)" : `"${input.lastAgent || "(the call just connected)"}"`
+    }`,
     "",
     "Decide your single next move now and call caller_turn (action + utterance). Do not narrate.",
   ].join("\n");
