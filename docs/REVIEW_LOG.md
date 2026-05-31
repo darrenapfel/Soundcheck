@@ -14,8 +14,8 @@ overloaded (HTTP 529) and a sub-agent could not be spawned, the milestone got an
 > `docs/CALLER_GAPS.md`). The self-improving-loop review (top row) ran on HEAD, so its tree *included*
 > these commits, but its scope was the `promote`/loop capability — it did not independently audit the
 > cardinal-ids gate, the new domains, the API surface, or the caller fixes as standalone capabilities.
-> All are test-covered (113/113 green) but **not individually milestone-reviewed**. Recommend a focused
-> review pass over these before the next release tag.
+> All are test-covered (144/144 green) but **not individually milestone-reviewed** (except the caller
+> fixes, now reviewed — see the Phases 1–3 rows below). Recommend a focused review pass over the rest.
 
 | Milestone | Review | Verdict | Notes |
 |---|---|---|---|
