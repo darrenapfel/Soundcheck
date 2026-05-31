@@ -50,6 +50,29 @@ test("cassette round-trips (save -> load) and drops audio", () => {
   }
 });
 
+test("cassette round-trips terminationReason + goalDriven (round-4 P2)", () => {
+  // the goal_reached gate on a REPLAYED goal-driven cassette depends on these surviving save/load.
+  const aut = "__td__";
+  saveCassette({ ...sample(aut), terminationReason: "planner_error", goalDriven: true });
+  try {
+    const loaded = loadCassette(SCEN, aut);
+    assert.equal(loaded.terminationReason, "planner_error");
+    assert.equal(loaded.goalDriven, true);
+  } finally {
+    rmSync(cassettePath(SCEN, aut), { force: true });
+  }
+  // and a cassette without them loads as undefined (a scripted/legacy recording) — no false goal_reached.
+  const aut2 = "__nogoal__";
+  saveCassette(sample(aut2));
+  try {
+    const loaded = loadCassette(SCEN, aut2);
+    assert.equal(loaded.terminationReason, undefined);
+    assert.equal(loaded.goalDriven, undefined);
+  } finally {
+    rmSync(cassettePath(SCEN, aut2), { force: true });
+  }
+});
+
 test("loadCassette loads a legacy v1 cassette (no oracleTranscript) for back-compat", () => {
   const aut = "__v1__";
   mkdirSync(resolve(process.cwd(), CASSETTE_DIR), { recursive: true });
