@@ -51,6 +51,20 @@ async function loadAut(path: string): Promise<AUTConfig> {
 
 const VALID_PERSONAS: Persona[] = ["cooperative", "impatient", "adversarial"];
 
+/** WAV->MP3 transcoder for the sample gallery (opt-in via `run --mp3`), shrinking embedded audio
+ *  ~10x. Uses ffmpeg if present; degrades to WAV per-clip if ffmpeg is missing or fails — so the
+ *  command never breaks. NOT used on the normal report path, so the shipped package stays pure. */
+function makeMp3Encoder(): ((wav: Buffer) => { mime: string; data: Buffer }) | undefined {
+  if (spawnSync("ffmpeg", ["-version"], { encoding: "utf8" }).status !== 0) {
+    console.log("    ⚠ --mp3: ffmpeg not found on PATH — embedding WAV instead.");
+    return undefined;
+  }
+  return (wav: Buffer) => {
+    const r = spawnSync("ffmpeg", ["-loglevel", "error", "-i", "pipe:0", "-ac", "1", "-f", "mp3", "-b:a", "48k", "pipe:1"], { input: wav, maxBuffer: 128 << 20 });
+    return r.status === 0 && r.stdout?.length ? { mime: "audio/mpeg", data: r.stdout as Buffer } : { mime: "audio/wav", data: wav };
+  };
+}
+
 function loadScenarios(dir: string): Scenario[] {
   const abs = resolve(process.cwd(), dir);
   const files = readdirSync(abs).filter((f) => f.endsWith(".json")).sort();
@@ -174,7 +188,8 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   }
   mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
   const out = (opts.out as string) ?? `runs/report-${aut.label}.html`;
-  writeFileSync(resolve(process.cwd(), out), generateReport(results, new Date().toISOString(), { fullCallAudioOnly: opts.lean === true }));
+  const encodeAudio = opts.mp3 === true ? makeMp3Encoder() : undefined;
+  writeFileSync(resolve(process.cwd(), out), generateReport(results, new Date().toISOString(), { fullCallAudioOnly: opts.lean === true, encodeAudio }));
   const allPass = results.every((r) => r.passed);
   console.log(`\n${allPass ? "✅ all gates passed" : "🚩 gate failures present"} — report: ${out}\n`);
   process.exit(allPass ? 0 : 1);
@@ -350,7 +365,9 @@ function help() {
       --persona cooperative|impatient|adversarial : override the caller persona for ALL scenarios
                  in this run (e.g. record the same scenario across all three callers).
       --lean : smaller report — keep the full-call recording + oracle transcript, omit the per-turn
-                 audio clips (~10x smaller; for the committed sample gallery).
+                 audio clips (for the committed sample gallery).
+      --mp3 : transcode embedded audio to MP3 via ffmpeg (~10x smaller; pairs with --lean for
+                 a compact, committable gallery). Falls back to WAV if ffmpeg is unavailable.
       --adapter mock : test a creds-free deterministic mock agent (no key/network); add --buggy to inject faults.
                        (default adapter = deepgram-va; the openai-realtime adapter is a code-level reference, not selectable here.)
       --record : live run, then save a cassette for deterministic replay.

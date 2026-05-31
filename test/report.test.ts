@@ -67,6 +67,18 @@ test("lean report keeps the full-call audio but omits per-turn clips (gallery mo
   assert.match(lean, /no_spoken_symbols/);              // gates still rendered
 });
 
+test("encodeAudio injection transcodes embedded audio (WAV->MP3 for the gallery)", () => {
+  // a stub encoder stands in for the ffmpeg WAV->MP3 step — report stays pure + testable.
+  const calls: number[] = [];
+  const enc = generateReport([result], "2026-05-30T00:00:00Z", {
+    fullCallAudioOnly: true,
+    encodeAudio: (wav) => { calls.push(wav.length); return { mime: "audio/mpeg", data: Buffer.from("MP3:" + wav.toString("ascii")) }; },
+  });
+  assert.match(enc, new RegExp(`data:audio/mpeg;base64,${Buffer.from("MP3:FULLCALLWAV").toString("base64")}`)); // encoded + correct mime
+  assert.doesNotMatch(enc, /data:audio\/wav/); // no raw WAV left
+  assert.equal(calls.length, 1); // only the full-call recording (lean) was encoded
+});
+
 test("report ESCAPES untrusted text (no raw HTML injection from caller/gate output)", () => {
   assert.doesNotMatch(html, /table <for 2>/);     // caller said — must be escaped
   assert.match(html, /table &lt;for 2&gt;/);
