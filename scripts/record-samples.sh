@@ -9,6 +9,11 @@
 #       `caught-…-agent`, with an in-report banner so the 🚩 read as the tool working, not an outage.
 # Each is a faithful single run. --lean --mp3 keeps a sample ~0.3MB so the gallery commits cleanly.
 # One flaky live call never aborts the gallery.
+#
+# FROZEN ALIAS: samples/support.adversarial.html is an identical copy of
+# samples/caught-support-grounded-adversarial.html. The support.adversarial URL was published in an
+# external PDF before that scenario was reframed from "handled" to a real catch, so it must keep
+# resolving to the same report. It is intentionally NOT in MATRIX (not regenerated). DO NOT DELETE.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$ROOT"
