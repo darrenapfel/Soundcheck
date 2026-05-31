@@ -284,8 +284,9 @@ async function cmdTune(opts: Record<string, string | boolean>) {
     return res.stdout.trim();
   };
 
-  console.log(`\nTuning "${baseAut.label}" — train=${trainFile}, heldout=${heldoutFile}, fixer="${fixerCmd}"\n`);
-  const result = await tune(baseAut.systemPrompt, evaluate, propose, { maxIterations: Number(opts.max ?? 2) });
+  console.log(`\nTuning "${baseAut.label}" — train=${trainFile}, heldout=${heldoutFile}, fixer="${fixerCmd}"`);
+  console.log("(live: each step is a real call — a full run can take a few minutes)\n");
+  const result = await tune(baseAut.systemPrompt, evaluate, propose, { maxIterations: Number(opts.max ?? 2), onProgress: (m) => console.log(m) });
   console.log("\n" + formatTuneResult(result) + "\n");
   mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
   writeFileSync(resolve(process.cwd(), "runs", "tuned-prompt.txt"), result.finalPrompt + "\n");
