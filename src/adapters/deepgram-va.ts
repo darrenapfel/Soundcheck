@@ -251,6 +251,13 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     let lastAgent = aut.greeting ?? "Hi, thanks for calling. How can I help you today?";
     const MAX_TURNS = 16; // backstop only — a Caller normally ends itself (scripted list exhausted, or GoalDrivenCaller's own maxTurns/repetition guard)
     for (let i = 0; i < MAX_TURNS; i++) {
+      // Don't record the inter-turn gap. A goal-driven caller's brain does a fresh live round-trip
+      // to choose its next line, and we then synthesize it — that's HARNESS latency (a real caller
+      // answers promptly), so capturing it would leave ~10-20s of dead air between turns. Drain the
+      // previous turn's agent backlog into the recording, pause, then resume when the caller actually
+      // speaks. The real agent-latency signal (per-turn TTFB / turn ms) is measured separately, below.
+      while (agentQ.length) recording.push(pullAgent(4800));
+      recordingOn = false;
       const action = await caller.next({ turnIndex: i, lastAgent, history });
       if (!action) break; // caller hung up (scripted list exhausted, or goal met)
 
@@ -260,6 +267,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       const pcm = await this.#synth(action.text, { model: action.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
       const numSpeechFrames = Math.ceil(pcm.length / FRAME);
       const turnStart = Date.now();
+      recordingOn = true; // resume — the caller is about to speak
       enqueueSpeech(pcm);
       for (let s = 0; s < 12; s++) audioQueue.push(SILENCE); // ~1.2s trailing silence to endpoint
       // The caller stops *speaking* ~numSpeechFrames*100ms after the pump starts

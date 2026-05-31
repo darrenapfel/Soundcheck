@@ -96,6 +96,24 @@ test("converse records goalDriven per caller type — gates the goal_reached che
   assert.ok(!scriptedCap.goalDriven);
 }, { timeout: 20000 });
 
+test("the recorder EXCLUDES the inter-turn planner gap — no dead air between turns", async () => {
+  // A goal-driven brain takes real time to decide each line; that harness latency must NOT be
+  // recorded as silence (it would put ~10-20s of dead air between turns). Drive the SAME 1-turn
+  // call with a fast vs. a slow planner; the recording length must stay ~constant.
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const recLen = async (planDelayMs: number) => {
+    const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => new MockWs(), synth: async () => Buffer.alloc(6400, 1) });
+    let i = 0;
+    const plan: PlanFn = async () => { await sleep(planDelayMs); return i++ < 1 ? { action: "say", utterance: "hi" } : { action: "hangup", utterance: "" }; };
+    const cap = await adapter.converse(makeConfig("t", "p"), new GoalDrivenCaller({ goal: "g", persona: "cooperative", plan, maxTurns: 3 }));
+    return cap.recordingPcm?.length ?? 0;
+  };
+  const fast = await recLen(0);
+  const slow = await recLen(1200); // 1.2s of "thinking" before each line (×2 plan calls = ~2.4s of gap)
+  // ~2.4s of gap = ~115KB of silence at 24kHz/16-bit if it leaked; tolerate <0.5s of jitter.
+  assert.ok(Math.abs(slow - fast) < 24000, `planner gap leaked into the recording: fast=${fast} slow=${slow}`);
+}, { timeout: 30000 });
+
 // Regression for the recorder's MAJOR: the VA streams faster than 1x real-time, so the final
 // reply has a backlog the pump can't drain before the turn ends — it must be flushed into the
 // recording, or the most important turn is truncated from the recording + oracle transcript.
