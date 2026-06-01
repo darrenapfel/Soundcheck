@@ -2,7 +2,8 @@
 // The ONLY credential Soundcheck reads is DEEPGRAM_API_KEY (see getKey()).
 
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
+import { homedir } from "node:os";
 
 let cachedKey: string | null = null;
 
@@ -11,16 +12,26 @@ function readEnvKey(loc: string | URL): string | undefined {
   catch { return undefined; }
 }
 
+/** A user-global config file (`$XDG_CONFIG_HOME/soundcheck/.env`, else `~/.config/soundcheck/.env`):
+ *  a fallback so `soundcheck` works from ANY directory when the local project has no key. Checked
+ *  AFTER the CWD `.env`, so a project's own key always wins. */
+function globalEnvPath(): string {
+  const base = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), ".config");
+  return join(base, "soundcheck", ".env");
+}
+
 /** Resolve the Deepgram key. Precedence: env var → the caller's CWD `.env` (what the quickstart
- *  writes) → the Soundcheck package's own `.env` (repo dev only). NO other key is ever read. */
+ *  writes) → the user-global `~/.config/soundcheck/.env` (works from any directory) → the Soundcheck
+ *  package's own `.env` (repo dev only). NO other key is ever read. */
 export function getKey(): string {
   if (cachedKey) return cachedKey;
   const key =
     process.env.DEEPGRAM_API_KEY?.trim() ||
     readEnvKey(resolve(process.cwd(), ".env")) ||
+    readEnvKey(globalEnvPath()) ||
     readEnvKey(new URL("../.env", import.meta.url));
   if (!key) {
-    throw new Error("DEEPGRAM_API_KEY not set (env, ./.env, or the Soundcheck package .env). Soundcheck needs only this one key.");
+    throw new Error("DEEPGRAM_API_KEY not set (env, ./.env, ~/.config/soundcheck/.env, or the Soundcheck package .env). Soundcheck needs only this one key.");
   }
   cachedKey = key;
   return key;
