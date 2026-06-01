@@ -178,6 +178,10 @@ Everything below is shipped and oracle/test-verified.
 Soundcheck is a **pre-ship** harness today: sourcing discovered failures from *real production traffic* and *online monitoring* of live calls are separate surfaces, deliberately deferred. Standalone STT/TTS validators are out of scope by design — evaluate them after STS is great, not bundled in.
 
 ## Docs
+- 🧭 [`docs/GUIDE.md`](docs/GUIDE.md) — **start here**: how it works + the workflow, end to end
+- 🛠️ [`docs/COMMANDS.md`](docs/COMMANDS.md) — every command and flag (`run`, `author`, `tune`, `bakeoff`, `calibrate`, `validate`, `install-skill`)
+- 🚦 [`docs/GATES.md`](docs/GATES.md) — the 10 gates: what each asserts and when to declare it
+- 🎓 [`docs/TUTORIAL.md`](docs/TUTORIAL.md) — zero to a well-tuned agent, step by step
 - 📖 [`docs/ABOUT.md`](docs/ABOUT.md) — what Soundcheck is, both uses, in one page
 - 📐 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design
 - 🧪 [`docs/TESTING.md`](docs/TESTING.md) — how we earn trust (record/replay, self-evaluation, calibration)
