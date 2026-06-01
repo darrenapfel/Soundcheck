@@ -30,6 +30,14 @@ soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune until green
 
 **Install.** The quickstart above runs from a repo clone (`npm run soundcheck …`). To use Soundcheck in another project, `npm install soundcheck` (or `-g`) and call the `soundcheck` bin (or `npx soundcheck …`); the published package ships built JS, so it runs from `node_modules` with only Node 22 and zero runtime dependencies. Point `--aut` at your own agent's `.ts` config — it lives in your project, so Node strips its types normally. **TypeScript consumers** also need `@types/node` (the public types reference `Buffer`/`node:path`); it's declared as an optional peer dependency — `npm i -D @types/node` if you don't already have it. The bundled `examples/` are source references — copy one into your project to run it (they can't run in place from `node_modules`, where Node won't strip TypeScript).
 
+**🧩 Coding-agent skill.** Soundcheck ships an [Agent Skill](.claude/skills/soundcheck/SKILL.md) that teaches a coding agent (Claude Code, Codex, Gemini) how to use it — when to reach for it, every command, the 10 gates, the scenario schema, and an end-to-end tutorial. Install it into your user-global skills directory in one command:
+```bash
+soundcheck install-skill          # Claude Code + any other agent (Codex/Gemini) already on your machine
+soundcheck install-skill --all    # force all three;  --claude-only for just Claude;  --link to symlink
+# fresh clone, before `npm link`:  npm run skill:install
+```
+It also auto-loads for anyone using Claude Code inside this repo (it lives at `.claude/skills/soundcheck/`).
+
 **▶ Prefer to listen?** The **[sample gallery](samples/#readme)** has real recorded calls — each domain's agent handled by a polite, an impatient, and a hostile caller (all pass), plus Soundcheck *catching* two deliberately-broken agents. Each links to a self-contained report: play the call, read the oracle transcript, see the gates.
 
 **No agent of your own yet?** Five bundled example domains show the *same* gates working everywhere:

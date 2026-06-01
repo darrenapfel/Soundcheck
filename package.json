@@ -21,6 +21,7 @@
     "examples",
     "fixtures",
     "docs",
+    ".claude/skills",
     "CHANGELOG.md",
     "CLAUDE.md"
   ],
@@ -37,6 +38,7 @@
   },
   "scripts": {
     "soundcheck": "node --experimental-strip-types --disable-warning=ExperimentalWarning src/cli.ts",
+    "skill:install": "node --experimental-strip-types --disable-warning=ExperimentalWarning src/cli.ts install-skill",
     "run:scenarios": "node --experimental-strip-types --disable-warning=ExperimentalWarning src/cli.ts run scenarios",
     "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/*.test.ts",
     "test:coverage": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test --experimental-test-coverage test/*.test.ts",
