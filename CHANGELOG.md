@@ -2,7 +2,12 @@
 
 All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
 
-## [Unreleased]
+## [2.3.0] — 2026-06-01
+
+The agent-first release: a machine-readable `run --json` contract so a coding agent (or CI) can consume Soundcheck's failure evidence directly instead of scraping the HTML report, plus docs that lead with the published `npm install -g soundcheck-cli`.
+
+### Added
+- **`run --json` — a machine-readable failure contract for coding agents and CI.** `soundcheck run … --json` emits a stable, `schema`-versioned JSON document instead of making an agent scrape the HTML report or stdout. Per scenario it carries the gate results, the trace-driven **diagnosis** (the same evidence + remediation hint the `tune` fixer reads, so an agent patches from evidence, not gate names), what the **oracle** heard, the optional judge verdict, and a `reproduce` command to re-run just that scenario; the run summary adds a deduped `failingGates` taxonomy. Bare `--json` writes the JSON to **stdout** and routes all human output to stderr, so stdout stays a pristine parseable document; `--json <file>` writes it to a file and leaves the normal human output on stdout. The process exit code is unchanged (0 iff every gate passed). New `src/report/json.ts` (pure, I/O-free) with `test/json-report.test.ts` — unit tests over the builder plus offline end-to-end CLI runs (passing/failing replay, stdout purity, file mode).
 
 ### Changed
 - **Docs lead with the published install.** Now that the CLI is on npm as `soundcheck-cli`, the guide, command reference, tutorial, and the coding-agent skill (`SKILL.md` + `reference/commands.md` + `tutorials/zero-to-tuned.md`) present `npm install -g soundcheck-cli` (the command stays `soundcheck`) as the primary install, with the source checkout (`npm link` / `npm run soundcheck --`) kept for running the bundled examples and for contributing.
