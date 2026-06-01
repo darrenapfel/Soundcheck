@@ -23,6 +23,11 @@ Soundcheck closes that gap, and it's useful two ways:
 - **ffmpeg** *(optional)* — only for `--mp3` compact reports; everything else works without it.
 
 ### 1. Install
+The published CLI — to run Soundcheck against **your own** agent from any directory:
+```bash
+npm install -g soundcheck     # puts the `soundcheck` command on your PATH (Node 22.6+)
+```
+Or install from source — to run the bundled examples (the offline demo below) or hack on Soundcheck itself:
 ```bash
 git clone https://github.com/darrenapfel/Soundcheck.git && cd Soundcheck
 npm install        # devDeps only — zero runtime dependencies
@@ -32,7 +37,7 @@ Set your key once — Soundcheck checks, in order: the `DEEPGRAM_API_KEY` env va
 ```bash
 mkdir -p ~/.config/soundcheck && printf 'DEEPGRAM_API_KEY=dg_...\n' > ~/.config/soundcheck/.env
 ```
-*Not using `npm link`?* Prefix any command with `npm run soundcheck -- …`. *(Soundcheck installs from this repo — it isn't on the public npm registry yet. Point `--aut` at your own agent's `.ts` config; it lives in your project, so Node strips its types normally. TypeScript consumers also want `npm i -D @types/node`.)*
+*On a source checkout without `npm link`?* Prefix any command with `npm run soundcheck -- …`. Point `--aut` at your own agent's `.ts` config; it lives in your project, so Node strips its types normally. TypeScript consumers also want `npm i -D @types/node`.
 
 ### 2. Install the coding-agent skill
 Teach your coding agent how to drive Soundcheck — when to use it, every command, the 10 gates, the scenario schema, and an end-to-end tutorial ([`SKILL.md`](.claude/skills/soundcheck/SKILL.md)):
@@ -44,7 +49,7 @@ soundcheck install-skill --all    # force all three;  --claude-only for just Cla
 The skill also auto-loads for anyone using Claude Code inside this repo (`.claude/skills/soundcheck/`).
 
 ### 3. Run the basics
-**Try it offline first** — no key, no network, instant (it replays recorded calls and runs the gates):
+**Try it offline first** — no key, no network, instant (it replays recorded calls and runs the gates). Run this from a source checkout, where the example agent and its recorded calls live:
 ```bash
 soundcheck run scenarios --aut examples/tabletalk/grounded.ts --replay
 ```
