@@ -23,6 +23,7 @@ import { tune, formatTuneResult, diagnose } from "./tune/index.ts";
 import type { ScenarioSet, TuneScore, Diagnosis } from "./tune/index.ts";
 import { spawnSync } from "node:child_process";
 import { generateReport } from "./report/html.ts";
+import { buildJsonReport } from "./report/json.ts";
 import { compareRuns, formatBakeoff } from "./bakeoff/index.ts";
 import { promoteTrace } from "./regress/index.ts";
 import type { AUTConfig, Persona, Scenario, ScenarioResult, Trace } from "./types.ts";
@@ -40,6 +41,17 @@ function parseArgs(argv: string[]) {
     } else positional.push(a);
   }
   return { positional, opts: out };
+}
+
+/** The shipped package version (for the --json contract). Module-relative so it resolves the same
+ *  from src/cli.ts (dev) and dist/cli.js (installed); falls back rather than throwing. */
+function pkgVersion(): string {
+  try {
+    const p = resolve(fileURLToPath(new URL(".", import.meta.url)), "..", "package.json");
+    return (JSON.parse(readFileSync(p, "utf8")) as { version?: string }).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
 }
 
 async function loadAut(path: string): Promise<AUTConfig> {
@@ -90,6 +102,7 @@ async function acquireTranscript(
   aut: AUTConfig,
   adapter: DeepgramVoiceAgentAdapter | MockAUTAdapter,
   opts: Record<string, string | boolean>,
+  log: (s: string) => void = (s) => process.stdout.write(s),
 ): Promise<Trace> {
   const useMockAdapter = opts.adapter === "mock";
   if (opts.replay === true) {
@@ -109,7 +122,7 @@ async function acquireTranscript(
     const caller = goalMode
       ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner, maxTurns })
       : ScriptedCaller.fromScenario(scenario);
-    process.stdout.write(`[${caller.label}] `);
+    log(`[${caller.label}] `);
     raw = await (adapter as DeepgramVoiceAgentAdapter).converse(aut, caller);
   } else {
     raw = await adapter.runConversation(aut, evalineTurns(scenario));
@@ -124,6 +137,13 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   const record = opts.record === true;
   const useMockAdapter = opts.adapter === "mock";
   if (!replay && !useMockAdapter) getKey(); // live deepgram needs the key; replay + mock are offline
+  // --json [path]: also emit the machine-readable failure contract. Bare `--json` writes JSON to
+  // stdout, so ALL human output is routed to stderr to keep stdout a pristine, parseable document;
+  // `--json <path>` writes the JSON to that file and leaves the normal human output on stdout.
+  const jsonOut = opts.json !== undefined;
+  const jsonStdout = opts.json === true;
+  const say = jsonStdout ? (...a: unknown[]) => console.error(...a) : (...a: unknown[]) => console.log(...a);
+  const sayw = jsonStdout ? (s: string) => { process.stderr.write(s); } : (s: string) => { process.stdout.write(s); };
   const dir = positional[0] ?? "scenarios";
   const autPath = (opts.aut as string) ?? "examples/tabletalk/grounded.ts";
   const aut = await loadAut(autPath); // module load only — no network even in replay
@@ -140,18 +160,18 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   }
   const adapter = useMockAdapter ? new MockAUTAdapter({ buggy: opts.buggy === true }) : new DeepgramVoiceAgentAdapter();
   const mode = useMockAdapter ? `mock (offline${opts.buggy === true ? ", buggy" : ""})` : replay ? "replay (offline)" : record ? "live + record" : "live";
-  console.log(`\nSoundcheck — running ${scenarios.length} scenario(s) against AUT "${aut.label}" — mode: ${mode}\n`);
+  say(`\nSoundcheck — running ${scenarios.length} scenario(s) against AUT "${aut.label}" — mode: ${mode}\n`);
 
   const results: ScenarioResult[] = [];
   for (const base of scenarios) {
     const scenario = personaOverride ? { ...base, persona: personaOverride as Persona } : base;
     if (replay && (scenario.liveOnly || scenario.fixtureOnly)) {
       const why = scenario.liveOnly ? "live-only (goal-driven)" : "fixture-only (authoring/tuning input)";
-      console.log(`↷ ${scenario.name}: ${why} — skipped in --replay (drop --replay + set your key to run it)`);
+      say(`↷ ${scenario.name}: ${why} — skipped in --replay (drop --replay + set your key to run it)`);
       continue;
     }
-    process.stdout.write(`▶ ${scenario.name} (persona=${scenario.persona}) … `);
-    const transcript = await acquireTranscript(scenario, aut, adapter, opts);
+    sayw(`▶ ${scenario.name} (persona=${scenario.persona}) … `);
+    const transcript = await acquireTranscript(scenario, aut, adapter, opts, sayw);
     const gates = runGates(transcript, scenario, aut.tools);
     const passed = gates.every((g) => g.pass);
     let verdict;
@@ -164,21 +184,21 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
       verdict = await judgeTranscript(transcript, useMock ? mockJudge : deepgramVaJudge);
     }
     results.push({ transcript, gates, passed, verdict });
-    console.log(passed ? "PASS" : "FAIL");
-    for (const g of gates) console.log(`    ${g.pass ? "✅" : "🚩"} ${g.name} — ${g.detail}`);
-    if (verdict) console.log(`    ⚖ judge(${verdict.backend}): ${verdict.dimensions.map((d) => `${d.key}=${d.value}`).join(", ")}${verdict.findings[0] ? ` | ${verdict.findings[0]}` : ""}`);
+    say(passed ? "PASS" : "FAIL");
+    for (const g of gates) say(`    ${g.pass ? "✅" : "🚩"} ${g.name} — ${g.detail}`);
+    if (verdict) say(`    ⚖ judge(${verdict.backend}): ${verdict.dimensions.map((d) => `${d.key}=${d.value}`).join(", ")}${verdict.findings[0] ? ` | ${verdict.findings[0]}` : ""}`);
     // --promote-failures: close the loop — freeze a failing (often improvised) call into a
     // scripted regression scenario + a replayable cassette, growing the suite automatically.
     if (opts["promote-failures"] === true && !passed) {
       try {
         const reg = promoteTrace(transcript, scenario);
         const regPath = resolve(process.cwd(), dir, `${reg.name}.json`);
-        if (existsSync(regPath)) console.log(`    (overwriting existing ${reg.name}.json)`);
+        if (existsSync(regPath)) say(`    (overwriting existing ${reg.name}.json)`);
         writeFileSync(regPath, JSON.stringify(reg, null, 2) + "\n");
         saveCassette({ ...transcript, scenario: reg.name }); // re-key so the regression replays offline
-        console.log(`    ⤴ promoted → ${dir}/${reg.name}.json (+ cassette): ${reg.turns.length} turns, ${reg.assert.length} invariants`);
+        say(`    ⤴ promoted → ${dir}/${reg.name}.json (+ cassette): ${reg.turns.length} turns, ${reg.assert.length} invariants`);
       } catch (e) {
-        console.log(`    (could not promote: ${(e as Error).message})`); // e.g. no usable caller turns — skip, don't abort the run
+        say(`    (could not promote: ${(e as Error).message})`); // e.g. no usable caller turns — skip, don't abort the run
       }
     }
   }
@@ -189,11 +209,20 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   }
   mkdirSync(resolve(process.cwd(), "runs"), { recursive: true });
   const out = (opts.out as string) ?? `runs/report-${aut.label}.html`;
-  const encodeAudio = opts.mp3 === true ? makeMp3Encoder() : undefined;
+  const generatedAt = new Date().toISOString();
+  // mp3's ffmpeg-missing warning prints to stdout (it's a gallery feature, not an agent one), which
+  // would corrupt a `--json` stdout document — so skip the encoder in that mode.
+  const encodeAudio = opts.mp3 === true && !jsonStdout ? makeMp3Encoder() : undefined;
   const note = typeof opts.note === "string" ? opts.note : undefined;
-  writeFileSync(resolve(process.cwd(), out), generateReport(results, new Date().toISOString(), { fullCallAudioOnly: opts.lean === true, encodeAudio, note }));
+  writeFileSync(resolve(process.cwd(), out), generateReport(results, generatedAt, { fullCallAudioOnly: opts.lean === true, encodeAudio, note }));
   const allPass = results.every((r) => r.passed);
-  console.log(`\n${allPass ? "✅ all gates passed" : "🚩 gate failures present"} — report: ${out}\n`);
+  if (jsonOut) {
+    const report = buildJsonReport(results, { version: pkgVersion(), generatedAt, aut: aut.label, mode, scenariosDir: dir, autPath, reportPath: out });
+    const json = JSON.stringify(report, null, 2);
+    if (jsonStdout) process.stdout.write(json + "\n"); // the ONLY thing on stdout — a pristine, parseable document
+    else writeFileSync(resolve(process.cwd(), opts.json as string), json + "\n");
+  }
+  say(`\n${allPass ? "✅ all gates passed" : "🚩 gate failures present"} — report: ${out}${jsonOut && !jsonStdout ? `, json: ${opts.json as string}` : ""}\n`);
   process.exit(allPass ? 0 : 1);
 }
 
@@ -427,6 +456,10 @@ function help() {
                  a compact, committable gallery). Falls back to WAV if ffmpeg is unavailable.
       --note "<text>" : render a callout at the top of the report (e.g. to mark a sample as a
                  deliberately-broken agent, so its 🚩 read as Soundcheck catching a planted bug).
+      --json [<file>] : also emit the machine-readable failure contract — per scenario: gates, the
+                 trace-driven diagnosis (evidence + a fix hint), what the oracle heard, and a repro
+                 command. Bare --json prints JSON to stdout (all human output → stderr); --json <file>
+                 writes it there instead. For a coding agent or CI to consume instead of the HTML.
       --adapter mock : test a creds-free deterministic mock agent (no key/network); add --buggy to inject faults.
                        (default adapter = deepgram-va; the openai-realtime adapter is a code-level reference, not selectable here.)
       --record : live run, then save a cassette for deterministic replay.

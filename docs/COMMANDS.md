@@ -23,6 +23,7 @@ Drives the synthetic caller against the agent-under-test for each scenario, runs
 | `--lean` | Smaller report: keep the full-call recording + oracle transcript, drop the per-turn audio clips. |
 | `--mp3` | Transcode embedded audio to MP3 via ffmpeg (~10× smaller; pairs with `--lean`). Falls back to WAV if ffmpeg is missing. |
 | `--note "<text>"` | Render a callout banner atop the report (e.g. to mark a deliberately-broken sample). |
+| `--json` / `--json <file>` | Also emit the machine-readable failure contract — per scenario: gate results, the trace-driven diagnosis (evidence + a fix hint), what the oracle heard, and a `reproduce` command — for a coding agent or CI to consume instead of the HTML. Bare `--json` prints JSON to stdout (all human output → stderr, so stdout stays parseable); `--json <file>` writes it there. |
 | `--adapter mock` | Test a creds-free deterministic mock agent (no key/network); add `--buggy` to inject faults. |
 
 ---

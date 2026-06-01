@@ -1,6 +1,6 @@
 {
   "name": "soundcheck-cli",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Voice-agent test & tuning harness — Playwright + an LLM judge + a synthetic caller, for speech. Runs on a single Deepgram key.",
   "type": "module",
   "main": "dist/index.js",

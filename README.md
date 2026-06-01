@@ -8,12 +8,14 @@
 
 ## Why
 
-Web apps have Playwright; real-time voice agents have had nothing like it. A conventional test can't *hear* that your agent said "star star confirmed," spoke a 24-hour time, read a confirmation number as "four thousand four hundred seventeen," talked over the caller, or lost the reservation halfway through the call. So the autonomous **build → test → ship** loop that works for code breaks for voice — agents converge on green tests and fail on the first spoken word.
+Web apps have Playwright; real-time voice agents have had nothing like it. A conventional test can't *hear* that your agent said "star star confirmed," spoke a 24-hour time, read a confirmation number as "four thousand four hundred seventeen," talked over the caller, or lost the reservation halfway through the call.
 
-Soundcheck closes that gap, and it's useful two ways:
+That blind spot is sharpest for a **coding agent**. It can read logs, run unit tests, and inspect API responses, but it cannot hear — so it converges on green text tests while the spoken agent is still wrong, with no signal to fix. Soundcheck is built to close that loop. It drives a synthetic caller through a real conversation, transcribes the call with its own STT **oracle**, and returns the failure as machine-readable evidence: which invariant broke, what the oracle actually heard, a trace-driven diagnosis with a fix hint, and a command to reproduce it (`run --json`). A coding agent reads that and patches the agent; the deterministic gates decide pass/fail with no model in their path; you review the result.
 
-1. **A test harness for voice — Playwright, but for what your agent *says*.** Write a scenario, run it against your real agent over audio, and gate it in CI. Catch the spoken bug before you ship.
-2. **An autonomous eval loop.** Point a coding agent at your voice agent + Soundcheck and it carries an integration from prototype to production: author scenarios → run → diagnose from the recording → tune until green → grow the suite from what it discovers. You review the result instead of refereeing every call.
+So Soundcheck is useful two ways:
+
+1. **For a coding agent building voice autonomously.** The build → test → ship loop that works for code finally works for speech: author scenarios from the agent's own tools → run over real audio → read the `--json` diagnosis → `tune` the prompt until a held-out set passes → grow the suite from what it discovers. Most voice-testing tools assume a human watching a dashboard; Soundcheck is built for the agent doing the work, with you as the reviewer.
+2. **As a test harness for voice you drive yourself.** Playwright, but for what your agent *says* — write a scenario, run it against your real agent over audio, gate it in CI, catch the spoken bug before you ship.
 
 ## Getting Started
 
@@ -60,6 +62,8 @@ soundcheck run scenarios --aut ./my-agent.ts               # 2. drive it live, g
 open runs/report-*.html                                    # 3. hear the call + read what the oracle (STT) heard
 soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune the prompt until the held-out set goes green
 ```
+Driving Soundcheck from a coding agent or CI? Add `--json` to `run` — instead of the HTML report it emits the machine-readable contract on stdout: per-scenario gate results, what the oracle heard, the trace-driven diagnosis (evidence + a fix hint), and a `reproduce` command. `soundcheck run … --json | jq .summary`, or `--json <file>` to write it alongside the human output.
+
 Full reference: [`docs/COMMANDS.md`](docs/COMMANDS.md) · the gates: [`docs/GATES.md`](docs/GATES.md) · the end-to-end walkthrough: [`docs/TUTORIAL.md`](docs/TUTORIAL.md).
 
 ### 4. Self-improving tuning — with Codex
