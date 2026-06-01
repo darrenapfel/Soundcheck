@@ -15,28 +15,59 @@ Soundcheck closes that gap, and it's useful two ways:
 1. **A test harness for voice — Playwright, but for what your agent *says*.** Write a scenario, run it against your real agent over audio, and gate it in CI. Catch the spoken bug before you ship.
 2. **An autonomous eval loop.** Point a coding agent at your voice agent + Soundcheck and it carries an integration from prototype to production: author scenarios → run → diagnose from the recording → tune until green → grow the suite from what it discovers. You review the result instead of refereeing every call.
 
-## Quickstart
+## Getting Started
 
+### Prerequisites
+- **Node 22.6+** — Soundcheck runs TypeScript natively; there's no build step for development.
+- **A Deepgram API key** — the only credential (free at [deepgram.com](https://deepgram.com)). Live runs need it; offline `--replay` runs don't.
+- **ffmpeg** *(optional)* — only for `--mp3` compact reports; everything else works without it.
+
+### 1. Install
 ```bash
-echo "DEEPGRAM_API_KEY=dg_..." > .env      # the only key you need (or set it once in ~/.config/soundcheck/.env to use soundcheck from any directory)
-npm install                                 # devDeps only — zero runtime deps
-# commands below use the `soundcheck` bin (after `npm link`); in a fresh clone, prefix: npm run soundcheck --
-
-soundcheck author --spec ./my-agent.ts --out scenarios     # 1. draft a suite into ./scenarios from YOUR agent's tools + prompt
-soundcheck run scenarios --aut ./my-agent.ts               # 2. drive THAT suite live, gate it, get a debuggable trace
-open runs/report-*.html                                    # 3. hear the call + read what the oracle heard
-soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune until green — agent fixes agent
+git clone https://github.com/darrenapfel/Soundcheck.git && cd Soundcheck
+npm install        # devDeps only — zero runtime dependencies
+npm link           # puts the `soundcheck` command on your PATH
 ```
+Set your key once — Soundcheck checks, in order: the `DEEPGRAM_API_KEY` env var → a `./.env` in the current directory → `~/.config/soundcheck/.env` (a user-global fallback, so `soundcheck` works from any directory):
+```bash
+mkdir -p ~/.config/soundcheck && printf 'DEEPGRAM_API_KEY=dg_...\n' > ~/.config/soundcheck/.env
+```
+*Not using `npm link`?* Prefix any command with `npm run soundcheck -- …`. *(Soundcheck installs from this repo — it isn't on the public npm registry yet. Point `--aut` at your own agent's `.ts` config; it lives in your project, so Node strips its types normally. TypeScript consumers also want `npm i -D @types/node`.)*
 
-**Install.** The quickstart above runs from a repo clone (`npm run soundcheck …`). To use Soundcheck in another project, `npm install soundcheck` (or `-g`) and call the `soundcheck` bin (or `npx soundcheck …`); the published package ships built JS, so it runs from `node_modules` with only Node 22 and zero runtime dependencies. Point `--aut` at your own agent's `.ts` config — it lives in your project, so Node strips its types normally. **TypeScript consumers** also need `@types/node` (the public types reference `Buffer`/`node:path`); it's declared as an optional peer dependency — `npm i -D @types/node` if you don't already have it. The bundled `examples/` are source references — copy one into your project to run it (they can't run in place from `node_modules`, where Node won't strip TypeScript).
-
-**🧩 Coding-agent skill.** Soundcheck ships an [Agent Skill](.claude/skills/soundcheck/SKILL.md) that teaches a coding agent (Claude Code, Codex, Gemini) how to use it — when to reach for it, every command, the 10 gates, the scenario schema, and an end-to-end tutorial. Install it into your user-global skills directory in one command:
+### 2. Install the coding-agent skill
+Teach your coding agent how to drive Soundcheck — when to use it, every command, the 10 gates, the scenario schema, and an end-to-end tutorial ([`SKILL.md`](.claude/skills/soundcheck/SKILL.md)):
 ```bash
 soundcheck install-skill          # Claude Code + any other agent (Codex/Gemini) already on your machine
 soundcheck install-skill --all    # force all three;  --claude-only for just Claude;  --link to symlink
 # fresh clone, before `npm link`:  npm run skill:install
 ```
-It also auto-loads for anyone using Claude Code inside this repo (it lives at `.claude/skills/soundcheck/`).
+The skill also auto-loads for anyone using Claude Code inside this repo (`.claude/skills/soundcheck/`).
+
+### 3. Run the basics
+**Try it offline first** — no key, no network, instant (it replays recorded calls and runs the gates):
+```bash
+soundcheck run scenarios --aut examples/tabletalk/grounded.ts --replay
+```
+Then the live loop against **your own** agent *(needs your Deepgram key)*:
+```bash
+soundcheck author --spec ./my-agent.ts --out scenarios     # 1. draft a scenario suite from the agent's tools + prompt
+soundcheck run scenarios --aut ./my-agent.ts               # 2. drive it live, gate it, write a report (exit ≠ 0 on any gate failure)
+open runs/report-*.html                                    # 3. hear the call + read what the oracle (STT) heard
+soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune the prompt until the held-out set goes green
+```
+Full reference: [`docs/COMMANDS.md`](docs/COMMANDS.md) · the gates: [`docs/GATES.md`](docs/GATES.md) · the end-to-end walkthrough: [`docs/TUTORIAL.md`](docs/TUTORIAL.md).
+
+### 4. Self-improving tuning — with Codex
+`tune` hands each failure's trace-driven evidence to a coding-agent **fixer**, which rewrites the system prompt, and keeps the edit only if a **held-out set the fixer never saw** improves (the Goodhart guard). [`examples/tune-demo/`](examples/tune-demo) ships two reference fixers: a deterministic rule-based one, and **[`codex-fixer.sh`](examples/tune-demo/codex-fixer.sh) — the Codex CLI (gpt-5.5), run read-only so it can't touch your files**:
+```bash
+# needs a live DEEPGRAM_API_KEY and `codex login`
+soundcheck tune \
+  --agent   examples/tabletalk/bare.ts \
+  --train   examples/self-improving-loop/scenarios/book-this-saturday-regression.json \
+  --heldout examples/self-improving-loop/heldout-book-sunday.json \
+  --fixer   examples/tune-demo/codex-fixer.sh --max 1
+```
+In a real run, the bare agent (its prompt lacks a date anchor, so it hallucinates the year) went **0/1 → 1/1 on both the trained *and* the unseen held-out call** — Codex rewrote the prompt with a general date resolver, kept only because it generalized. Details: [`examples/tune-demo/README.md`](examples/tune-demo/README.md). Any stdin→stdout coding agent works as a `--fixer` (`claude -p`, a script, etc.).
 
 **▶ Prefer to listen?** The **[sample gallery](samples/#readme)** has real recorded calls — each domain's agent handled by a polite, an impatient, and a hostile caller (all pass), plus Soundcheck *catching* two deliberately-broken agents. Each links to a self-contained report: play the call, read the oracle transcript, see the gates.
 
