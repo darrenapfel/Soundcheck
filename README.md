@@ -32,8 +32,8 @@ soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune until green
 
 **🧩 Coding-agent skill.** Soundcheck ships an [Agent Skill](.claude/skills/soundcheck/SKILL.md) that teaches a coding agent (Claude Code, Codex, Gemini) how to use it — when to reach for it, every command, the 10 gates, the scenario schema, and an end-to-end tutorial. Install it into your user-global skills directory in one command:
 ```bash
-soundcheck install-skill          # → ~/.claude/skills/soundcheck   (Claude Code)
-soundcheck install-skill --all    # also Codex + Gemini;  add --link to symlink instead of copy
+soundcheck install-skill          # Claude Code + any other agent (Codex/Gemini) already on your machine
+soundcheck install-skill --all    # force all three;  --claude-only for just Claude;  --link to symlink
 # fresh clone, before `npm link`:  npm run skill:install
 ```
 It also auto-loads for anyone using Claude Code inside this repo (it lives at `.claude/skills/soundcheck/`).

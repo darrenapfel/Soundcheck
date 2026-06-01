@@ -382,12 +382,21 @@ function cmdInstallSkill(opts: Record<string, string | boolean>) {
   }
   const home = homedir();
   const all = opts.all === true;
+  const claudeOnly = opts["claude-only"] === true;
   const link = opts.link === true;
+  // Smart default: ALWAYS install for Claude Code, and ALSO for Codex/Gemini if that agent's home
+  // already exists on this machine (adapts to the agents you actually use — no empty dirs for ones
+  // you don't). --all forces all three; --claude-only opts out of auto-detect; --codex/--gemini force
+  // an individual agent regardless.
+  const auto = !all && !claudeOnly;
+  const codexHome = process.env.CODEX_HOME || join(home, ".codex");
+  const geminiHome = join(home, ".gemini");
+  const want = (flag: string, agentHome: string) => all || opts[flag] === true || (auto && existsSync(agentHome));
   const targets: { label: string; dir: string; gemini?: boolean }[] = [
     { label: "Claude Code", dir: join(home, ".claude", "skills", "soundcheck") },
   ];
-  if (all || opts.codex === true) targets.push({ label: "Codex", dir: join(process.env.CODEX_HOME || join(home, ".codex"), "skills", "soundcheck") });
-  if (all || opts.gemini === true) targets.push({ label: "Gemini", dir: join(home, ".gemini", "skills", "soundcheck"), gemini: true });
+  if (want("codex", codexHome)) targets.push({ label: "Codex", dir: join(codexHome, "skills", "soundcheck") });
+  if (want("gemini", geminiHome)) targets.push({ label: "Gemini", dir: join(geminiHome, "skills", "soundcheck"), gemini: true });
 
   for (const t of targets) {
     rmSync(t.dir, { recursive: true, force: true });
@@ -455,11 +464,13 @@ function help() {
       gates. Live (two real prompts/models/voices) or --replay (each config's cassettes, offline).
       --judge also diffs the advisory judge dimensions (mock = offline; never changes the gate-decided winner).
 
-  soundcheck install-skill [--all] [--codex] [--gemini] [--link]
-      Install the bundled Soundcheck skill (.claude/skills/soundcheck) into your user-global skills
-      dir so any coding agent can use it. Default: Claude Code (~/.claude/skills). --codex / --gemini
-      add those agents (Gemini gets a generated instructions.md + skill.yaml); --all does all three.
-      --link symlinks instead of copying (auto-updates with the repo). No key needed.
+  soundcheck install-skill [--all] [--claude-only] [--codex] [--gemini] [--link]
+      Install the bundled Soundcheck skill (.claude/skills/soundcheck) into your user-global skills dir.
+      By default installs for Claude Code (~/.claude/skills) AND any other agent already on this machine
+      — Codex ($CODEX_HOME or ~/.codex) and/or Gemini (~/.gemini; gets a generated instructions.md +
+      skill.yaml) — detected by whether that agent's home dir exists. --all forces all three;
+      --claude-only opts out of auto-detect; --codex/--gemini force an individual agent; --link symlinks
+      instead of copying. No key needed.
 
 Requires only DEEPGRAM_API_KEY (env or .env).`);
 }

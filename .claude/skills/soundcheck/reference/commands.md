@@ -74,16 +74,17 @@ Quick checks of the Deepgram round-trip — useful to confirm a phrase like a pr
 
 ## `install-skill` — install this skill for your coding agent
 ```
-soundcheck install-skill [--all] [--codex] [--gemini] [--link]
+soundcheck install-skill [--all] [--claude-only] [--codex] [--gemini] [--link]
 ```
-Copies the bundled Soundcheck skill (`.claude/skills/soundcheck/`) into your user-global skill directory so any coding agent can use it from any project.
+Copies the bundled Soundcheck skill (`.claude/skills/soundcheck/`) into your user-global skill directory so any coding agent can use it from any project. **Smart default:** always installs for Claude Code, and *also* for Codex and/or Gemini **if that agent's home dir already exists** on the machine — so it adapts to the agents you actually use.
 
 | Flag | Effect |
 |---|---|
-| (default) | Install for **Claude Code** → `~/.claude/skills/soundcheck/`. |
-| `--codex` | Also install for Codex → `$CODEX_HOME/skills/soundcheck/` (else `~/.codex/skills/`). |
-| `--gemini` | Also install for Gemini → `~/.gemini/skills/soundcheck/` (generates `instructions.md` + `skill.yaml` from `SKILL.md`). |
-| `--all` | Install for Claude Code, Codex, and Gemini. |
-| `--link` | Symlink instead of copy (auto-updates with the repo). |
+| (default) | **Claude Code** (`~/.claude/skills/soundcheck/`) + any of Codex/Gemini whose home dir exists. |
+| `--all` | Force all three (Claude Code, Codex, Gemini) regardless of what's installed. |
+| `--claude-only` | Claude Code only — skip auto-detect. |
+| `--codex` | Force Codex → `$CODEX_HOME/skills/soundcheck/` (else `~/.codex/skills/`). |
+| `--gemini` | Force Gemini → `~/.gemini/skills/soundcheck/` (generates `instructions.md` + `skill.yaml` from `SKILL.md`). |
+| `--link` | Symlink instead of copy (auto-updates with the repo; Gemini still copies — it needs generated files). |
 
 Re-run after `git pull` to refresh (or use `--link` once). No Deepgram key needed.
