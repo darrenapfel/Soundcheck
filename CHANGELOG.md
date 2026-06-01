@@ -2,6 +2,11 @@
 
 All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
 
+## [Unreleased]
+
+### Changed
+- **Docs lead with the published install.** Now that the CLI is on npm as `soundcheck-cli`, the guide, command reference, tutorial, and the coding-agent skill (`SKILL.md` + `reference/commands.md` + `tutorials/zero-to-tuned.md`) present `npm install -g soundcheck-cli` (the command stays `soundcheck`) as the primary install, with the source checkout (`npm link` / `npm run soundcheck --`) kept for running the bundled examples and for contributing.
+
 ## [2.2.0] — 2026-06-01
 
 First public release on the npm registry: `npm install -g soundcheck-cli` puts the CLI on your PATH (the command stays `soundcheck`; previously install was a source checkout + `npm link`). The README install section now leads with the one-liner and keeps the source checkout for running the bundled examples and for contributing.

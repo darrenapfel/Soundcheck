@@ -1,6 +1,6 @@
 # Commands
 
-Every Soundcheck command and flag. Invoke as `soundcheck <command>` (after `npm link`) or `npm run soundcheck -- <command>` (fresh clone). Run from the repo dir — scenario/agent paths are relative and the key is read from `.env` / `~/.config/soundcheck/.env`. Live commands need `DEEPGRAM_API_KEY`; `--replay` and `--adapter mock` are fully offline. See also [`GUIDE.md`](GUIDE.md) and [`GATES.md`](GATES.md).
+Every Soundcheck command and flag. After `npm install -g soundcheck-cli` the command is `soundcheck <command>`, run against your own agent from any directory; from a source checkout, use `soundcheck` (after `npm link`) or `npm run soundcheck -- <command>`. Scenario/agent paths are relative to the working directory, so the bundled `examples/` paths in this doc assume a source checkout; the key is read from `DEEPGRAM_API_KEY` / `.env` / `~/.config/soundcheck/.env`. Live commands need `DEEPGRAM_API_KEY`; `--replay` and `--adapter mock` are fully offline. See also [`GUIDE.md`](GUIDE.md) and [`GATES.md`](GATES.md).
 
 ---
 
