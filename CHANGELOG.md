@@ -14,6 +14,9 @@ All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; ve
 - **Coding-agent skill + `soundcheck install-skill`.** Ships a progressive-disclosure Agent Skill at `.claude/skills/soundcheck/` (a lean `SKILL.md` entry + `reference/` for commands/gates/scenarios/agents + a `tutorials/zero-to-tuned.md` walkthrough) that teaches a coding agent how to drive Soundcheck, and auto-loads for Claude Code inside the repo. The new `soundcheck install-skill` command installs it into the user-global skills dir with a **smart default**: always Claude Code (`~/.claude/skills`), plus Codex and/or Gemini if that agent's home dir already exists on the machine (Gemini gets a generated `instructions.md` + `skill.yaml`). `--all` forces all three; `--claude-only` opts out of auto-detect; `--codex`/`--gemini` force an individual agent; `--link` symlinks instead of copying. Skill folder added to the package `files` allowlist; `npm run skill:install` alias added.
 - **Complete docs.** New human-facing guide set: `docs/GUIDE.md` (the front door — how it works + the workflow), `docs/COMMANDS.md` (every command + flag), `docs/GATES.md` (the 10 gates + spec shapes), and `docs/TUTORIAL.md` (zero → well-tuned agent, end to end). Same substance as the coding-agent skill, organized for humans; wired into the README docs list.
 
+### Fixed
+- **`bin/soundcheck.mjs` chooses `dist` vs `src` by location, not by file presence.** A dev checkout (clone / `npm link`, not under `node_modules`) now ALWAYS runs live `src/cli.ts`, so a leftover `dist/` from `npm pack`/`npm run smoke` can no longer silently shadow your source (which had made freshly-added CLI commands appear missing from a linked global `soundcheck`). An installed copy (under `node_modules`, where Node can't strip TS) still loads built `dist/cli.js`.
+
 ## [2.1.0] — 2026-05-31
 
 ### Fixed
