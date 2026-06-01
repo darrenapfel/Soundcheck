@@ -25,17 +25,17 @@ cd "$WORK"
 npm init -y >/dev/null 2>&1
 npm pkg set type=module >/dev/null 2>&1   # consumer is ESM (matches the .ts agent); silences the typeless-package warning
 npm install --no-audit --no-fund "$WORK/$TARBALL" >/dev/null 2>&1
-PKG="node_modules/soundcheck"
+PKG="node_modules/soundcheck-cli"
 test -f "$PKG/dist/cli.js"   || { echo "✖ dist/cli.js missing from the installed package"; exit 1; }
 test -f "$PKG/dist/index.js" || { echo "✖ dist/index.js missing from the installed package"; exit 1; }
 
 echo "→ [1/3] a consumer .ts importing the package (exports/main → built dist)…"
 cat > consumer-agent.ts <<'TS'
-import type { AUTConfig } from "soundcheck";
-import { GATE_NAMES } from "soundcheck";
+import type { AUTConfig } from "soundcheck-cli";
+import { GATE_NAMES } from "soundcheck-cli";
 const agent: AUTConfig = { label: "smoke", systemPrompt: "x", tools: [], toolStubs: {} };
 if (!Array.isArray(GATE_NAMES) || GATE_NAMES.length === 0) { console.error("✖ no gates exported"); process.exit(1); }
-console.log(`  ok: imported soundcheck (${GATE_NAMES.length} gates); agent label=${agent.label}`);
+console.log(`  ok: imported soundcheck-cli (${GATE_NAMES.length} gates); agent label=${agent.label}`);
 TS
 node --experimental-strip-types --disable-warning=ExperimentalWarning consumer-agent.ts
 
@@ -59,8 +59,8 @@ cat > tsconfig.json <<'JSON'
 { "compilerOptions": { "module": "nodenext", "moduleResolution": "nodenext", "noEmit": true, "strict": true, "skipLibCheck": true, "types": ["node"] }, "files": ["consumer-types.ts"] }
 JSON
 cat > consumer-types.ts <<'TS'
-import type { Trace, ConversationCapture, AUTConfig } from "soundcheck";
-import { GATE_NAMES, runGates } from "soundcheck";
+import type { Trace, ConversationCapture, AUTConfig } from "soundcheck-cli";
+import { GATE_NAMES, runGates } from "soundcheck-cli";
 const cfg: AUTConfig = { label: "ts-consumer", systemPrompt: "p", tools: [], toolStubs: {} };
 // Touch Buffer-typed public fields directly so the typecheck genuinely needs @types/node
 // (skipLibCheck:true mirrors a default consumer; the Buffer references are in OUR code, not skipped).

@@ -25,7 +25,7 @@ Soundcheck closes that gap, and it's useful two ways:
 ### 1. Install
 The published CLI — to run Soundcheck against **your own** agent from any directory:
 ```bash
-npm install -g soundcheck     # puts the `soundcheck` command on your PATH (Node 22.6+)
+npm install -g soundcheck-cli   # puts the `soundcheck` command on your PATH (Node 22.6+)
 ```
 Or install from source — to run the bundled examples (the offline demo below) or hack on Soundcheck itself:
 ```bash

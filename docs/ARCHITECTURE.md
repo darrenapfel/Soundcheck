@@ -117,7 +117,7 @@ Three adapters ship today (`src/adapters/`):
 
 **Later:** Vapi, Retell, Twilio/SIP (real phone number), turn-based HTTP, browser (Playwright-driven) — tracked, not built.
 
-Adapters (and every other extension point — gates, judge backend, fixer, caller) are exported from the public API barrel `src/index.ts`, surfaced through the `package.json` `"exports"` map: consumers `import { … } from "soundcheck"` rather than reaching into deep `src/` paths. (Internal-only helpers — e.g. `src/selfeval/` — are intentionally not re-exported.)
+Adapters (and every other extension point — gates, judge backend, fixer, caller) are exported from the public API barrel `src/index.ts`, surfaced through the `package.json` `"exports"` map: consumers `import { … } from "soundcheck-cli"` rather than reaching into deep `src/` paths. (Internal-only helpers — e.g. `src/selfeval/` — are intentionally not re-exported.)
 
 ## 7b. Determinism: record / replay (the trust mechanism)
 
