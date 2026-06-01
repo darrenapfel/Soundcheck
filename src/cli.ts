@@ -1,9 +1,10 @@
 // Soundcheck CLI — `run` (drive scenarios, gate, report) and `validate` (standalone round-trip).
 // Reads ONE credential: DEEPGRAM_API_KEY (see deepgram.ts getKey()).
 
-import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync, cpSync, rmSync, symlinkSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 import { getKey, synthesize, transcribe } from "./deepgram.ts";
 import { detectArtifacts, detectDashAsNegative } from "./normalize.ts";
 import { evalineTurns } from "./caller/evaline.ts";
@@ -357,6 +358,52 @@ async function cmdBakeoff(positional: string[], opts: Record<string, string | bo
   console.log("\n" + formatBakeoff(compareRuns(autA.label, autB.label, a, b)) + "\n");
 }
 
+// Convert SKILL.md (frontmatter + body) into Gemini's format (instructions.md + skill.yaml).
+function writeGeminiSkill(dir: string): void {
+  const md = readFileSync(join(dir, "SKILL.md"), "utf8");
+  const fm = /^---\n([\s\S]*?)\n---\n?/.exec(md);
+  const body = (fm ? md.slice(fm[0].length) : md).replace(/^\s+/, "");
+  const meta: Record<string, string> = {};
+  if (fm) for (const line of fm[1].split("\n")) { const m = /^([A-Za-z0-9_-]+):\s*(.+)$/.exec(line); if (m) meta[m[1]] = m[2].replace(/^["']|["']$/g, "").trim(); }
+  const esc = (s: string) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+  writeFileSync(join(dir, "instructions.md"), body);
+  writeFileSync(join(dir, "skill.yaml"), `name: ${meta.name || "soundcheck"}\ndescription: ${esc(meta.description || "Soundcheck voice-agent test harness skill")}\nentry: instructions.md\n`);
+}
+
+// Install the bundled Soundcheck skill into a coding agent's user-global skills directory, so it's
+// available from any project. Default target = Claude Code; --codex/--gemini/--all add the others;
+// --link symlinks instead of copying (Gemini always copies — it needs generated companion files).
+// No Deepgram key needed.
+function cmdInstallSkill(opts: Record<string, string | boolean>) {
+  const SRC = resolve(fileURLToPath(new URL(".", import.meta.url)), "..", ".claude", "skills", "soundcheck");
+  if (!existsSync(join(SRC, "SKILL.md"))) {
+    console.error(`✖ Skill source not found at ${SRC}. Run this from a Soundcheck checkout/install that ships .claude/skills/soundcheck.`);
+    process.exit(2);
+  }
+  const home = homedir();
+  const all = opts.all === true;
+  const link = opts.link === true;
+  const targets: { label: string; dir: string; gemini?: boolean }[] = [
+    { label: "Claude Code", dir: join(home, ".claude", "skills", "soundcheck") },
+  ];
+  if (all || opts.codex === true) targets.push({ label: "Codex", dir: join(process.env.CODEX_HOME || join(home, ".codex"), "skills", "soundcheck") });
+  if (all || opts.gemini === true) targets.push({ label: "Gemini", dir: join(home, ".gemini", "skills", "soundcheck"), gemini: true });
+
+  for (const t of targets) {
+    rmSync(t.dir, { recursive: true, force: true });
+    mkdirSync(resolve(t.dir, ".."), { recursive: true });
+    if (link && !t.gemini) {
+      symlinkSync(SRC, t.dir, "dir");
+      console.log(`✅ ${t.label}: linked → ${t.dir}`);
+    } else {
+      cpSync(SRC, t.dir, { recursive: true });
+      if (t.gemini) writeGeminiSkill(t.dir);
+      console.log(`✅ ${t.label}: installed → ${t.dir}${t.gemini && link ? " (copied — Gemini needs generated files, can't symlink)" : ""}`);
+    }
+  }
+  console.log(`\nStart a new agent session — the "soundcheck" skill is now available globally. Re-run after 'git pull' (or use --link for Claude Code/Codex to auto-update).`);
+}
+
 function help() {
   console.log(`Soundcheck — voice-agent test harness (Deepgram-key-only)
 
@@ -408,6 +455,12 @@ function help() {
       gates. Live (two real prompts/models/voices) or --replay (each config's cassettes, offline).
       --judge also diffs the advisory judge dimensions (mock = offline; never changes the gate-decided winner).
 
+  soundcheck install-skill [--all] [--codex] [--gemini] [--link]
+      Install the bundled Soundcheck skill (.claude/skills/soundcheck) into your user-global skills
+      dir so any coding agent can use it. Default: Claude Code (~/.claude/skills). --codex / --gemini
+      add those agents (Gemini gets a generated instructions.md + skill.yaml); --all does all three.
+      --link symlinks instead of copying (auto-updates with the repo). No key needed.
+
 Requires only DEEPGRAM_API_KEY (env or .env).`);
 }
 
@@ -420,6 +473,7 @@ try {
   else if (cmd === "author") await cmdAuthor(opts);
   else if (cmd === "tune") await cmdTune(opts);
   else if (cmd === "bakeoff") await cmdBakeoff(positional, opts);
+  else if (cmd === "install-skill") cmdInstallSkill(opts);
   else help();
 } catch (e) {
   console.error(`\n✖ ${(e as Error).message}\n`);
