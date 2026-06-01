@@ -30,7 +30,7 @@ The full worked example is in [`TUTORIAL.md`](TUTORIAL.md).
 - **[`CALIBRATION.md`](CALIBRATION.md)** — judge agreement numbers. **[`TESTING.md`](TESTING.md)** — how trust is earned. **[`LIMITATIONS.md`](LIMITATIONS.md)** — honest limits.
 
 ## Install & run
-Soundcheck installs from its GitHub repo (clone + `npm install` + `npm link` for the `soundcheck` bin; or `npm run soundcheck --` from a fresh clone). Set the key once in `DEEPGRAM_API_KEY` (env), `./.env`, or `~/.config/soundcheck/.env` (a user-global fallback so `soundcheck` works from any directory). It also ships a coding-agent **skill** — `soundcheck install-skill` puts it in your global skills dir (see [`COMMANDS.md`](COMMANDS.md#install-skill)).
+Install the CLI with `npm install -g soundcheck-cli` — the command is `soundcheck`, and it runs against your own agent from any directory. To run the bundled examples or to work on Soundcheck itself, install from source instead: clone + `npm install` + `npm link` (or `npm run soundcheck --` from the checkout). Set the key once in `DEEPGRAM_API_KEY` (env), `./.env`, or `~/.config/soundcheck/.env` (a user-global fallback so `soundcheck` works from any directory). It also ships a coding-agent **skill** — `soundcheck install-skill` puts it in your global skills dir (see [`COMMANDS.md`](COMMANDS.md#install-skill)).
 
 ```bash
 soundcheck author --spec ./my-agent.ts --out scenarios     # 1. generate a suite from the agent's tools + prompt

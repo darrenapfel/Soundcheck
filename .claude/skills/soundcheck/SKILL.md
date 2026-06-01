@@ -31,7 +31,7 @@ The oracle (STT over the *real* recording) or a deterministic gate decides — n
 
 ## Quickstart
 ```bash
-# from the Soundcheck repo (the `soundcheck` bin is on PATH after `npm link`; else: npm run soundcheck -- …)
+# install: `npm install -g soundcheck-cli` (the command is `soundcheck`). From a source checkout: `soundcheck` after `npm link`, else `npm run soundcheck -- …`
 soundcheck author --spec ./my-agent.ts --out scenarios     # 1. generate a suite from the agent's tools + prompt
 soundcheck run scenarios --aut ./my-agent.ts               # 2. drive it live, gate it, write a report
 open runs/report-*.html                                    # 3. hear the call + read what the oracle heard

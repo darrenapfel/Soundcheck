@@ -1,6 +1,6 @@
 # Tutorial: zero to a well-tuned voice agent
 
-A worked example — start with nothing, end with a gated, tuned agent and a self-growing offline regression suite. Run from the Soundcheck repo with `DEEPGRAM_API_KEY` set (env, `./.env`, or `~/.config/soundcheck/.env`). `soundcheck` assumes you've run `npm link`; otherwise prefix `npm run soundcheck --`. See [`COMMANDS.md`](COMMANDS.md) for every flag and [`GATES.md`](GATES.md) for the invariants.
+A worked example — start with nothing, end with a gated, tuned agent and a self-growing offline regression suite. Install the CLI with `npm install -g soundcheck-cli` (the command is `soundcheck`) and set `DEEPGRAM_API_KEY` (env, `./.env`, or `~/.config/soundcheck/.env`). The steps build and test *your own* `./my-agent.ts`, so they run from any directory; the bundled `examples/` agents used here as templates live in a source checkout (where you'd run `soundcheck` after `npm link`, or prefix `npm run soundcheck --`). See [`COMMANDS.md`](COMMANDS.md) for every flag and [`GATES.md`](GATES.md) for the invariants.
 
 ## 0. Write a minimal agent
 Create `./my-agent.ts` exporting an `AUTConfig` — a `systemPrompt`, a few `tools` with JSON schemas, and `toolStubs` that return canned results. Don't over-polish the prompt; Soundcheck will find what's wrong and `tune` will fix it. (The bundled `examples/` agents — `tabletalk`, `support`, `healthcare`, `travel`, `banking` — are templates to copy. The skill's `reference/agents.md` documents every field.)
