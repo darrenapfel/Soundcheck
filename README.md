@@ -18,7 +18,7 @@ Soundcheck closes that gap, and it's useful two ways:
 ## Quickstart
 
 ```bash
-echo "DEEPGRAM_API_KEY=dg_..." > .env      # the only key you need
+echo "DEEPGRAM_API_KEY=dg_..." > .env      # the only key you need (or set it once in ~/.config/soundcheck/.env to use soundcheck from any directory)
 npm install                                 # devDeps only — zero runtime deps
 # commands below use the `soundcheck` bin (after `npm link`); in a fresh clone, prefix: npm run soundcheck --
 
