@@ -44,9 +44,11 @@ export default config;
 | `listenModel` | no | Nova STT model. |
 | `think` | no | `{ type, model, temperature? }` — the agent's reasoning model. |
 | `greeting` | no | The agent's first line before the caller speaks. |
+| `endpoint` | no | `{ url?, subprotocols? }` — retarget the adapter at any endpoint speaking the Deepgram Voice Agent WebSocket protocol (a backend that bridges its own client WebSocket to Deepgram, a staging host). `subprotocols` replaces the default `["token", <key>]` auth; pass a function to fetch a fresh credential (e.g. a session JWT from the backend) at call time. |
 
 ## Patterns
 - **Multiple builds, shared tools:** factor the tools/stubs into one module and export `grounded`, `bare`, `insecure` variants that differ only in `systemPrompt` — perfect for `bakeoff` (see `examples/support/`: grounded vs bare vs insecure share `support.ts`).
 - **A deliberately-broken build** (for catch demos / bakeoffs) is just a worse `systemPrompt` (omits the date anchor, allows Markdown, doesn't gate identity) over the same tools.
 - **Destructive/forbidden tools** still belong in `tools` (so the agent *could* call them) — you then assert `forbidden_tool` so Soundcheck catches it if it does.
+- **Testing a backend bridge end to end:** many voice-agent apps put a backend between the browser and Deepgram (the client sends JSON control + mic audio to the app's own WebSocket; the backend forwards both ways). Set `endpoint.url` to the app's WebSocket and `endpoint.subprotocols` to an async function that fetches the app's session credential — Soundcheck then exercises the app's real client path (auth, bridging, buffering, audio forwarding), not just Deepgram behind it.
 - The reference `examples/` agents (`tabletalk`, `support`, `healthcare`, `travel`, `banking`) are the canonical templates — copy one and adapt.

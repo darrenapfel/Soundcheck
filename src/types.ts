@@ -71,6 +71,17 @@ export interface AUTConfig {
   listenModel?: string; // nova model
   think?: { type: string; model: string; temperature?: number };
   greeting?: string;
+  /** Optional connection override: point the Voice Agent adapter at any endpoint that speaks
+   *  the Deepgram Voice Agent WebSocket protocol — e.g. a local backend that bridges its own
+   *  client WebSocket to Deepgram (the common starter-app architecture), or a staging host.
+   *  `url` replaces the default production endpoint. `subprotocols` replaces the default
+   *  `["token", <DEEPGRAM_API_KEY>]` auth — pass a function to fetch a fresh credential first
+   *  (e.g. a session JWT from the backend's own auth endpoint). When `subprotocols` is set,
+   *  the socket itself needs no Deepgram key (TTS/STT/oracle still do). */
+  endpoint?: {
+    url?: string;
+    subprotocols?: string[] | (() => string[] | Promise<string[]>);
+  };
 }
 
 export interface ToolCall {
