@@ -131,8 +131,15 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     };
 
     // Continuous real-time pump (phone-call model — never stop sending audio) + recorder.
+    // The pump stays quiet until the Settings handshake completes: the Voice Agent protocol
+    // rejects any binary received before Settings ("Received binary message before Settings"),
+    // and pre-handshake keepalive silence is exactly that. Against the production endpoint the
+    // old always-on pump merely tended to win the race (Welcome→Settings is fast); through a
+    // bridging backend that buffers pre-open client traffic — or on a slow network — it loses
+    // and the server kills the session. No audio (even silence) before SettingsApplied.
+    let audioLive = false;
     const pump = setInterval(() => {
-      if (ws.readyState !== WebSocket.OPEN) return;
+      if (!audioLive || ws.readyState !== WebSocket.OPEN) return;
       const callerFrame = audioQueue.length ? audioQueue.shift()! : SILENCE;
       ws.send(callerFrame);
       if (recordingOn) {
@@ -222,6 +229,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
 
     try { // always clean up the pump + socket below, even if setup times out or a turn throws
     await opened;
+    audioLive = true; // handshake complete — the continuous audio stream may start
     recordingOn = true; // record the whole call, from the greeting on
 
     const enqueueSpeech = (pcm: Buffer) => {

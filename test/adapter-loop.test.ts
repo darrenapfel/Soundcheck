@@ -150,7 +150,7 @@ class HandshakeWs implements WsLike {
   binaryType = "blob"; readyState = 0;
   #l: Record<string, ((ev: { data: unknown }) => void)[]> = {};
   #mode: "error" | "silent";
-  gotSettingsAt = 0; welcomeAt = 0;
+  gotSettingsAt = 0; welcomeAt = 0; binaryBeforeHandshake = 0;
   constructor(mode: "error" | "silent") {
     this.#mode = mode;
     queueMicrotask(() => { this.readyState = 1; this.#fire("open"); this.welcomeAt = Date.now(); this.#json({ type: "Welcome" }); });
@@ -159,7 +159,8 @@ class HandshakeWs implements WsLike {
   #fire(t: string, d?: unknown) { for (const cb of this.#l[t] ?? []) cb({ data: d }); }
   #json(o: unknown) { this.#fire("message", JSON.stringify(o)); }
   send(data: unknown) {
-    if (typeof data === "string" && JSON.parse(data).type === "Settings") {
+    if (typeof data !== "string") { this.binaryBeforeHandshake++; return; } // handshake never completes in either mode
+    if (JSON.parse(data).type === "Settings") {
       this.gotSettingsAt = Date.now();
       if (this.#mode === "error") setTimeout(() => this.#json({ type: "Error", description: "settings rejected" }), 5);
       // "silent": never send SettingsApplied → the adapter must time out, not hang.
@@ -181,9 +182,15 @@ test("converse REJECTS via setup timeout when SettingsApplied never arrives (doe
 
 test("Settings is sent only AFTER the server's Welcome (Deepgram protocol order)", async () => {
   let ws!: HandshakeWs;
-  const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => (ws = new HandshakeWs("silent")), synth: async () => Buffer.alloc(6400, 1), setupTimeoutMs: 150 });
+  // 400ms setup timeout: long enough for several 100ms pump ticks, so an always-on pump
+  // (the pre-fix behavior) would provably send binary before the handshake and trip the
+  // assertion below.
+  const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => (ws = new HandshakeWs("silent")), synth: async () => Buffer.alloc(6400, 1), setupTimeoutMs: 400 });
   await adapter.converse(makeConfig("t", "p"), hangupCaller()).catch(() => { /* expected timeout */ });
   assert.ok(ws.welcomeAt > 0 && ws.gotSettingsAt >= ws.welcomeAt, `Settings (${ws.gotSettingsAt}) must be sent at/after Welcome (${ws.welcomeAt})`);
+  // The Voice Agent protocol rejects any binary received before Settings — the pump must
+  // stay silent (not even keepalive silence) until the handshake completes.
+  assert.equal(ws.binaryBeforeHandshake, 0, "no audio may be sent before the Settings handshake completes");
 }, { timeout: 10000 });
 
 // Endpoint override (AUTConfig.endpoint): the adapter must pass the overridden URL and
