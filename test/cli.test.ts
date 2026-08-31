@@ -87,8 +87,9 @@ test("fixtures check with no resolvable key fails exit 2 with the key error, ins
   const started = Date.now();
   const r = spawnSync("node", ["--experimental-strip-types", "src/cli.ts", "fixtures", "check"], {
     encoding: "utf8", cwd: process.cwd(),
-    // Blank the env key and point the user-global config fallback at a void; the repo tree
-    // itself has no .env (gitignored + security-tested), so resolution must fail.
+    // An explicitly EMPTY env key short-circuits getKey() entirely (pinned in
+    // test/deepgram-key.test.ts), so this is deterministic even on a dev checkout whose
+    // repo root carries a real .env; XDG_CONFIG_HOME is voided as belt-and-braces.
     env: { ...process.env, DEEPGRAM_API_KEY: "", XDG_CONFIG_HOME: "/nonexistent-soundcheck-cli-test" },
   });
   assert.equal(r.status, 2, `${r.stdout}\n${r.stderr}`);

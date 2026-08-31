@@ -22,11 +22,20 @@ function globalEnvPath(): string {
 
 /** Resolve the Deepgram key. Precedence: env var → the caller's CWD `.env` (what the quickstart
  *  writes) → the user-global `~/.config/soundcheck/.env` (works from any directory) → the Soundcheck
- *  package's own `.env` (repo dev only). NO other key is ever read. */
+ *  package's own `.env` (repo dev only). NO other key is ever read.
+ *
+ *  An EXPLICITLY EMPTY env var (`DEEPGRAM_API_KEY=""`, whitespace included) short-circuits the
+ *  whole chain and throws immediately — it never falls through to the `.env` files. CI systems
+ *  set empty secrets to mean absent (the nightly workflow's own guard treats an empty secret as
+ *  "no key"), so an explicitly empty variable must not silently pick up a stray `.env`. */
 export function getKey(): string {
   if (cachedKey) return cachedKey;
+  const envKey = process.env.DEEPGRAM_API_KEY;
+  if (envKey !== undefined && envKey.trim() === "") {
+    throw new Error("DEEPGRAM_API_KEY not set (the env var is explicitly empty — treated as absent; the .env fallbacks are skipped). Soundcheck needs only this one key.");
+  }
   const key =
-    process.env.DEEPGRAM_API_KEY?.trim() ||
+    envKey?.trim() ||
     readEnvKey(resolve(process.cwd(), ".env")) ||
     readEnvKey(globalEnvPath()) ||
     readEnvKey(new URL("../.env", import.meta.url));
