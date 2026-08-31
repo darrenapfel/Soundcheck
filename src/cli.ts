@@ -7,6 +7,9 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { getKey, synthesize, transcribe } from "./deepgram.ts";
 import { detectArtifacts, detectDashAsNegative } from "./normalize.ts";
+import { compare, summarize } from "./compare/index.ts";
+import { loadManifest, checkFixtures, roundtripFixtures, generateFixtures } from "./fixtures/index.ts";
+import type { FixtureRow } from "./fixtures/index.ts";
 import { evalineTurns } from "./caller/evaline.ts";
 import { ScriptedCaller, GoalDrivenCaller } from "./caller/policy.ts";
 import { deepgramVaPlanner } from "./caller/planner.ts";
@@ -226,18 +229,97 @@ async function cmdRun(positional: string[], opts: Record<string, string | boolea
   process.exit(allPass ? 0 : 1);
 }
 
+// `compare` — the normalization-aware round-trip comparison gate, standalone. Fully offline
+// and keyless: exit 0 pass, 1 fail, 2 usage. An empty --heard is a legitimate input (a total
+// transcription failure to gate); a missing/empty --expected is a usage error.
+function cmdCompare(opts: Record<string, string | boolean>) {
+  const expected = typeof opts.expected === "string" ? opts.expected : "";
+  const heard = typeof opts.heard === "string" ? opts.heard : opts.heard === true ? "" : undefined;
+  if (!expected || heard === undefined) {
+    console.error('usage: soundcheck compare --expected "<text>" --heard "<text>" [--json]  (offline, no key)');
+    process.exit(2);
+  }
+  const result = compare(expected, heard);
+  const jsonStdout = opts.json === true;
+  const say = jsonStdout ? (...a: unknown[]) => console.error(...a) : (...a: unknown[]) => console.log(...a);
+  say(`compare: ${summarize(result)}`);
+  if (!result.pass) {
+    say(`  expected: ${result.expected}`);
+    say(`  heard:    ${result.heard}`);
+  }
+  if (jsonStdout) process.stdout.write(JSON.stringify({ schema: 1, label: "compare", ...result }, null, 2) + "\n"); // the ONLY thing on stdout
+  process.exit(result.pass ? 0 : 1);
+}
+
+// `fixtures check | roundtrip | generate` — the committed audio round-trip corpus
+// (fixtures/audio/). All three call the Deepgram API and need the key; a missing key fails
+// cleanly with the standard key-resolution error (exit 2) before any network attempt.
+async function cmdFixtures(positional: string[], opts: Record<string, string | boolean>) {
+  const sub = positional[0];
+  if (sub !== "check" && sub !== "roundtrip" && sub !== "generate") {
+    console.error(`usage: soundcheck fixtures <check|roundtrip|generate> [--json]\n  check     — transcribe each committed WAV (smart-formatted) and gate it against the manifest text\n  roundtrip — fresh text→TTS→STT round trip per fixture, same gate\n  generate  — maintainers: (re)record the corpus audio + observed.json`);
+    process.exit(2);
+  }
+  try { getKey(); } catch (e) { console.error(`✖ ${(e as Error).message}`); process.exit(2); }
+  const jsonStdout = opts.json === true;
+  const say = jsonStdout ? (...a: unknown[]) => console.error(...a) : (...a: unknown[]) => console.log(...a);
+  const manifest = loadManifest();
+  const printRow = (row: FixtureRow) => {
+    if (row.error) { say(`${row.id}: 🚩 ${row.error}`); return; }
+    say(`${row.id}: ${summarize(row)}`);
+    if (!row.pass) {
+      say(`  expected: ${row.expected}`);
+      say(`  heard:    ${row.heard}`);
+    }
+  };
+  if (sub === "generate") {
+    const generated = await generateFixtures(manifest, (g) => say(`generated ${g.id} (${g.bytes} bytes; observed: ${g.observed})`));
+    say(`generated ${generated.length} fixtures -> fixtures/audio/ (+ observed.json)`);
+    if (jsonStdout) {
+      const doc = { schema: 1, label: "fixtures generate", rows: generated, summary: { passed: generated.length, total: generated.length } };
+      process.stdout.write(JSON.stringify(doc, null, 2) + "\n"); // the ONLY thing on stdout
+    }
+    process.exit(0);
+  }
+  const runFlow = sub === "check" ? checkFixtures : roundtripFixtures;
+  const { rows, passed, total } = await runFlow(manifest, printRow);
+  say(`fixtures ${sub}: ${passed}/${total} passed`);
+  if (jsonStdout) {
+    const doc = { schema: 1, label: `fixtures ${sub}`, rows, summary: { passed, total } };
+    process.stdout.write(JSON.stringify(doc, null, 2) + "\n"); // the ONLY thing on stdout
+  }
+  process.exit(passed === total ? 0 : 1);
+}
+
 async function cmdValidate(opts: Record<string, string | boolean>) {
   getKey();
+  const jsonStdout = opts.json === true;
+  const say = jsonStdout ? (...a: unknown[]) => console.error(...a) : (...a: unknown[]) => console.log(...a);
   if (typeof opts.tts === "string") {
+    // The full round-trip gate: text → TTS → STT (smart-formatted) → artifact detection +
+    // the normalization-aware comparison against the input. Clean speech alone is not a pass —
+    // the agent must also have SAID the right thing.
     const wav = await synthesize(opts.tts, { container: "wav", sampleRate: 24000 });
-    const heard = await transcribe(wav, { contentType: "audio/wav" });
+    const heard = await transcribe(wav, { contentType: "audio/wav", smartFormat: true });
     const arts = detectArtifacts(heard);
     const dash = detectDashAsNegative(heard);
     const clean = arts.length === 0 && !dash;
-    console.log(`\n  input : ${JSON.stringify(opts.tts)}`);
-    console.log(`  heard : ${JSON.stringify(heard)}`);
-    console.log(`  verdict: ${clean ? "✅ clean" : "🚩 " + [...arts, dash ? "negative-$" : ""].filter(Boolean).join(", ")}\n`);
-    process.exit(clean ? 0 : 1);
+    const cmp = compare(opts.tts, heard);
+    const pass = clean && cmp.pass;
+    say(`\n  input : ${JSON.stringify(opts.tts)}`);
+    say(`  heard : ${JSON.stringify(heard)}`);
+    say(`  compare: ${summarize(cmp)}`);
+    if (!cmp.pass) {
+      say(`    expected: ${cmp.expected}`);
+      say(`    heard:    ${cmp.heard}`);
+    }
+    const problems = [...arts, dash ? "negative-$" : "", cmp.pass ? "" : "content mismatch"].filter(Boolean);
+    say(`  verdict: ${pass ? `✅ clean + content matched (${cmp.tier})` : "🚩 " + problems.join(", ")}\n`);
+    if (jsonStdout) {
+      const doc = { schema: 1, label: "validate --tts", input: opts.tts, heard, artifacts: arts, dashAsNegative: dash, compare: cmp, pass };
+      process.stdout.write(JSON.stringify(doc, null, 2) + "\n"); // the ONLY thing on stdout
+    }
+    process.exit(pass ? 0 : 1);
   }
   if (typeof opts.stt === "string") {
     const audio = readFileSync(resolve(process.cwd(), opts.stt));
@@ -473,8 +555,26 @@ function help() {
                  scenario (+ replayable cassette) in the scenarios dir, so a discovered failure
                  becomes a permanent test. Pairs with --caller goal (discover) → tune (fix).
 
-  soundcheck validate --tts "<text>"     Round-trip text -> TTS -> STT; flag spoken symbols.
+  soundcheck validate --tts "<text>" [--json]   Round-trip text -> TTS -> STT (smart-formatted),
+      flag spoken symbols AND gate the transcript against the input with the normalization-aware
+      comparison ("seven thirty" heard back as "7:30" passes; "7:13" fails with a token diff).
+      Exit 0 only when the comparison passes and no artifacts are detected.
   soundcheck validate --stt <file.wav>   Transcribe an audio file.
+
+  soundcheck compare --expected "<text>" --heard "<text>" [--json]
+      The normalization-aware comparison gate, standalone — fully OFFLINE, no key. Decides
+      whether two surface forms carry the same content: formatting equivalences (times, money,
+      dates, ordinals, digit runs, percent, decimals, years) pass; real content errors fail
+      with a token-level diff. Exit 0 pass, 1 fail, 2 usage. --json emits one machine-readable
+      document on stdout (human output moves to stderr).
+
+  soundcheck fixtures <check|roundtrip|generate> [--json]
+      The committed audio round-trip corpus (fixtures/audio/ — 16 canonical WAVs covering the
+      known smart-formatting trap classes). Needs the key.
+      check     — transcribe each committed WAV (smart-formatted) and gate it against the
+                  manifest text: the recognition-drift detector.
+      roundtrip — fresh text→TTS→STT round trip per fixture, same gate: the full live loop.
+      generate  — maintainers only: (re)record the corpus audio + observed.json via TTS.
 
   soundcheck calibrate [--judge live] [--align [--reference <model>]] [--out <file.json>]
       Score the judge against the no-human Golden Set (agreement/precision/recall) + a TRUST
@@ -513,6 +613,8 @@ const cmd = positional.shift();
 try {
   if (cmd === "run") await cmdRun(positional, opts);
   else if (cmd === "validate") await cmdValidate(opts);
+  else if (cmd === "compare") cmdCompare(opts);
+  else if (cmd === "fixtures") await cmdFixtures(positional, opts);
   else if (cmd === "calibrate") await cmdCalibrate(opts);
   else if (cmd === "author") await cmdAuthor(opts);
   else if (cmd === "tune") await cmdTune(opts);

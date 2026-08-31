@@ -47,6 +47,56 @@ test("run --persona with an invalid value FAILS CLOSED (exit 2)", () => {
   assert.match(r.stderr, /not one of: cooperative, impatient, adversarial/);
 });
 
+test("compare passes a formatting-equivalent pair with exit 0 and names the tier", () => {
+  const r = cli(["compare", "--expected", "at seven thirty", "--heard", "at 7:30"]);
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /PASS \(canonical\)/);
+});
+
+test("compare fails a real content mismatch with exit 1 and a token-level diff", () => {
+  const r = cli(["compare", "--expected", "at seven thirty", "--heard", "at 7:13"]);
+  assert.equal(r.status, 1, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /FAIL/);
+  assert.match(r.stdout, /"time:7:30" heard as "time:7:13"/);
+});
+
+test("compare --json emits ONE parseable JSON document alone on stdout (human output on stderr)", () => {
+  const r = cli(["compare", "--expected", "fifteen percent", "--heard", "15%", "--json"]);
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  const parsed = JSON.parse(r.stdout) as { schema: number; pass: boolean; tier: string }; // throws if stdout is not pure JSON
+  assert.equal(parsed.schema, 1);
+  assert.equal(parsed.pass, true);
+  assert.equal(parsed.tier, "canonical");
+  assert.match(r.stderr, /PASS/); // the human line moved to stderr
+});
+
+test("compare without --expected is a usage error (exit 2); an empty --heard is a legitimate failing input", () => {
+  assert.equal(cli(["compare", "--heard", "at 7:30"]).status, 2);
+  const empty = cli(["compare", "--expected", "at seven thirty", "--heard", ""]);
+  assert.equal(empty.status, 1, "an empty transcript must GATE (fail), not be a usage error");
+  assert.match(empty.stdout, /FAIL/);
+});
+
+test("an unknown fixtures subcommand exits 2 with usage", () => {
+  const r = cli(["fixtures", "frobnicate"]);
+  assert.equal(r.status, 2, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /fixtures <check\|roundtrip\|generate>/);
+});
+
+test("fixtures check with no resolvable key fails exit 2 with the key error, instantly (no network attempt)", () => {
+  const started = Date.now();
+  const r = spawnSync("node", ["--experimental-strip-types", "src/cli.ts", "fixtures", "check"], {
+    encoding: "utf8", cwd: process.cwd(),
+    // Blank the env key and point the user-global config fallback at a void; the repo tree
+    // itself has no .env (gitignored + security-tested), so resolution must fail.
+    env: { ...process.env, DEEPGRAM_API_KEY: "", XDG_CONFIG_HOME: "/nonexistent-soundcheck-cli-test" },
+  });
+  assert.equal(r.status, 2, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stderr, /DEEPGRAM_API_KEY not set/);
+  assert.doesNotMatch(r.stdout + r.stderr, /passed/); // no fixture row ever ran
+  assert.ok(Date.now() - started < 10000, "key resolution must fail fast, before any network call");
+});
+
 test("the GitHub Action's run shape works: SOUNDCHECK_CASSETTE_DIR override + run --aut --replay", () => {
   // Mirrors action.yml: `run <scenarios> --aut <aut> --replay` with the cassette dir from an env var.
   const r = spawnSync("node", ["--experimental-strip-types", "src/cli.ts", "run", "scenarios", "--aut", "examples/tabletalk/grounded.ts", "--replay", "--only", "book-modify-confirm", "--out", "/tmp/sc-action.html"],
