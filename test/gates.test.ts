@@ -121,6 +121,39 @@ test("spoken_consistent_with_tool — catches the impatient-caller cave-in (spok
   assert.equal(gate(run([turn(1, "Your appointment is all set.", [appt("2026-06-04")])], spec), "spoken_consistent_with_tool").pass, true);
 });
 
+test("spoken_matches_text — canonical formatting equivalence passes; a real content error fails with a diff", () => {
+  // The oracle heard the smart-formatted surface of the same content -> PASS, tier named.
+  const pass = gate(run([turn(1, "The meeting starts at 7:30 tomorrow morning.")],
+    [{ spoken_matches_text: { text: "The meeting starts at seven thirty tomorrow morning." } }]), "spoken_matches_text");
+  assert.equal(pass.pass, true, pass.detail);
+  assert.match(pass.detail, /canonical/);
+  // A real misheard time (7:13 for seven thirty) -> FAIL, with the token-level diff surfaced.
+  const fail = gate(run([turn(1, "The meeting starts at 7:13 tomorrow morning.")],
+    [{ spoken_matches_text: { text: "The meeting starts at seven thirty tomorrow morning." } }]), "spoken_matches_text");
+  assert.equal(fail.pass, false);
+  assert.match(fail.detail, /FAIL/);
+  assert.match(fail.detail, /time:7:30.*heard as.*time:7:13/);
+});
+
+test("spoken_matches_text — turn targeting: the indexed turn must match; out-of-range fails closed; no turn = any turn", () => {
+  const turns = [turn(1, "Let me check that for you."), turn(2, "Your total comes to $12.50.")];
+  const text = "Your total comes to twelve dollars and fifty cents.";
+  // turn 1 (0-based) is the matching turn.
+  assert.equal(gate(run(turns, [{ spoken_matches_text: { text, turn: 1 } }]), "spoken_matches_text").pass, true);
+  // turn 0 says something else entirely -> fail.
+  assert.equal(gate(run(turns, [{ spoken_matches_text: { text, turn: 0 } }]), "spoken_matches_text").pass, false);
+  // an out-of-range index fails CLOSED (never a vacuous pass).
+  const oob = gate(run(turns, [{ spoken_matches_text: { text, turn: 5 } }]), "spoken_matches_text");
+  assert.equal(oob.pass, false);
+  assert.match(oob.detail, /out of range/);
+  // without `turn`, ANY matching turn passes.
+  assert.equal(gate(run(turns, [{ spoken_matches_text: { text } }]), "spoken_matches_text").pass, true);
+  // and with no matching turn anywhere, it fails.
+  assert.equal(gate(run(turns, [{ spoken_matches_text: { text: "Your total comes to fifteen dollars." } }]), "spoken_matches_text").pass, false);
+  // a malformed spec (no text) fails closed.
+  assert.equal(gate(run(turns, [{ spoken_matches_text: {} as never }]), "spoken_matches_text").pass, false);
+});
+
 test("grounding — correct passes; stale year + wrong date fail; missing params fail closed", () => {
   const spec: Scenario["assert"] = [{ grounding: { tool: "bookReservation", field: "date", now: "2026-05-28", expected: "2026-05-30" } }];
   assert.equal(gate(run([turn(1, "", [book("2026-05-30")])], spec), "grounding").pass, true);
