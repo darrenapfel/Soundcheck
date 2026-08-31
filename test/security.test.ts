@@ -39,7 +39,11 @@ test(`no API key value is committed in source/config (${HAS_GIT ? "git" : "files
     "\\bsk-[A-Za-z0-9]{16}",             // OpenAI-style key value
     "DEEPGRAM_API_KEY=[A-Za-z0-9]",      // a key assigned in a tracked file
     "OPENAI_API_KEY=[A-Za-z0-9]",
-  ].map((p) => new RegExp(p));
+  ].map((p) => new RegExp(p)).concat([
+    /Token\s+[a-f0-9]{30,}/i,                        // a literal Authorization "Token <hex>" value
+    /DEEPGRAM[A-Z_]*KEY\s*=\s*['"]?[a-f0-9]{20,}/i,  // a hex key assigned to any DEEPGRAM…KEY name (quoted forms too)
+    /api[_-]?key['"]?\s*[:=]\s*['"][a-f0-9]{20,}/i,  // a hex key in an api_key: "…" / api-key = '…' assignment
+  ]);
   const files = filesToScan().filter((f) => !excluded(f) && !BINARY.test(f));
   for (const f of files) {
     let text: string;

@@ -8,6 +8,7 @@
 // IVR. (See README — Assess.)
 
 import { detectArtifacts, detectDashAsNegative, numberToWords, spokenTime, MONTHS } from "../normalize.ts";
+import { compare, summarize, canonicalTokens } from "../compare/index.ts";
 import type { AssertSpec, GateResult, Scenario, ToolCall, ToolSchema, Trace } from "../types.ts";
 
 /** Everything a gate may need: the captured conversation, the scenario, and the AUT's
@@ -325,6 +326,55 @@ const gSpokenConsistentWithTool: GateFn = (spec, { transcript }) => {
   return { name, pass: problems.length === 0, detail: problems.join("; ") || `final spoken date matches the booked ${s.tool ?? "tool"}.${field}; spoken weekdays coherent` };
 };
 
+// Spoken words ↔ expected TEXT — the normalization-aware round-trip comparison as a native
+// gate. Compares what the oracle heard the agent say (agentSpokenHeardBack) against an
+// expected sentence with compare(), so smart-formatting equivalences ("seven thirty" heard
+// back as "7:30") pass while real content errors ("7:13") fail with a token-level diff.
+// `turn` is the 1-BASED CapturedTurn.turn number — the same number every report line
+// prints — and that specific turn must match; an unknown turn number fails CLOSED.
+// Without `turn`, the gate passes if ANY turn matches. An expected text that reduces to
+// zero comparable tokens (e.g. punctuation only) fails closed too — otherwise it would
+// vacuously match a silent turn at the canonical tier.
+const gSpokenMatchesText: GateFn = (spec, { transcript }) => {
+  const name = "spoken_matches_text";
+  const s = (spec ?? {}) as { text?: string; turn?: number };
+  if (typeof s.text !== "string" || !s.text.trim()) {
+    return { name, pass: false, detail: "spoken_matches_text needs { text } (with optional 1-based turn number)" };
+  }
+  if (canonicalTokens(s.text).length === 0) {
+    return { name, pass: false, detail: "expected text contains no comparable tokens" };
+  }
+  const turns = transcript.turns;
+  if (s.turn !== undefined) {
+    const t = Number.isInteger(s.turn) && s.turn >= 1 ? turns.find((x) => x.turn === s.turn) : undefined;
+    if (!t) {
+      return { name, pass: false, detail: `no captured turn numbered ${s.turn} (turn numbers are 1-based, as reports print; ${turns.length} turn(s) captured) — fail closed` };
+    }
+    const r = compare(s.text, t.agentSpokenHeardBack || "");
+    return {
+      name,
+      pass: r.pass,
+      detail: r.pass
+        ? `turn ${s.turn} matched (${r.tier})`
+        : `turn ${s.turn}: ${summarize(r)} | expected: "${r.expected}" | heard: "${r.heard}"`,
+    };
+  }
+  if (!turns.length) return { name, pass: false, detail: "no captured turns to match against" };
+  let closest = compare(s.text, turns[0].agentSpokenHeardBack || "");
+  if (closest.pass) return { name, pass: true, detail: `turn ${turns[0].turn} matched (${closest.tier})` };
+  let closestTurn = turns[0].turn;
+  for (const t of turns.slice(1)) {
+    const r = compare(s.text, t.agentSpokenHeardBack || "");
+    if (r.pass) return { name, pass: true, detail: `turn ${t.turn} matched (${r.tier})` };
+    if ((r.tokenErrorRate ?? 1) < (closest.tokenErrorRate ?? 1)) { closest = r; closestTurn = t.turn; }
+  }
+  return {
+    name,
+    pass: false,
+    detail: `no turn matched; closest (turn ${closestTurn}): ${summarize(closest)} | expected: "${closest.expected}" | heard: "${closest.heard}"`,
+  };
+};
+
 const gLatency: GateFn = (spec, { transcript }) => {
   const s = spec as { ttfb_ms?: { max: number }; turn_ms?: { max: number } };
   const problems: string[] = [];
@@ -351,6 +401,7 @@ const REGISTRY: Record<string, GateFn> = {
   tool_sequence: gToolSequence,
   tool_args_match_schema: gToolArgsMatchSchema,
   spoken_matches_tool: gSpokenMatchesTool,
+  spoken_matches_text: gSpokenMatchesText,
   spoken_consistent_with_tool: gSpokenConsistentWithTool,
   grounding: gGrounding,
   latency: gLatency,

@@ -24,8 +24,8 @@ From nothing to a gated, tuned agent and a self-growing offline suite:
 The full worked example is in [`TUTORIAL.md`](TUTORIAL.md).
 
 ## Reference
-- **[`COMMANDS.md`](COMMANDS.md)** — every command and flag (`run`, `author`, `tune`, `bakeoff`, `calibrate`, `validate`, `install-skill`).
-- **[`GATES.md`](GATES.md)** — the 10 gates: what each asserts, its `assert`-spec shape, and when to declare it.
+- **[`COMMANDS.md`](COMMANDS.md)** — every command and flag (`run`, `author`, `tune`, `bakeoff`, `calibrate`, `validate`, `compare`, `fixtures`, `install-skill`).
+- **[`GATES.md`](GATES.md)** — the 11 gates: what each asserts, its `assert`-spec shape, and when to declare it.
 - **[`TUTORIAL.md`](TUTORIAL.md)** — the end-to-end zero-to-tuned walkthrough.
 - **[`CALIBRATION.md`](CALIBRATION.md)** — judge agreement numbers. **[`TESTING.md`](TESTING.md)** — how trust is earned. **[`LIMITATIONS.md`](LIMITATIONS.md)** — honest limits.
 

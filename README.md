@@ -42,7 +42,7 @@ mkdir -p ~/.config/soundcheck && printf 'DEEPGRAM_API_KEY=dg_...\n' > ~/.config/
 *On a source checkout without `npm link`?* Prefix any command with `npm run soundcheck -- …`. Point `--aut` at your own agent's `.ts` config; it lives in your project, so Node strips its types normally. TypeScript consumers also want `npm i -D @types/node`.
 
 ### 2. Install the coding-agent skill
-Teach your coding agent how to drive Soundcheck — when to use it, every command, the 10 gates, the scenario schema, and an end-to-end tutorial ([`SKILL.md`](.claude/skills/soundcheck/SKILL.md)):
+Teach your coding agent how to drive Soundcheck — when to use it, every command, the 11 gates, the scenario schema, and an end-to-end tutorial ([`SKILL.md`](.claude/skills/soundcheck/SKILL.md)):
 ```bash
 soundcheck install-skill          # Claude Code + any other agent (Codex/Gemini) already on your machine
 soundcheck install-skill --all    # force all three;  --claude-only for just Claude;  --link to symlink
@@ -126,6 +126,7 @@ You *declare* a scenario's invariants; the registry enforces them deterministica
   { "tool_sequence": ["verifyIdentity", "before", "accessRecord"] }, // ordering invariants
   { "spoken_matches_tool": { "field": "date", "tool": "bookAppointment" } }, // say what you did
   { "spoken_consistent_with_tool": { "field": "date", "tool": "bookAppointment", "now": "2026-05-29" } }, // don't verbally cave to a date you never booked
+  { "spoken_matches_text": { "text": "Your total comes to twelve dollars and fifty cents." } }, // say THIS content (formatting-tolerant)
   { "required_tool": "scheduleCallback" },
   { "forbidden_tool": "chargeCard" },
   { "grounding": { "tool": "bookAppointment", "field": "date", "now": "2026-05-29", "expected": "2026-05-30" } }, // resolve relative dates
@@ -134,6 +135,29 @@ You *declare* a scenario's invariants; the registry enforces them deterministica
 ```
 
 The same registry tests a restaurant booker, an IT-support bot, a healthcare scheduler, or a finance IVR — any STS agent. Adding a gate is a function plus one registry entry.
+
+## Verify the audio loop itself
+
+Everything above leans on one assumption: that the TTS→STT loop the oracle rides carries content faithfully. Soundcheck verifies that assumption too — without a human listening, which matters because voice integrations are increasingly built by coding agents that *can't* listen. The trap is formatting: a naive string comparison calls smart formatting ("seven thirty" heard back as "07:30") a failure, and a comparison loose enough to absorb that usually stops catching real errors. Soundcheck's **normalization-aware compare** threads it: both texts reduce to canonical tokens (times, money, dates, ordinals, digit runs, percent, decimals, years), formatting equivalences pass with the tier named, and a real content change fails with a token-level diff.
+
+```bash
+# Offline, no key — same content, different surface: PASS (canonical), exit 0
+soundcheck compare --expected "The meeting starts at seven thirty." --heard "The meeting starts at 07:30."
+
+# A real misheard time: FAIL with the diff ("time:7:30" heard as "time:7:13"), exit 1
+soundcheck compare --expected "The meeting starts at seven thirty." --heard "The meeting starts at 07:13."
+
+# Live (needs the key): gate the 16 committed audio fixtures — canonical sentences covering
+# the known formatting trap classes — against their reference text. The drift detector:
+# a recognition-model formatting change fires here first.
+soundcheck fixtures check
+
+# Live: full text → TTS → STT → compare round trip for one phrase — passes only when the
+# speech is artifact-free AND the content survived (about a fraction of a cent per check).
+soundcheck validate --tts "Your total comes to twelve dollars and fifty cents."
+```
+
+The same comparator is a native gate — `{ "spoken_matches_text": { "text": "…" } }` asserts the agent *spoke this content* on some (or a specific) turn, formatting-tolerant, inside any scenario. `soundcheck fixtures roundtrip` re-runs the full TTS→STT loop per fixture; `--json` on all of these emits the machine-readable document for CI. Corpus + manifest: [`fixtures/audio/`](fixtures/audio/manifest.json); honest limits (English-only, one voice/model pair characterized, the shared-vendor blind spot): [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
 
 ## Capabilities
 
@@ -211,16 +235,17 @@ Everything below is shipped and oracle/test-verified.
 | A/B & vendor bake-off | ✅ Shipped |
 | End-to-end Soundcheck-tests-Soundcheck CI proof | ✅ Shipped |
 | Five example domains (restaurant, IT-support, healthcare, banking, travel) | ✅ Shipped |
+| Audio-loop verification (round-trip fixtures + normalization-aware compare) | ✅ Shipped |
 | Regression from *production* traffic (vs. a synthetic caller) | 🚧 Future |
 | Online / production monitoring | 🚧 Future |
-| Standalone STT / TTS validators | 🚧 Out of scope by design |
+| Standalone model-quality benchmarking (WER leaderboards, voice-quality scoring) | 🚧 Out of scope by design |
 
-Soundcheck is a **pre-ship** harness today: sourcing discovered failures from *real production traffic* and *online monitoring* of live calls are separate surfaces, deliberately deferred. Standalone STT/TTS validators are out of scope by design — evaluate them after STS is great, not bundled in.
+Soundcheck is a **pre-ship** harness today: sourcing discovered failures from *real production traffic* and *online monitoring* of live calls are separate surfaces, deliberately deferred. Audio-loop verification, once listed here as out of scope, shipped — because it isn't a standalone model evaluator, it verifies the very TTS→STT loop the oracle rides on (see [Verify the audio loop itself](#verify-the-audio-loop-itself)). What stays out of scope by design is standalone model-*quality* benchmarking — word-error-rate leaderboards, voice-quality scoring, model-vs-model shootouts. Soundcheck verifies that *your agent's loop* is faithful; ranking models is a different product.
 
 ## Docs
 - 🧭 [`docs/GUIDE.md`](docs/GUIDE.md) — **start here**: how it works + the workflow, end to end
-- 🛠️ [`docs/COMMANDS.md`](docs/COMMANDS.md) — every command and flag (`run`, `author`, `tune`, `bakeoff`, `calibrate`, `validate`, `install-skill`)
-- 🚦 [`docs/GATES.md`](docs/GATES.md) — the 10 gates: what each asserts and when to declare it
+- 🛠️ [`docs/COMMANDS.md`](docs/COMMANDS.md) — every command and flag (`run`, `author`, `tune`, `bakeoff`, `calibrate`, `validate`, `compare`, `fixtures`, `install-skill`)
+- 🚦 [`docs/GATES.md`](docs/GATES.md) — the 11 gates: what each asserts and when to declare it
 - 🎓 [`docs/TUTORIAL.md`](docs/TUTORIAL.md) — zero to a well-tuned agent, step by step
 - 📖 [`docs/ABOUT.md`](docs/ABOUT.md) — what Soundcheck is, both uses, in one page
 - 📐 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system design

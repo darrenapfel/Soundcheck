@@ -66,10 +66,34 @@ Scores the LLM judge against a no-human **Golden Set** (agreement / precision / 
 
 ## `validate` — one-shot audio round-trips (debugging)
 ```
-soundcheck validate --tts "<text>"     # text → TTS → STT; flags spoken symbols
-soundcheck validate --stt <file.wav>   # transcribe an audio file
+soundcheck validate --tts "<text>" [--json]   # text → TTS → STT → compare; flags spoken symbols AND content changes
+soundcheck validate --stt <file.wav>          # transcribe an audio file
 ```
-Quick checks of the Deepgram round-trip — useful to confirm a phrase like a price or a date is spoken cleanly, outside a full scenario.
+`--tts` runs the full round trip and gates BOTH cleanliness and content: it transcribes smart-formatted, flags spoken symbols/artifacts, and compares the transcript against the input with the normalization-aware compare — "seven thirty" heard back as "7:30" passes (tier printed), "7:13" fails with a token-level diff. Exit 0 only when the comparison passes and no artifacts are detected. `--json` emits one schema-versioned JSON document alone on stdout (human output → stderr).
+
+---
+
+## `compare` — offline content comparison (no key)
+```
+soundcheck compare --expected "<text>" --heard "<text>" [--json]
+```
+The normalization-aware comparison gate standalone — **fully offline, keyless**. Both texts reduce to canonical tokens (times, money, dates, ordinals, digit runs, percent, decimals, years); three tiers are tried in order (exact → canonical → digit-merge). A pass names its tier; a failure prints a token-level diff with a token error rate. Exit 0 pass, 1 fail, 2 usage. An empty `--heard` is a legitimate failing input (a total transcription failure); a missing/empty `--expected` is a usage error. `--json` emits one schema-versioned document alone on stdout. Inside a scenario, the same comparator is the `spoken_matches_text` gate (see `reference/gates.md`).
+
+---
+
+## `fixtures` — the committed audio round-trip corpus (needs the key)
+```
+soundcheck fixtures <check|roundtrip|generate> [--json]
+```
+16 canonical WAV fixtures (`fixtures/audio/` + `manifest.json`) covering the known smart-formatting trap classes — times, currency, compound numbers, digit identifiers, dates, ordinals, years, percent, decimals, punctuation, plus a trap-free control.
+
+| Subcommand | Effect |
+|---|---|
+| `check` | Transcribe each **committed** WAV (smart-formatted) and gate it against the manifest text. The audio bytes never change, so a new failure = the recognition model's formatting behavior drifted. |
+| `roundtrip` | Fresh text→TTS→STT round trip per fixture, same gate — the full live loop, synthesis included. |
+| `generate` | Maintainers only: (re)record the corpus audio + `observed.json` (re-record via a reviewed PR, never silently). |
+
+`--json` emits `{ schema: 1, label, rows, summary: { passed, total } }` alone on stdout. Exit 0 all passed, 1 a fixture failed, 2 usage or no key (the key check fails fast, before any network attempt).
 
 ---
 

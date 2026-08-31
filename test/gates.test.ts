@@ -121,6 +121,54 @@ test("spoken_consistent_with_tool — catches the impatient-caller cave-in (spok
   assert.equal(gate(run([turn(1, "Your appointment is all set.", [appt("2026-06-04")])], spec), "spoken_consistent_with_tool").pass, true);
 });
 
+test("spoken_matches_text — canonical formatting equivalence passes; a real content error fails with a diff", () => {
+  // The oracle heard the smart-formatted surface of the same content -> PASS, tier named.
+  const pass = gate(run([turn(1, "The meeting starts at 7:30 tomorrow morning.")],
+    [{ spoken_matches_text: { text: "The meeting starts at seven thirty tomorrow morning." } }]), "spoken_matches_text");
+  assert.equal(pass.pass, true, pass.detail);
+  assert.match(pass.detail, /canonical/);
+  // A real misheard time (7:13 for seven thirty) -> FAIL, with the token-level diff surfaced.
+  const fail = gate(run([turn(1, "The meeting starts at 7:13 tomorrow morning.")],
+    [{ spoken_matches_text: { text: "The meeting starts at seven thirty tomorrow morning." } }]), "spoken_matches_text");
+  assert.equal(fail.pass, false);
+  assert.match(fail.detail, /FAIL/);
+  assert.match(fail.detail, /time:7:30.*heard as.*time:7:13/);
+});
+
+test("spoken_matches_text — turn targeting: the numbered turn must match; unknown turn numbers fail closed; no turn = any turn", () => {
+  const turns = [turn(1, "Let me check that for you."), turn(2, "Your total comes to $12.50.")];
+  const text = "Your total comes to twelve dollars and fifty cents.";
+  // `turn` is the 1-BASED CapturedTurn.turn number, exactly as report lines print it:
+  // turn 2 is the matching turn.
+  assert.equal(gate(run(turns, [{ spoken_matches_text: { text, turn: 2 } }]), "spoken_matches_text").pass, true);
+  // turn 1 says something else entirely -> fail (and the detail names the same 1-based number).
+  const wrongTurn = gate(run(turns, [{ spoken_matches_text: { text, turn: 1 } }]), "spoken_matches_text");
+  assert.equal(wrongTurn.pass, false);
+  assert.match(wrongTurn.detail, /turn 1:/);
+  // an unknown turn number fails CLOSED (never a vacuous pass) — too high, and the
+  // 0 that a 0-based reading would suggest.
+  const oob = gate(run(turns, [{ spoken_matches_text: { text, turn: 5 } }]), "spoken_matches_text");
+  assert.equal(oob.pass, false);
+  assert.match(oob.detail, /no captured turn numbered 5/);
+  assert.equal(gate(run(turns, [{ spoken_matches_text: { text, turn: 0 } }]), "spoken_matches_text").pass, false);
+  // without `turn`, ANY matching turn passes (detail names the 1-based turn that matched).
+  const any = gate(run(turns, [{ spoken_matches_text: { text } }]), "spoken_matches_text");
+  assert.equal(any.pass, true);
+  assert.match(any.detail, /turn 2 matched/);
+  // and with no matching turn anywhere, it fails.
+  assert.equal(gate(run(turns, [{ spoken_matches_text: { text: "Your total comes to fifteen dollars." } }]), "spoken_matches_text").pass, false);
+  // a malformed spec (no text) fails closed.
+  assert.equal(gate(run(turns, [{ spoken_matches_text: {} as never }]), "spoken_matches_text").pass, false);
+});
+
+test("spoken_matches_text — an expected text with no comparable tokens fails closed (no vacuous canonical pass)", () => {
+  // "?!" canonicalizes to ZERO tokens; so does a silent turn — without the guard the two
+  // empty key streams would match at the canonical tier and gate green.
+  const g = gate(run([turn(1, "")], [{ spoken_matches_text: { text: "?!" } }]), "spoken_matches_text");
+  assert.equal(g.pass, false);
+  assert.match(g.detail, /no comparable tokens/);
+});
+
 test("grounding — correct passes; stale year + wrong date fail; missing params fail closed", () => {
   const spec: Scenario["assert"] = [{ grounding: { tool: "bookReservation", field: "date", now: "2026-05-28", expected: "2026-05-30" } }];
   assert.equal(gate(run([turn(1, "", [book("2026-05-30")])], spec), "grounding").pass, true);

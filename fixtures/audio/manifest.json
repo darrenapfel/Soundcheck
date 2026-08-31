@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "defaults": {
+    "tts_model": "aura-2-thalia-en",
+    "stt_model": "nova-3",
+    "encoding": "linear16",
+    "sample_rate": 24000,
+    "container": "wav",
+    "smart_format": true
+  },
+  "fixtures": [
+    {
+      "id": "time-morning",
+      "traps": [
+        "time"
+      ],
+      "text": "The meeting starts at seven thirty tomorrow morning.",
+      "audio": "time-morning.wav",
+      "notes": "Smart formatting typically returns the time as 7:30. A naive string comparison fails here; the gate must pass it."
+    },
+    {
+      "id": "time-oclock",
+      "traps": [
+        "time"
+      ],
+      "text": "The store opens at nine o'clock.",
+      "audio": "time-oclock.wav",
+      "notes": "May come back as 9 o'clock or 9:00 depending on formatting."
+    },
+    {
+      "id": "time-minutes",
+      "traps": [
+        "time"
+      ],
+      "text": "Your train leaves at eight forty five.",
+      "audio": "time-minutes.wav",
+      "notes": "Two adjacent spoken numbers that mean one clock time."
+    },
+    {
+      "id": "currency-cents",
+      "traps": [
+        "currency"
+      ],
+      "text": "Your total comes to twelve dollars and fifty cents.",
+      "audio": "currency-cents.wav",
+      "notes": "Smart formatting typically returns $12.50."
+    },
+    {
+      "id": "currency-round",
+      "traps": [
+        "currency",
+        "number"
+      ],
+      "text": "The invoice was for one thousand two hundred dollars.",
+      "audio": "currency-round.wav",
+      "notes": "Smart formatting typically returns $1,200 — a thousands separator the gate must absorb."
+    },
+    {
+      "id": "number-compound",
+      "traps": [
+        "number"
+      ],
+      "text": "There are one hundred twenty three files in the folder.",
+      "audio": "number-compound.wav",
+      "notes": "Compound cardinal; typically returns 123."
+    },
+    {
+      "id": "digits-id",
+      "traps": [
+        "digits"
+      ],
+      "text": "Your confirmation number is four two seven nine.",
+      "audio": "digits-id.wav",
+      "notes": "An identifier spoken digit by digit; formatting may join it to 4279 or leave it split."
+    },
+    {
+      "id": "date-ordinal-year",
+      "traps": [
+        "date",
+        "ordinal",
+        "year"
+      ],
+      "text": "The package arrives on March third, twenty twenty five.",
+      "audio": "date-ordinal-year.wav",
+      "notes": "Ordinal day plus a spoken year pair; typically returns March 3rd, 2025."
+    },
+    {
+      "id": "date-weekday",
+      "traps": [
+        "date",
+        "ordinal"
+      ],
+      "text": "The office reopens on Monday, June first.",
+      "audio": "date-weekday.wav",
+      "notes": "Weekday plus ordinal day; typically returns June 1st or June 1. An earlier wording that began with the word We was genuinely misheard as May — a real recognition error the gate correctly fails, so the fixture was reworded to keep this test on the formatting trap."
+    },
+    {
+      "id": "ordinal-place",
+      "traps": [
+        "ordinal"
+      ],
+      "text": "She finished in twenty first place.",
+      "audio": "ordinal-place.wav",
+      "notes": "Compound ordinal; typically returns 21st."
+    },
+    {
+      "id": "percent",
+      "traps": [
+        "percent"
+      ],
+      "text": "The discount comes to fifteen percent.",
+      "audio": "percent.wav",
+      "notes": "Typically returns 15%."
+    },
+    {
+      "id": "year-nineteen",
+      "traps": [
+        "year"
+      ],
+      "text": "The company was founded in nineteen ninety nine.",
+      "audio": "year-nineteen.wav",
+      "notes": "Spoken year pair; typically returns 1999."
+    },
+    {
+      "id": "decimal",
+      "traps": [
+        "decimal"
+      ],
+      "text": "The board measures two point five meters.",
+      "audio": "decimal.wav",
+      "notes": "Spoken decimal; typically returns 2.5."
+    },
+    {
+      "id": "punctuation-question",
+      "traps": [
+        "punctuation"
+      ],
+      "text": "Are you free on Friday afternoon?",
+      "audio": "punctuation-question.wav",
+      "notes": "Punctuation-only differences must never fail the gate."
+    },
+    {
+      "id": "control-plain",
+      "traps": [
+        "control"
+      ],
+      "text": "The quick brown fox jumps over the lazy dog.",
+      "audio": "control-plain.wav",
+      "notes": "Control fixture with no formatting traps; a failure here indicates a transcription problem, not a formatting one."
+    },
+    {
+      "id": "mixed",
+      "traps": [
+        "date",
+        "time",
+        "currency",
+        "ordinal"
+      ],
+      "text": "Your appointment on April tenth at nine fifteen will cost forty dollars.",
+      "audio": "mixed.wav",
+      "notes": "Several trap classes in one sentence — the closest fixture to real voice-agent output."
+    }
+  ]
+}

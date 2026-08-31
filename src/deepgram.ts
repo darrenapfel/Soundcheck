@@ -22,11 +22,20 @@ function globalEnvPath(): string {
 
 /** Resolve the Deepgram key. Precedence: env var → the caller's CWD `.env` (what the quickstart
  *  writes) → the user-global `~/.config/soundcheck/.env` (works from any directory) → the Soundcheck
- *  package's own `.env` (repo dev only). NO other key is ever read. */
+ *  package's own `.env` (repo dev only). NO other key is ever read.
+ *
+ *  An EXPLICITLY EMPTY env var (`DEEPGRAM_API_KEY=""`, whitespace included) short-circuits the
+ *  whole chain and throws immediately — it never falls through to the `.env` files. CI systems
+ *  set empty secrets to mean absent (the nightly workflow's own guard treats an empty secret as
+ *  "no key"), so an explicitly empty variable must not silently pick up a stray `.env`. */
 export function getKey(): string {
   if (cachedKey) return cachedKey;
+  const envKey = process.env.DEEPGRAM_API_KEY;
+  if (envKey !== undefined && envKey.trim() === "") {
+    throw new Error("DEEPGRAM_API_KEY not set (the env var is explicitly empty — treated as absent; the .env fallbacks are skipped). Soundcheck needs only this one key.");
+  }
   const key =
-    process.env.DEEPGRAM_API_KEY?.trim() ||
+    envKey?.trim() ||
     readEnvKey(resolve(process.cwd(), ".env")) ||
     readEnvKey(globalEnvPath()) ||
     readEnvKey(new URL("../.env", import.meta.url));
@@ -96,6 +105,10 @@ export interface SttOpts {
   encoding?: string; // for raw PCM: "linear16"
   sampleRate?: number;
   contentType?: string; // "audio/l16" for raw, "audio/wav" for wav
+  /** Opt IN to smart formatting ("seven thirty" → "7:30") for the round-trip comparison
+   *  gate, whose whole job is formatting-equivalence verification. Absent/false keeps the
+   *  harness default EXACTLY as before: literal spoken words (smart_format/numerals off). */
+  smartFormat?: boolean;
 }
 
 /** The slice of Deepgram's /v1/listen JSON we read — the top alternative's transcript.
@@ -104,11 +117,14 @@ interface DeepgramListenResponse {
   results?: { channels?: Array<{ alternatives?: Array<{ transcript?: string }> }> };
 }
 
-/** Transcribe audio -> literal spoken words (smart_format/numerals OFF on purpose). */
+/** Transcribe audio -> literal spoken words (smart_format/numerals OFF on purpose; pass
+ *  `smartFormat: true` to opt in to smart formatting for the round-trip comparison gate). */
 export async function transcribe(audio: Buffer, opts: SttOpts = {}): Promise<string> {
   if (audio.length === 0) return "";
   const model = opts.model ?? "nova-3";
-  const params = new URLSearchParams({ model, punctuate: "true", smart_format: "false", numerals: "false" });
+  const params = opts.smartFormat
+    ? new URLSearchParams({ model, punctuate: "true", smart_format: "true" }) // no numerals: smart formatting owns number rendering
+    : new URLSearchParams({ model, punctuate: "true", smart_format: "false", numerals: "false" });
   if (opts.encoding) params.set("encoding", opts.encoding);
   if (opts.sampleRate) params.set("sample_rate", String(opts.sampleRate));
   const contentType = opts.contentType ?? "audio/wav";

@@ -47,6 +47,14 @@ jobs:
           echo "$out" | grep -q "gate failures present" || { echo "::error::DRIFT or ERROR — bare did not produce gate failures"; exit 1; }
           # And specifically the always-reliable one: bare hallucinates a date -> grounding fails.
           echo "$out" | grep -q "🚩 grounding" || { echo "::error::DRIFT — bare no longer fails grounding"; exit 1; }
+      - name: Live fixtures check — the committed audio corpus must still gate green
+        # The recognition-drift detector for the round-trip fixtures: a recognition-model
+        # formatting change (e.g. a new smart-format rendering of times or dates) fires
+        # here first, against the byte-stable committed audio.
+        if: steps.guard.outputs.run == 'true'
+        env:
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
+        run: npm run soundcheck -- fixtures check
       - name: Live judge calibration (informational)
         if: steps.guard.outputs.run == 'true'
         env:

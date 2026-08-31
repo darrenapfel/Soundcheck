@@ -1,6 +1,6 @@
 # Soundcheck — Architecture
 
-> Status: **v2.1.0** — this document describes the system design, and the system is now built. See [`LIMITATIONS.md`](LIMITATIONS.md) for exactly what it does and does not do. Shipped: **9 deterministic gates** in a composable registry, the round-trip validator, the advisory judge + calibration/alignment, autonomous authoring, the trace-driven tuning loop, the self-improving loop (discover → promote → refine), A/B & vendor bake-off, two CLI-selectable adapters (Deepgram VA + MockAUT) plus one reference adapter (OpenAI Realtime), scripted **and** reactive goal-driven callers including an adversarial red-team persona, and a reusable composite GitHub Action.
+> Status: **v2.3.0 + unreleased** — this document describes the system design, and the system is now built. See [`LIMITATIONS.md`](LIMITATIONS.md) for exactly what it does and does not do. Shipped: **11 deterministic gates** in a composable registry, the round-trip validator (text→TTS→STT→compare, with a committed 16-fixture audio corpus and an offline normalization-aware comparator), the advisory judge + calibration/alignment, autonomous authoring, the trace-driven tuning loop, the self-improving loop (discover → promote → refine), A/B & vendor bake-off, two CLI-selectable adapters (Deepgram VA + MockAUT) plus one reference adapter (OpenAI Realtime), scripted **and** reactive goal-driven callers including an adversarial red-team persona, and a reusable composite GitHub Action.
 
 ## 1. What Soundcheck is
 
@@ -50,13 +50,14 @@ A Deepgram Voice Agent whose `think` prompt encodes a **persona** and a **goal**
 Implementation notes carried from the spike: audio must be streamed at **real time** (bursting breaks endpointing) with a **continuous silence keepalive** between turns (the VA drops the "call" if audio stops). Turn-taking is **settle-based** (advance when the AUT goes quiet after responding), not single-event-based.
 
 ### 4.2 Capture / round-trip oracle
-Records the full exchange: Evaline's words, the AUT's emitted text/events (if the adapter exposes them), **the AUT's actual spoken audio round-tripped back through STT** (so we judge what a listener *hears*, not what the model *typed*), the **tool-call trace**, and **timings** (TTFB, turn latency, barge-in handling). The round-trip is also exposed **standalone**: `text→TTS→STT→compare` validates TTS; `known-audio→STT→compare` validates STT.
+Records the full exchange: Evaline's words, the AUT's emitted text/events (if the adapter exposes them), **the AUT's actual spoken audio round-tripped back through STT** (so we judge what a listener *hears*, not what the model *typed*), the **tool-call trace**, and **timings** (TTFB, turn latency, barge-in handling). The round-trip is also exposed **standalone**: `text→TTS→STT→compare` validates TTS (`validate --tts`); `known-audio→STT→compare` validates STT (`validate --stt`, and `fixtures check` against the committed corpus). The **compare** step is the normalization-aware comparator (`src/compare/`) — a pure, offline module that reduces both surface forms to canonical tokens so smart-formatting equivalences ("seven thirty" ≡ "07:30") pass while real content errors fail with a token-level diff. This is what makes the oracle's own loop verifiable: `soundcheck compare` runs it keyless; `soundcheck fixtures check|roundtrip` gates 16 committed audio fixtures covering the known formatting trap classes; the nightly workflow runs `fixtures check` as a recognition-drift detector.
 
 ### 4.3 Deterministic gates (the regression suite)
-Pure-code, pass/fail assertions over the captured `Trace`, exposed through a **composable gate registry** (`src/gates/index.ts`): each gate is a `GateFn` registered under its assert key, so the same gates test a restaurant booker, a support bot, or a finance IVR — any STS agent. Adding a gate is a function plus one registry entry. A scenario `assert` that names an unregistered key fail-CLOSES (it does not crash the run), and a gate that throws is reported as a failure rather than aborting. The ten registered gates (productized directly from spike findings):
+Pure-code, pass/fail assertions over the captured `Trace`, exposed through a **composable gate registry** (`src/gates/index.ts`): each gate is a `GateFn` registered under its assert key, so the same gates test a restaurant booker, a support bot, or a finance IVR — any STS agent. Adding a gate is a function plus one registry entry. A scenario `assert` that names an unregistered key fail-CLOSES (it does not crash the run), and a gate that throws is reported as a failure rather than aborting. The eleven registered gates (productized directly from spike findings):
 - **`no_spoken_symbols`** — the heard audio never contains "star", "pound", "hashtag", a dash read as "negative" before a price, etc.
 - **`no_spoken_cardinal_ids`** — identifiers (confirmation numbers, SSNs, ZIPs) are spoken digit-by-digit, not as a cardinal number ("four thousand four hundred seventeen").
 - **`spoken_matches_tool`** — a spoken value equals its tool-call value (e.g. spoken date == booked date); for alphanumeric identifiers (a flight number, a confirmation code) it verifies the digit runs were read back intelligibly, tolerating STT mishearing the letters.
+- **`spoken_matches_text`** — the agent's spoken words carry the same *content* as an expected sentence, under the normalization-aware compare (`src/compare/`): formatting equivalences pass, real content errors fail with a token-level diff. Optional `turn` pins a specific turn — the 1-based turn number reports print (an unknown turn number fails closed); without it, any turn may match.
 - **`spoken_consistent_with_tool`** — the agent's spoken commitments stay consistent with what it did: the *last* date it confirms is one a tool actually used, and any spoken "*weekday, month day*" is internally coherent (e.g. not "Thursday, June 2nd" when June 2 is a Tuesday). Catches an agent that says the right value, is pushed by an impatient caller, and verbally caves to a wrong one while the booking stays correct — a divergence `spoken_matches_tool` (existence-only) and `grounding` (tool-args-only) both miss.
 - **`tool_args_match_schema`** — a tool call conforms to its declared schema: type / required / format / enum / pattern (e.g. `date` is ISO `YYYY-MM-DD`). *(This catches the spike's "speech-fix broke the tool-arg format" regression — a class the speech oracle alone cannot see.)*
 - **`grounding`** — a relative date ("this Saturday") resolves to the correct calendar date / not a stale year.
@@ -195,10 +196,12 @@ soundcheck/
 │   ├── types.ts         # core data model — Scenario, Trace, AUTConfig, AssertSpec, ToolSchema, …
 │   ├── deepgram.ts      # Deepgram STT/TTS/VA primitives (the single-key surface)
 │   ├── normalize.ts     # spoken-text normalization + artifact/dash detection
+│   ├── compare/         # normalization-aware round-trip comparator (pure, offline; three tiers + LCS diff)
+│   ├── fixtures/        # audio-corpus manifest + check/roundtrip/generate flows (CLI `fixtures` is a thin shell)
 │   ├── caller/          # Evaline: scripted + reactive goal-driven callers, persona presets, planner
 │   ├── adapters/        # AUTAdapter interface + deepgram-va, mock-aut, openai-realtime adapters
 │   ├── capture/         # round-trip oracle, Trace model, cassette record/replay
-│   ├── gates/           # deterministic gate registry (the 9 gates)
+│   ├── gates/           # deterministic gate registry (the 11 gates)
 │   ├── judge/           # advisory LLM judge (Deepgram-fronted grader) + rubric + panel
 │   ├── calibration/     # judge-alignment loop (trust verdict, cross-model, drift guard)
 │   ├── tune/            # trace-driven tuning loop (diagnose + Goodhart held-out guard)
@@ -211,7 +214,8 @@ soundcheck/
 ├── examples/            # tabletalk, support, healthcare, banking, travel, authored-*, tune-demo,
 │                        #   interactive, self-improving-loop
 ├── fixtures/cassettes/  # recorded runs for deterministic replay in CI
-├── test/                # the deterministic suite (152 tests; see TESTING.md)
+├── fixtures/audio/      # the committed round-trip corpus: 16 WAVs + manifest.json + observed.json
+├── test/                # the deterministic suite (239 tests; see TESTING.md)
 ├── docs/                # ABOUT.md, ARCHITECTURE.md, TESTING.md, CALIBRATION.md, LIMITATIONS.md
 ├── action.yml           # reusable composite GitHub Action
 └── .github/workflows/   # ci.yml (validate) + nightly.yml (live)

@@ -1,6 +1,6 @@
 # Commands
 
-Every Soundcheck command and flag. After `npm install -g soundcheck-cli` the command is `soundcheck <command>`, run against your own agent from any directory; from a source checkout, use `soundcheck` (after `npm link`) or `npm run soundcheck -- <command>`. Scenario/agent paths are relative to the working directory, so the bundled `examples/` paths in this doc assume a source checkout; the key is read from `DEEPGRAM_API_KEY` / `.env` / `~/.config/soundcheck/.env`. Live commands need `DEEPGRAM_API_KEY`; `--replay` and `--adapter mock` are fully offline. See also [`GUIDE.md`](GUIDE.md) and [`GATES.md`](GATES.md).
+Every Soundcheck command and flag. After `npm install -g soundcheck-cli` the command is `soundcheck <command>`, run against your own agent from any directory; from a source checkout, use `soundcheck` (after `npm link`) or `npm run soundcheck -- <command>`. Scenario/agent paths are relative to the working directory, so the bundled `examples/` paths in this doc assume a source checkout; the key is read from `DEEPGRAM_API_KEY` / `.env` / `~/.config/soundcheck/.env`. Live commands need `DEEPGRAM_API_KEY`; `--replay`, `--adapter mock`, and the `compare` command are fully offline. See also [`GUIDE.md`](GUIDE.md) and [`GATES.md`](GATES.md).
 
 ---
 
@@ -66,10 +66,59 @@ Scores the LLM judge against a no-human **Golden Set** (agreement / precision / 
 
 ## `validate`
 ```
-soundcheck validate --tts "<text>"     # text → TTS → STT; flags spoken symbols
-soundcheck validate --stt <file.wav>   # transcribe an audio file
+soundcheck validate --tts "<text>" [--json]   # text → TTS → STT → compare; flags spoken symbols AND content changes
+soundcheck validate --stt <file.wav>          # transcribe an audio file
 ```
-One-shot Deepgram round-trips — confirm a phrase (a price, a date) is spoken cleanly outside a full scenario.
+One-shot Deepgram round-trips. `--tts` runs the full **text → TTS → STT → compare** loop: it transcribes smart-formatted, flags spoken symbols/artifacts, and gates the transcript against the input with the normalization-aware comparison — so "seven thirty" heard back as "7:30" passes (the tier is printed) while "7:13" fails with a token-level diff plus the expected/heard pair. **Exit 0 only when the comparison passes and no artifacts are detected.** Use it to confirm a phrase (a price, a date, a confirmation number) survives the loop, outside a full scenario.
+
+| Flag | Effect |
+|---|---|
+| `--tts "<text>"` | Synthesize the text, transcribe it back (smart-formatted), detect artifacts, and compare against the input. |
+| `--stt <file.wav>` | Transcribe an audio file (literal spoken words), print what was heard. |
+| `--json` | (with `--tts`) Emit one schema-versioned JSON document alone on stdout — input, heard, artifacts, the full compare result, and the verdict; human output moves to stderr. |
+
+---
+
+## `compare`
+```
+soundcheck compare --expected "<text>" --heard "<text>" [--json]
+```
+The normalization-aware comparison gate, standalone — **fully offline, no key, no network.** Decides whether two surface forms carry the same content: both texts reduce to canonical tokens (times, money, dates, ordinals, digit runs, percent, decimals, years), then three tiers are checked in order — **exact** (case/whitespace-folded string equality), **canonical** (token streams match), **digit-merge** (numeric tokens flattened and concatenated, rescuing split formatting like "555 1212" vs "5551212"). A pass names its tier; a failure prints a token-level diff with a token error rate.
+
+```
+$ soundcheck compare --expected "The meeting starts at seven thirty." --heard "The meeting starts at 07:30."
+compare: PASS (canonical)
+$ soundcheck compare --expected "The meeting starts at seven thirty." --heard "The meeting starts at 07:13."
+compare: FAIL (token error rate 20%): "time:7:30" heard as "time:7:13"
+```
+
+| Flag | Effect |
+|---|---|
+| `--expected "<text>"` | The reference text (what was sent to TTS). Required and non-empty — missing/empty is a usage error. |
+| `--heard "<text>"` | The transcript to gate (what STT returned). Required, but **an empty string is a legitimate input** — a total transcription failure that must gate as FAIL, not error out. |
+| `--json` | Emit one schema-versioned JSON document alone on stdout (`{ schema, label, pass, tier, expectedKeys, heardKeys, diff, tokenErrorRate, … }`); human output moves to stderr. |
+
+**Exit codes:** 0 pass, 1 fail, 2 usage. The same comparator is available as the [`spoken_matches_text` gate](GATES.md) inside scenarios, and as `compare()`/`summarize()` from the library.
+
+---
+
+## `fixtures`
+```
+soundcheck fixtures <check|roundtrip|generate> [--json]
+```
+Drive the committed audio round-trip corpus — [`fixtures/audio/`](../fixtures/audio/manifest.json): 16 canonical WAV recordings covering the known smart-formatting trap classes (times, currency, compound numbers, digit identifiers, dates, ordinals, years, percent, decimals, punctuation, plus a trap-free control), each with its reference text in the manifest. All three subcommands call the Deepgram API and need the key; without one they fail cleanly with the standard key-resolution error (exit 2) **before any network attempt**.
+
+| Subcommand | Effect |
+|---|---|
+| `check` | Transcribe each **committed** WAV (smart-formatted) and gate it against the manifest text with the normalization-aware compare. The cheap drift detector: the audio bytes never change, so a new failure means the *recognition model's formatting behavior* changed. Runs nightly in CI when the key secret exists. |
+| `roundtrip` | A **fresh** text→TTS→STT round trip per fixture, gated the same way — verifies the full live loop, synthesis included. |
+| `generate` | Maintainers only: (re)synthesize every fixture's audio into `fixtures/audio/` and record what smart formatting returned at generation time in `observed.json` (documentation — never read by code). Re-record via a reviewed PR, never silently. |
+
+| Flag | Effect |
+|---|---|
+| `--json` | Emit one schema-versioned JSON document alone on stdout: `{ schema: 1, label, rows: [...], summary: { passed, total } }` — per-fixture transcript + full compare result; human output moves to stderr. |
+
+**Exit codes:** 0 all fixtures passed, 1 at least one failed, 2 usage or no key.
 
 ---
 
