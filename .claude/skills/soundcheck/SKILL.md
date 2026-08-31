@@ -23,8 +23,8 @@ The oracle (STT over the *real* recording) or a deterministic gate decides — n
 `author` a suite from your agent → `run` it and read the report → (optionally `bakeoff` vs a baseline) → `tune --fixer "claude -p"` until green → `calibrate` to trust the judge → `--caller goal --promote-failures` to discover + freeze regressions → `--replay` them in CI. Full worked example: **`tutorials/zero-to-tuned.md`**.
 
 ## Reference (read on demand — don't load unless you need the detail)
-- **`reference/commands.md`** — every command and flag: `run`, `author`, `tune`, `bakeoff`, `calibrate`, `validate`, `install-skill`.
-- **`reference/gates.md`** — the 10 gates: what each asserts, its `assert`-spec shape, and when to declare it.
+- **`reference/commands.md`** — every command and flag: `run`, `author`, `tune`, `bakeoff`, `calibrate`, `validate`, `compare`, `fixtures`, `install-skill`.
+- **`reference/gates.md`** — the 11 gates: what each asserts, its `assert`-spec shape, and when to declare it.
 - **`reference/scenarios.md`** — the scenario JSON schema (`goal`, `persona`, `turns`, `assert`, `liveOnly`, `bargeIn`, `fixtureOnly`).
 - **`reference/agents.md`** — how to write the agent-under-test config (`AUTConfig`: tools, toolStubs, systemPrompt, voice, think model).
 - **`tutorials/zero-to-tuned.md`** — the end-to-end walkthrough.
@@ -37,7 +37,7 @@ soundcheck run scenarios --aut ./my-agent.ts               # 2. drive it live, g
 open runs/report-*.html                                    # 3. hear the call + read what the oracle heard
 soundcheck tune --agent ./my-agent.ts --fixer "claude -p"  # 4. tune the prompt until the held-out set goes green
 ```
-Offline, no key needed: add `--replay` to `run`/`bakeoff` (loads a recorded cassette and runs the same gates).
+Offline, no key needed: add `--replay` to `run`/`bakeoff` (loads a recorded cassette and runs the same gates), and `soundcheck compare --expected "<text>" --heard "<text>"` gates two surface forms of the same content entirely offline (formatting equivalences like "seven thirty" ≡ "7:30" pass; real errors fail with a token diff). `soundcheck fixtures check` (live) verifies the TTS→STT loop itself against 16 committed audio fixtures.
 
 ## Invariants to respect when working in this repo
 - **Deepgram-key-only** by default and in CI; **zero runtime dependencies**; Node 22 native TypeScript (erasable syntax only — no enums/namespaces; `.ts` import specifiers; the only build is the publish-time `tsc -p tsconfig.build.json` → `dist/`).

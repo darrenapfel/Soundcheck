@@ -17,8 +17,11 @@ In its first use Soundcheck is to a voice agent what Playwright is to a web appl
 | Maintain state across turns | multi-turn scenarios, `tool_sequence` | losing the entity created earlier, or acting before a prerequisite step |
 | Make "modify" tools accumulate | a modify-then-confirm scenario | a later change clobbering an earlier one |
 | Anchor relative dates | `grounding` | "this Saturday" resolved to the wrong calendar date |
+| Deliver the content, whatever the formatting | `spoken_matches_text` | "seven thirty" heard back as "7:13" — a content change that naive string comparison drowns in formatting noise |
 
 Soundcheck verifies spoken behavior, not deployment: a property such as keeping the API key off the browser client is confirmed by inspection rather than by this harness. The checks are otherwise domain-agnostic — the same registry tests a restaurant booker, an IT-support line, a healthcare scheduler, or a bank's card desk, because each scenario declares its own invariants.
+
+The instrument itself is also checked. Because every verdict rides on the synthesis-and-recognition loop, Soundcheck verifies that loop directly: a normalization-aware comparison (`soundcheck compare`, offline) decides whether two surface forms carry the same content — smart formatting such as "seven thirty" returned as "07:30" passes, while a real change such as "07:13" fails with a token-level diff — and a committed corpus of sixteen recordings covering the known formatting trap classes is gated against its reference text on demand (`soundcheck fixtures check`) and nightly. The stated limits are part of the claim: the comparison is English-only; its trap list is finite and grows as new renderings are observed; the corpus characterizes one voice and one recognition model; and because Deepgram recognition judges Deepgram synthesis, an error both sides made identically would pass — a second-vendor cross-check remains future work.
 
 ## 2. An autonomous evaluation loop
 
