@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-08-25T03:14:46.295Z",
+  "tts_model": "aura-2-thalia-en",
+  "stt_model": "nova-3",
+  "observations": [
+    {
+      "id": "time-morning",
+      "observed": "The meeting starts at 07:30 tomorrow morning."
+    },
+    {
+      "id": "time-oclock",
+      "observed": "The store opens at 09:00."
+    },
+    {
+      "id": "time-minutes",
+      "observed": "Your train leaves at 08:45."
+    },
+    {
+      "id": "currency-cents",
+      "observed": "Your total comes to $12.50."
+    },
+    {
+      "id": "currency-round",
+      "observed": "The invoice was for $1,200."
+    },
+    {
+      "id": "number-compound",
+      "observed": "There are 123 files in the folder."
+    },
+    {
+      "id": "digits-id",
+      "observed": "Your confirmation number is 4279."
+    },
+    {
+      "id": "date-ordinal-year",
+      "observed": "The package arrives on 03/03/2025."
+    },
+    {
+      "id": "date-weekday",
+      "observed": "The office reopens on Monday, June 1."
+    },
+    {
+      "id": "ordinal-place",
+      "observed": "She finished in twenty first place."
+    },
+    {
+      "id": "percent",
+      "observed": "The discount comes to 15%."
+    },
+    {
+      "id": "year-nineteen",
+      "observed": "The company was founded in 1999."
+    },
+    {
+      "id": "decimal",
+      "observed": "The board measures 2.5 meters."
+    },
+    {
+      "id": "punctuation-question",
+      "observed": "Are you free on Friday afternoon?"
+    },
+    {
+      "id": "control-plain",
+      "observed": "The quick brown fox jumps over the lazy dog."
+    },
+    {
+      "id": "mixed",
+      "observed": "Your appointment on April 10 at 09:15 will cost $40."
+    }
+  ]
+}

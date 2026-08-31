@@ -18,6 +18,9 @@ out/
 *.pcm
 *.mp3
 report.html
+# …except the committed audio round-trip corpus (16 canonical WAVs + manifest + observed
+# transcripts) — deliberately tracked and shipped; see fixtures/audio/manifest.json.
+!fixtures/audio/**
 
 # Internal build/QA artifacts — never publish (autonomous-build briefs + review reports)
 /GOAL_STS*.md
