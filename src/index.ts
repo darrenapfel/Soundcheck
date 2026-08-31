@@ -29,6 +29,13 @@ export { evalineTurns } from "./caller/evaline.ts";
 export { buildTranscript, type TranscribeFn } from "./capture/transcript.ts";
 export { saveCassette, loadCassette, hasCassette, cassettePath, TRACE_VERSION } from "./capture/cassette.ts";
 
+// Compare — the normalization-aware round-trip comparison gate (pure, offline).
+// "seven thirty" ≡ "07:30" passes; "seven thirty" vs "07:13" fails with a token diff.
+export {
+  compare, summarize, diffKeys, canonicalTokens, canonicalKeys, digitMergeKeys,
+  type CompareResult, type CompareTier, type DiffOp, type Token,
+} from "./compare/index.ts";
+
 // Judge — advisory LLM scoring. Implement JudgeBackend to add a grader.
 export { judgeTranscript, mockJudge, DEFAULT_RUBRIC, aggregateVerdicts } from "./judge/index.ts";
 export { makeDeepgramVaJudge, deepgramVaJudge } from "./judge/deepgram-va-judge.ts";
