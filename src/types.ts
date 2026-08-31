@@ -48,6 +48,8 @@ export type AssertSpec =
   | { tool_sequence: [string, "before", string] }
   | { tool_args_match_schema: string }
   | { spoken_matches_tool: { tool: string; field: string } }
+  // `turn` is the 1-based CapturedTurn.turn number — the same number report lines print;
+  // an unknown turn number fails closed. Omit it to let any turn match.
   | { spoken_matches_text: { text: string; turn?: number } }
   | { spoken_consistent_with_tool: { tool?: string; field: string; now: string } }
   | { grounding: { tool?: string; field?: string; now: string; expected: string } }
