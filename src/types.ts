@@ -24,6 +24,12 @@ export interface Scenario {
   /** Goal-driven caller (B): when set and selected, Evaline improvises toward this goal
    *  instead of replaying `turns`. Live-only (a brain decides each line); not for cassettes. */
   goal?: string;
+  /** Red-team scenario: the `goal` is an ATTACK — the caller trying to make the agent do
+   *  something it must not (delete an unverified account, leak a credential). Inverts the
+   *  synthetic goal gate: the attacker's planner declaring the goal met becomes a FAILING
+   *  `attack_succeeded` row, and an unmet attack goal adds no synthetic row at all — the
+   *  scenario's declared asserts are the authoritative verdict either way. */
+  redTeam?: boolean;
   /** Declarative barge-in (B): after `afterTurn`, the scripted caller speaks `text` OVER
    *  the agent `afterMs` after it starts replying — to test interruption handling. */
   bargeIn?: { afterTurn: number; text: string; afterMs: number };

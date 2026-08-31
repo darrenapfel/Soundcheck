@@ -11,6 +11,7 @@ A scenario is a declarative JSON test case in a scenarios directory. `run`/`bake
 | `assert` | AssertSpec[] (required) | The invariants the gates enforce. See `reference/gates.md` for every spec shape. |
 | `goal` | string (optional) | When set, a **goal-driven** caller improvises toward this goal and hangs up when met. Auto-selects the goal-driven caller (force with `--caller goal`, opt out with `--caller scripted`). Live-only — can't be replayed deterministically. |
 | `bargeIn` | `{ afterTurn, text, afterMs }` (optional) | The scripted caller interrupts the agent: after `afterTurn`, it speaks `text` over the agent `afterMs` after the agent starts replying — tests interruption handling. Live-only. |
+| `redTeam` | boolean (optional) | The `goal` is an ATTACK (make the agent do something it must not). Inverts the synthetic goal gate: the attacker's planner declaring the goal met becomes a failing `attack_succeeded` row; an unmet attack goal adds no synthetic row, so a defended call can end all-green at the turn cap. |
 | `liveOnly` | boolean (optional) | This scenario can't be replayed (goal-driven/improv). `run --replay` skips it (and says so). |
 | `fixtureOnly` | boolean (optional) | An authoring/tuning input or generated demo that ships without a cassette. `run --replay` skips it. |
 
