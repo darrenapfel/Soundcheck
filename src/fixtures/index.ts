@@ -61,6 +61,20 @@ export function loadManifest(rootDir: string = PACKAGE_ROOT): FixtureManifest {
   if (!manifest.defaults || typeof manifest.defaults !== "object") {
     throw new Error("fixture manifest is missing the defaults object");
   }
+  // Validate every defaults field explicitly — these feed URLs and API parameters, so a
+  // malformed manifest must fail loudly here, naming the field, not deep in a live call.
+  const d = manifest.defaults as Record<string, unknown>;
+  for (const field of ["tts_model", "stt_model", "encoding", "container"] as const) {
+    if (typeof d[field] !== "string" || !d[field]) {
+      throw new Error(`fixture manifest defaults.${field} must be a non-empty string`);
+    }
+  }
+  if (typeof d.sample_rate !== "number" || !Number.isFinite(d.sample_rate) || d.sample_rate <= 0) {
+    throw new Error("fixture manifest defaults.sample_rate must be a positive number");
+  }
+  if (typeof d.smart_format !== "boolean") {
+    throw new Error("fixture manifest defaults.smart_format must be a boolean");
+  }
   if (!Array.isArray(manifest.fixtures) || manifest.fixtures.length === 0) {
     throw new Error("fixture manifest has no fixtures");
   }
@@ -71,6 +85,12 @@ export function loadManifest(rootDir: string = PACKAGE_ROOT): FixtureManifest {
       if (typeof f[field] !== "string" || !f[field]) {
         throw new Error(`fixture ${String(f.id ?? "(missing id)")} is missing the "${field}" field`);
       }
+    }
+    // `audio` is joined into a filesystem path (audioPath), so it must be a bare, safe
+    // filename — no separators, no traversal — mirroring the cassette path discipline.
+    const audio = f.audio as string;
+    if (!/^[A-Za-z0-9._-]+$/.test(audio) || audio === "." || audio === "..") {
+      throw new Error(`fixture ${String(f.id)} audio "${audio}" is not a safe bare filename`);
     }
     if (!Array.isArray(f.traps) || f.traps.length === 0) {
       throw new Error(`fixture ${String(f.id)} must declare at least one trap class`);
