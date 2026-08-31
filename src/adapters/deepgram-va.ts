@@ -4,8 +4,11 @@
 // keepalive between turns (the VA drops the "call" if audio stops), settle-based
 // turn-taking (the agent emits multiple lines per turn), and tool-call stubbing.
 //
-// Auth: the raw Deepgram key via the ["token", key] subprotocol. The `think` LLM
-// runs on the Deepgram key alone — NO OpenAI/Anthropic key is ever passed.
+// Auth: the raw Deepgram key via the ["token", key] subprotocol by default. The
+// `think` LLM runs on the Deepgram key alone — NO OpenAI/Anthropic key is ever
+// passed. An AUTConfig `endpoint` override retargets the adapter at any other
+// endpoint speaking the same protocol (a backend bridge, a staging host) with its
+// own subprotocol auth — see AUTConfig.endpoint in ../types.ts.
 
 import { getKey, synthesize, resamplePcm16le } from "../deepgram.ts";
 import type { AUTConfig, ToolCall } from "../types.ts";
@@ -58,7 +61,7 @@ export interface WsLike {
   close(): void;
   addEventListener(type: string, listener: (ev: { data: unknown }) => void): void;
 }
-export type WsFactory = (url: string) => WsLike;
+export type WsFactory = (url: string, protocols?: string[]) => WsLike;
 export type SynthFn = (text: string, opts: { model: string; encoding: string; sampleRate: number; container: string }) => Promise<Buffer>;
 
 export class DeepgramVoiceAgentAdapter implements AUTAdapter {
@@ -68,9 +71,11 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
   #setupTimeoutMs: number;
 
   // Defaults are the real Deepgram socket + TTS (the default factory fetches the key,
-  // so an injected mock factory needs no key — keeps offline tests CI-safe).
+  // so an injected mock factory needs no key — keeps offline tests CI-safe). When the
+  // AUT supplies its own subprotocols (endpoint override), the key is not read for the
+  // socket at all — custom-auth bridges don't hold a Deepgram key client-side.
   constructor(opts: { wsFactory?: WsFactory; synth?: SynthFn; setupTimeoutMs?: number } = {}) {
-    this.#wsFactory = opts.wsFactory ?? ((url) => new WebSocket(url, ["token", getKey()]) as unknown as WsLike);
+    this.#wsFactory = opts.wsFactory ?? ((url, protocols) => new WebSocket(url, protocols ?? ["token", getKey()]) as unknown as WsLike);
     this.#synth = opts.synth ?? ((text, o) => synthesize(text, o));
     this.#setupTimeoutMs = opts.setupTimeoutMs ?? 15000;
   }
@@ -83,7 +88,12 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
   // Control-inverted loop: ask the Caller for each next action given what the agent just
   // said (enables a reactive goal-driven caller and barge-in). The scripted path uses it too.
   async converse(aut: AUTConfig, caller: Caller): Promise<ConversationCapture> {
-    const ws = this.#wsFactory(AGENT_WS);
+    // Endpoint override (AUTConfig.endpoint): retarget the socket and/or its subprotocol
+    // auth. `subprotocols` may be a function so the config can fetch a fresh credential
+    // (e.g. a session JWT from the bridge's own auth endpoint) at call time.
+    const sub = aut.endpoint?.subprotocols;
+    const protocols = typeof sub === "function" ? await sub() : sub;
+    const ws = this.#wsFactory(aut.endpoint?.url ?? AGENT_WS, protocols);
     ws.binaryType = "arraybuffer";
 
     // Shared turn state.
@@ -121,8 +131,15 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     };
 
     // Continuous real-time pump (phone-call model — never stop sending audio) + recorder.
+    // The pump stays quiet until the Settings handshake completes: the Voice Agent protocol
+    // rejects any binary received before Settings ("Received binary message before Settings"),
+    // and pre-handshake keepalive silence is exactly that. Against the production endpoint the
+    // old always-on pump merely tended to win the race (Welcome→Settings is fast); through a
+    // bridging backend that buffers pre-open client traffic — or on a slow network — it loses
+    // and the server kills the session. No audio (even silence) before SettingsApplied.
+    let audioLive = false;
     const pump = setInterval(() => {
-      if (ws.readyState !== WebSocket.OPEN) return;
+      if (!audioLive || ws.readyState !== WebSocket.OPEN) return;
       const callerFrame = audioQueue.length ? audioQueue.shift()! : SILENCE;
       ws.send(callerFrame);
       if (recordingOn) {
@@ -212,6 +229,7 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
 
     try { // always clean up the pump + socket below, even if setup times out or a turn throws
     await opened;
+    audioLive = true; // handshake complete — the continuous audio stream may start
     recordingOn = true; // record the whole call, from the greeting on
 
     const enqueueSpeech = (pcm: Buffer) => {

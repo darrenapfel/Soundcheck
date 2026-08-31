@@ -150,7 +150,7 @@ class HandshakeWs implements WsLike {
   binaryType = "blob"; readyState = 0;
   #l: Record<string, ((ev: { data: unknown }) => void)[]> = {};
   #mode: "error" | "silent";
-  gotSettingsAt = 0; welcomeAt = 0;
+  gotSettingsAt = 0; welcomeAt = 0; binaryBeforeHandshake = 0;
   constructor(mode: "error" | "silent") {
     this.#mode = mode;
     queueMicrotask(() => { this.readyState = 1; this.#fire("open"); this.welcomeAt = Date.now(); this.#json({ type: "Welcome" }); });
@@ -159,7 +159,8 @@ class HandshakeWs implements WsLike {
   #fire(t: string, d?: unknown) { for (const cb of this.#l[t] ?? []) cb({ data: d }); }
   #json(o: unknown) { this.#fire("message", JSON.stringify(o)); }
   send(data: unknown) {
-    if (typeof data === "string" && JSON.parse(data).type === "Settings") {
+    if (typeof data !== "string") { this.binaryBeforeHandshake++; return; } // handshake never completes in either mode
+    if (JSON.parse(data).type === "Settings") {
       this.gotSettingsAt = Date.now();
       if (this.#mode === "error") setTimeout(() => this.#json({ type: "Error", description: "settings rejected" }), 5);
       // "silent": never send SettingsApplied → the adapter must time out, not hang.
@@ -181,7 +182,39 @@ test("converse REJECTS via setup timeout when SettingsApplied never arrives (doe
 
 test("Settings is sent only AFTER the server's Welcome (Deepgram protocol order)", async () => {
   let ws!: HandshakeWs;
-  const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => (ws = new HandshakeWs("silent")), synth: async () => Buffer.alloc(6400, 1), setupTimeoutMs: 150 });
+  // 400ms setup timeout: long enough for several 100ms pump ticks, so an always-on pump
+  // (the pre-fix behavior) would provably send binary before the handshake and trip the
+  // assertion below.
+  const adapter = new DeepgramVoiceAgentAdapter({ wsFactory: () => (ws = new HandshakeWs("silent")), synth: async () => Buffer.alloc(6400, 1), setupTimeoutMs: 400 });
   await adapter.converse(makeConfig("t", "p"), hangupCaller()).catch(() => { /* expected timeout */ });
   assert.ok(ws.welcomeAt > 0 && ws.gotSettingsAt >= ws.welcomeAt, `Settings (${ws.gotSettingsAt}) must be sent at/after Welcome (${ws.welcomeAt})`);
+  // The Voice Agent protocol rejects any binary received before Settings — the pump must
+  // stay silent (not even keepalive silence) until the handshake completes.
+  assert.equal(ws.binaryBeforeHandshake, 0, "no audio may be sent before the Settings handshake completes");
 }, { timeout: 10000 });
+
+// Endpoint override (AUTConfig.endpoint): the adapter must pass the overridden URL and
+// resolved subprotocols to the socket factory — this is what lets Soundcheck test a
+// backend that BRIDGES its own client WebSocket to Deepgram (the common starter-app
+// architecture) with the bridge's own auth, instead of Deepgram's endpoint directly.
+test("endpoint override: custom URL + async subprotocols reach the socket factory; default is unchanged", async () => {
+  const seen: { url?: string; protocols?: string[] }[] = [];
+  const factory = (url: string, protocols?: string[]) => { seen.push({ url, protocols }); return new MockWs(); };
+
+  // Default: production URL, no protocols passed through (factory applies its own default auth).
+  const plain = new DeepgramVoiceAgentAdapter({ wsFactory: factory, synth: async () => Buffer.alloc(6400, 1) });
+  await plain.runConversation(makeConfig("t", "be nice"), [{ text: "hi", voice: "v" }]);
+  assert.equal(seen[0].url, "wss://agent.deepgram.com/v1/agent/converse");
+  assert.equal(seen[0].protocols, undefined);
+
+  // Override: bridge URL + an async subprotocol resolver (e.g. fetches a session JWT).
+  const bridged = new DeepgramVoiceAgentAdapter({ wsFactory: factory, synth: async () => Buffer.alloc(6400, 1) });
+  const aut = {
+    ...makeConfig("t", "be nice"),
+    endpoint: { url: "ws://localhost:8081/api/voice-agent", subprotocols: async () => ["access_token.test-session-jwt"] },
+  };
+  const cap = await bridged.runConversation(aut, [{ text: "hi", voice: "v" }]);
+  assert.equal(seen[1].url, "ws://localhost:8081/api/voice-agent");
+  assert.deepEqual(seen[1].protocols, ["access_token.test-session-jwt"]);
+  assert.equal(cap.turns.length, 1); // the loop itself is unaffected by the override
+}, { timeout: 20000 });

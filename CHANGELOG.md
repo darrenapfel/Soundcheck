@@ -2,6 +2,14 @@
 
 All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
 
+## [Unreleased]
+
+### Fixed
+- **No audio before the Settings handshake.** The adapter's continuous keepalive pump started sending silence frames the moment the socket opened — before `Settings`/`SettingsApplied` — which the Voice Agent protocol rejects ("Received binary message before Settings"). Against the production endpoint the pump merely tended to win the Welcome→Settings race; through a bridging backend that buffers pre-open client traffic (or on a slow network) it loses, and the server kills the session at setup. The pump now stays silent until `SettingsApplied`; the handshake test asserts zero pre-handshake binary.
+
+### Added
+- **`AUTConfig.endpoint` — test a Voice Agent bridge, not just Deepgram directly.** An optional `endpoint: { url?, subprotocols? }` on the AUT config retargets the Deepgram Voice Agent adapter at any endpoint that speaks the same WebSocket protocol — typically a backend that bridges its own client WebSocket to Deepgram (the common starter-app architecture) or a staging host. `subprotocols` replaces the default `["token", <DEEPGRAM_API_KEY>]` auth and may be an async function so the config can fetch a fresh credential (e.g. a session JWT from the backend's own auth endpoint) at call time; with custom subprotocols the socket needs no Deepgram key at all (TTS/STT/oracle still use it). Soundcheck then exercises the app's real client path — auth handshake, message bridging, buffering, binary audio forwarding in both directions — with the full gate/oracle loop. Covered offline in `test/adapter-loop.test.ts`; documented in the skill's `reference/agents.md`.
+
 ## [2.3.0] — 2026-06-01
 
 The agent-first release: a machine-readable `run --json` contract so a coding agent (or CI) can consume Soundcheck's failure evidence directly instead of scraping the HTML report, plus docs that lead with the published `npm install -g soundcheck-cli`.
