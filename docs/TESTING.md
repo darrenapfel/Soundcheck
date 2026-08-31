@@ -12,7 +12,7 @@
 | **Calibration** | does the judge agree with ground-truth labels? (§3.2) | deterministic (labeled corpus) | CI |
 | **Live (end-to-end)** | real Deepgram VA, real audio, real stochastic model | **non-deterministic** — asserted loosely (panel/threshold), never a hard merge gate | nightly / manual |
 
-`npm run validate` = typecheck + lint + unit + replay-integration. It is the merge gate, and it is what CI runs. It must never depend on a live call. As of the current HEAD it is **234 tests, all passing — fully offline, no key, no network.** The suite lives in `test/*.test.ts`; the inventory:
+`npm run validate` = typecheck + lint + unit + replay-integration. It is the merge gate, and it is what CI runs. It must never depend on a live call. As of the current HEAD it is **239 tests, all passing — fully offline, no key, no network.** The suite lives in `test/*.test.ts`; the inventory:
 
 | Test file(s) | What it pins |
 |---|---|
@@ -30,7 +30,7 @@
 | `author.test.ts` | autonomous scenario authoring from an agent's tools + prompt |
 | `tune.test.ts` | the trace-driven tuning loop + the Goodhart held-out guard (an edit that overfits training but not held-out is rejected) |
 | `adapter.test.ts`, `adapter-loop.test.ts`, `genericity.test.ts` | the adapter config surface, the duplex socket loop, and the same scenarios running unchanged against a non-Deepgram (mock) target |
-| `caller.test.ts`, `caller-policy.test.ts`, `capture.test.ts`, `normalize.test.ts`, `cassette.test.ts`, `trace.test.ts`, `judge.test.ts`, `security.test.ts` | caller phrasing/policy (incl. all closed caller gaps: termination reasons, silence prod, cross-persona push-back, committed facts, distinct voices, goal-driven barge-in), capture, normalization/detection, cassette + Trace round-tripping (incl. POSIX/Windows path containment), the judge over fixture transcripts, and the no-credential-leak security check |
+| `caller.test.ts`, `caller-policy.test.ts`, `capture.test.ts`, `normalize.test.ts`, `cassette.test.ts`, `trace.test.ts`, `judge.test.ts`, `security.test.ts`, `deepgram-key.test.ts` | caller phrasing/policy (incl. all closed caller gaps: termination reasons, silence prod, cross-persona push-back, committed facts, distinct voices, goal-driven barge-in), capture, normalization/detection, cassette + Trace round-tripping (incl. POSIX/Windows path containment), the judge over fixture transcripts, the no-credential-leak security check, and the key-resolution short-circuit (an explicitly empty `DEEPGRAM_API_KEY` never falls through to `.env` files) |
 | `cli.test.ts`, `report.test.ts`, `example-contract.test.ts` | CLI fail-closed exit codes + the GitHub Action run-shape, the offline `compare` command (pass/fail exit codes, stdout-pure `--json`, the empty-`--heard` vs missing-`--expected` guard) and the `fixtures` command's failure paths (unknown subcommand exits 2; a missing key fails fast with the key-resolution error, before any network attempt), the HTML report's rendering (embedded audio, oracle transcript, gate rows, HTML escaping), and the machine-readable example contract (every scenario is replay-backed, `liveOnly`, or `fixtureOnly`) |
 
 ## 2. Record / replay (how a stochastic tool becomes deterministic)
