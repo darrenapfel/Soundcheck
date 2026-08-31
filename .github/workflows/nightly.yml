@@ -54,7 +54,7 @@ jobs:
         if: steps.guard.outputs.run == 'true'
         env:
           DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
-        run: node --experimental-strip-types src/cli.ts fixtures check
+        run: npm run soundcheck -- fixtures check
       - name: Live judge calibration (informational)
         if: steps.guard.outputs.run == 'true'
         env:
