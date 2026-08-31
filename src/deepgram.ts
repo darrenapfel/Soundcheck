@@ -96,6 +96,10 @@ export interface SttOpts {
   encoding?: string; // for raw PCM: "linear16"
   sampleRate?: number;
   contentType?: string; // "audio/l16" for raw, "audio/wav" for wav
+  /** Opt IN to smart formatting ("seven thirty" → "7:30") for the round-trip comparison
+   *  gate, whose whole job is formatting-equivalence verification. Absent/false keeps the
+   *  harness default EXACTLY as before: literal spoken words (smart_format/numerals off). */
+  smartFormat?: boolean;
 }
 
 /** The slice of Deepgram's /v1/listen JSON we read — the top alternative's transcript.
@@ -104,11 +108,14 @@ interface DeepgramListenResponse {
   results?: { channels?: Array<{ alternatives?: Array<{ transcript?: string }> }> };
 }
 
-/** Transcribe audio -> literal spoken words (smart_format/numerals OFF on purpose). */
+/** Transcribe audio -> literal spoken words (smart_format/numerals OFF on purpose; pass
+ *  `smartFormat: true` to opt in to smart formatting for the round-trip comparison gate). */
 export async function transcribe(audio: Buffer, opts: SttOpts = {}): Promise<string> {
   if (audio.length === 0) return "";
   const model = opts.model ?? "nova-3";
-  const params = new URLSearchParams({ model, punctuate: "true", smart_format: "false", numerals: "false" });
+  const params = opts.smartFormat
+    ? new URLSearchParams({ model, punctuate: "true", smart_format: "true" }) // no numerals: smart formatting owns number rendering
+    : new URLSearchParams({ model, punctuate: "true", smart_format: "false", numerals: "false" });
   if (opts.encoding) params.set("encoding", opts.encoding);
   if (opts.sampleRate) params.set("sample_rate", String(opts.sampleRate));
   const contentType = opts.contentType ?? "audio/wav";
