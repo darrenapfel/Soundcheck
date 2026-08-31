@@ -2,7 +2,7 @@
 
 All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
 
-## [Unreleased]
+## [2.4.0] - 2026-08-31
 
 ### Fixed
 - **An explicitly empty `DEEPGRAM_API_KEY` now means "no key" — it never falls through to `.env` files.** `getKey()` previously treated `DEEPGRAM_API_KEY=""` like an unset variable and kept resolving through the CWD `.env`, the user-global `~/.config/soundcheck/.env`, and the package `.env` — so a keyless CI-style invocation on a keyed dev checkout (the `.env` that CONTRIBUTING.md tells every contributor to create) would silently pick up the stray key and go live. CI systems set empty secrets to mean absent — the nightly workflow's own guard treats an empty secret as "no key" — so an explicitly empty (or whitespace-only) variable now short-circuits the whole chain and throws the no-key error immediately. In `src/deepgram.ts`; pinned by `test/deepgram-key.test.ts` (a scratch cwd with a decoy `.env` must still throw), which also makes the keyless `fixtures check` CLI test deterministic on any machine.
