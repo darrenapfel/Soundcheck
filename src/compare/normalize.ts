@@ -403,6 +403,10 @@ function foldMoneyPercentTime(tokens: Token[]): Token[] {
 function foldYearsAndTimes(tokens: Token[]): Token[] {
   // Year: [19|20, 10..99] → four-digit number ("twenty twenty five" → 2025).
   // Years fold BEFORE times, so "twenty twenty five" cannot be read as 20:25.
+  // The stream may END on a bare two-digit 19/20 ("room 20", "gate nineteen",
+  // "chapter twenty"): there is no next token to fuse with, so the fold must not
+  // read past the end of the stream — isIntNum's undefined guard keeps a trailing
+  // 19/20 a plain number instead of crashing or mis-folding.
   const out: Token[] = [];
   let i = 0;
   while (i < tokens.length) {

@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { canonicalKeys } from "../src/compare/normalize.ts";
+import { compare } from "../src/compare/index.ts";
 
 function keys(text: string): string[] {
   return canonicalKeys(text);
@@ -119,6 +120,14 @@ test("a full date with year folds consistently on every surface", () => {
   assert.deepEqual(keys("The package arrives on March 3rd, 2025."), expected);
   // Smart formatting has been observed returning the slash form.
   assert.deepEqual(keys("The package arrives on 03/03/2025."), expected);
+});
+
+test("a text ending on a bare 19 or 20 stays a plain number (the year fold must not read past the end of the stream)", () => {
+  assert.deepEqual(keys("room 20"), ["room", "num:20"]);
+  assert.deepEqual(keys("gate 19"), ["gate", "num:19"]);
+  assert.deepEqual(keys("chapter twenty"), ["chapter", "num:20"]);
+  // …and both surfaces still converge, so the equivalence gates as a pass.
+  assert.equal(compare("room twenty", "room 20").pass, true);
 });
 
 test("adjacent independent numbers do not merge into one", () => {
