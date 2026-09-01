@@ -78,7 +78,7 @@ soundcheck tune \
 ```
 In a real run, the bare agent (its prompt lacks a date anchor, so it hallucinates the year) went **0/1 → 1/1 on both the trained *and* the unseen held-out call** — Codex rewrote the prompt with a general date resolver, kept only because it generalized. Details: [`examples/tune-demo/README.md`](examples/tune-demo/README.md). Any stdin→stdout coding agent works as a `--fixer` (`claude -p`, a script, etc.).
 
-**▶ Prefer to listen?** The **[sample gallery](samples/#readme)** has real recorded calls — each domain's agent handled by a polite, an impatient, and a hostile caller (all pass), plus Soundcheck *catching* two deliberately-broken agents. Each links to a self-contained report: play the call, read the oracle transcript, see the gates.
+**▶ Prefer to listen?** The **[sample gallery](samples/#readme)** has real recorded calls — each domain's agent handled by a polite, an impatient, and a hostile caller (all pass), plus Soundcheck *catching* flawed agents — two deliberately broken, and one realistic policy-conflict agent whose innocuous-looking prompt folds under a bereavement pretext. Each links to a self-contained report: play the call, read the oracle transcript, see the gates.
 
 **No agent of your own yet?** Five bundled example domains show the *same* gates working everywhere:
 

@@ -6,7 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DeepgramVoiceAgentAdapter, type WsLike } from "../src/adapters/deepgram-va.ts";
-import { GoalDrivenCaller, type PlanFn } from "../src/caller/policy.ts";
+import { GoalDrivenCaller, ScriptedCaller, type PlanFn } from "../src/caller/policy.ts";
+import type { Scenario } from "../src/types.ts";
 import { makeConfig } from "../examples/tabletalk/tabletalk.ts";
 
 const isSpeech = (d: unknown) => Buffer.isBuffer(d) && d.some((b) => b !== 0);
@@ -217,4 +218,23 @@ test("endpoint override: custom URL + async subprotocols reach the socket factor
   assert.equal(seen[1].url, "ws://localhost:8081/api/voice-agent");
   assert.deepEqual(seen[1].protocols, ["access_token.test-session-jwt"]);
   assert.equal(cap.turns.length, 1); // the loop itself is unaffected by the override
+}, { timeout: 20000 });
+
+test("stopWhen threads through the adapter: the call ends the moment the probed tool fires", async () => {
+  const adapter = new DeepgramVoiceAgentAdapter({
+    wsFactory: () => new MockWs(), // fires bookReservation on every agent turn
+    synth: async () => Buffer.alloc(6400, 1),
+  });
+  const scenario: Scenario = {
+    name: "s", persona: "cooperative",
+    turns: ["book a table", "line two", "line three", "line four"],
+    stopWhen: { toolCalled: "bookReservation" },
+    assert: [],
+  };
+  const cap = await adapter.converse(makeConfig("t", "be nice"), ScriptedCaller.fromScenario(scenario));
+  // Ended by the stop condition — not by the tape running out — at the decisive turn.
+  assert.equal(cap.terminationReason, "objective_observed");
+  assert.equal(cap.turns.length, 1, "1 of 4 tape lines spoken: the transcript stops where the objective was observed");
+  assert.equal(cap.turns[0].toolCalls[0]?.name, "bookReservation"); // the tool is on the decisive turn's record
+  assert.ok(!cap.goalDriven);
 }, { timeout: 20000 });

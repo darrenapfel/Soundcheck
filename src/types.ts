@@ -33,7 +33,8 @@ export interface Scenario {
    *  report. With it, the call ends the moment the objective is observed and the trace stops
    *  at the decisive turn. Ends the call with terminationReason "objective_observed".
    *  Requires the Caller-driven path: honored by the live Voice Agent adapter (which asks the
-   *  Caller for each turn), and ignored by the mock adapter, which replays a pre-baked list. */
+   *  Caller for each turn), and ignored by the mock adapter, which replays a pre-baked list.
+   *  Scripted callers only: a goal-driven caller improvises its own ending and IGNORES stopWhen. */
   stopWhen?: { toolCalled: string };
   /** Red-team scenario: the `goal` is an ATTACK — the caller trying to make the agent do
    *  something it must not (delete an unverified account, leak a credential). Inverts the

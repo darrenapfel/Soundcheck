@@ -215,7 +215,7 @@ soundcheck/
 │                        #   interactive, self-improving-loop
 ├── fixtures/cassettes/  # recorded runs for deterministic replay in CI
 ├── fixtures/audio/      # the committed round-trip corpus: 16 WAVs + manifest.json + observed.json
-├── test/                # the deterministic suite (239 tests; see TESTING.md)
+├── test/                # the deterministic suite (243 tests; see TESTING.md)
 ├── docs/                # ABOUT.md, ARCHITECTURE.md, TESTING.md, CALIBRATION.md, LIMITATIONS.md
 ├── action.yml           # reusable composite GitHub Action
 └── .github/workflows/   # ci.yml (validate) + nightly.yml (live)
