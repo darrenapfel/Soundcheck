@@ -238,3 +238,131 @@ test("stopWhen threads through the adapter: the call ends the moment the probed 
   assert.equal(cap.turns[0].toolCalls[0]?.name, "bookReservation"); // the tool is on the decisive turn's record
   assert.ok(!cap.goalDriven);
 }, { timeout: 20000 });
+// Agent audio that arrives while the pump is paused between turns must still reach the mixed
+// recording. It used to be dropped on the floor (`if (recordingOn) agentQ.push(buf)`), which cut
+// the agent off mid-utterance in the recording — and in the oracle transcript taken from it.
+class LateAudioWs implements WsLike {
+  binaryType = "blob";
+  readyState = 0;
+  #l: Record<string, ((ev: { data: unknown }) => void)[]> = {};
+  #debounce: ReturnType<typeof setTimeout> | null = null;
+  #turns = 0;
+  /** A distinctive payload so the test can find this exact audio inside the recording. */
+  static LATE = Buffer.alloc(4800, 0x33);
+  constructor() { queueMicrotask(() => { this.readyState = 1; this.#fire("open"); this.#json({ type: "Welcome" }); }); }
+  addEventListener(type: string, cb: (ev: { data: unknown }) => void) { (this.#l[type] ??= []).push(cb); }
+  #fire(type: string, data?: unknown) { for (const cb of this.#l[type] ?? []) cb({ data }); }
+  #json(obj: unknown) { this.#fire("message", JSON.stringify(obj)); }
+  send(data: unknown) {
+    if (typeof data === "string") {
+      const m = JSON.parse(data);
+      if (m.type === "Settings") {
+        setTimeout(() => {
+          this.#json({ type: "SettingsApplied" });
+          this.#json({ type: "ConversationText", role: "assistant", content: "Hi, how can I help?" });
+          this.#fire("message", new ArrayBuffer(960));
+          this.#json({ type: "AgentAudioDone" });
+        }, 10);
+      }
+      return;
+    }
+    if (isSpeech(data)) { if (this.#debounce) clearTimeout(this.#debounce); this.#debounce = setTimeout(() => this.#turn(), 300); }
+  }
+  #turn() {
+    this.#turns += 1;
+    this.#json({ type: "ConversationText", role: "assistant", content: "one moment please" });
+    this.#fire("message", new ArrayBuffer(960));
+    this.#json({ type: "AgentAudioDone" });
+    // The tail of THIS reply lands ~1.5s later — after the turn's coalescing window has closed
+    // and the pump has paused for the next caller line. That is the window that used to eat it.
+    if (this.#turns === 1) {
+      setTimeout(() => this.#fire("message", LateAudioWs.LATE.buffer.slice(0)), 1500);
+    }
+  }
+  close() { this.readyState = 3; this.#fire("close"); }
+}
+
+test("agent audio arriving while the recording pump is paused is still captured (no mid-utterance dropout)", async () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const adapter = new DeepgramVoiceAgentAdapter({
+    wsFactory: () => new LateAudioWs(),
+    // A slow synth widens the paused window deterministically, the way a real caller-TTS
+    // round-trip does between turns.
+    synth: async () => { await sleep(800); return Buffer.alloc(6400, 1); },
+  });
+  const cap = await adapter.runConversation(makeConfig("t", "be nice"), [
+    { text: "first line", voice: "v" },
+    { text: "second line", voice: "v" },
+  ]);
+  assert.ok(cap.recordingPcm, "expected a mixed recording");
+  const marker = LateAudioWs.LATE.subarray(0, 480); // 10ms of the distinctive tail
+  assert.ok(
+    cap.recordingPcm!.includes(marker),
+    "the agent's late-arriving audio is missing from the recording — it was dropped while the pump was paused",
+  );
+});
+
+// The agent's TTS arrives in bursts. A recorder that writes a fixed 100ms of agent audio per tick
+// zero-pads whatever has not arrived yet, punching silent holes into the middle of words — the
+// "audio dropout" failure. With a jitter buffer the drip is held and written intact.
+class DrippingWs implements WsLike {
+  binaryType = "blob";
+  readyState = 0;
+  #l: Record<string, ((ev: { data: unknown }) => void)[]> = {};
+  #debounce: ReturnType<typeof setTimeout> | null = null;
+  #done = false;
+  /** 20ms sub-frame chunks of a distinctive payload, dripped slower than the pump ticks. */
+  static CHUNK = Buffer.alloc(960, 0x2a);
+  static CHUNKS = 12;
+  constructor() { queueMicrotask(() => { this.readyState = 1; this.#fire("open"); this.#json({ type: "Welcome" }); }); }
+  addEventListener(type: string, cb: (ev: { data: unknown }) => void) { (this.#l[type] ??= []).push(cb); }
+  #fire(type: string, data?: unknown) { for (const cb of this.#l[type] ?? []) cb({ data }); }
+  #json(obj: unknown) { this.#fire("message", JSON.stringify(obj)); }
+  send(data: unknown) {
+    if (typeof data === "string") {
+      const m = JSON.parse(data);
+      if (m.type === "Settings") {
+        setTimeout(() => {
+          this.#json({ type: "SettingsApplied" });
+          this.#json({ type: "ConversationText", role: "assistant", content: "Hi, how can I help?" });
+          this.#fire("message", new ArrayBuffer(960));
+          this.#json({ type: "AgentAudioDone" });
+        }, 10);
+      }
+      return;
+    }
+    if (isSpeech(data)) { if (this.#debounce) clearTimeout(this.#debounce); this.#debounce = setTimeout(() => this.#turn(), 300); }
+  }
+  #turn() {
+    if (this.#done) return;
+    this.#done = true;
+    this.#json({ type: "ConversationText", role: "assistant", content: "here is a long sentence" });
+    for (let i = 0; i < DrippingWs.CHUNKS; i++) {
+      setTimeout(() => this.#fire("message", DrippingWs.CHUNK.buffer.slice(0)), 60 + i * 130);
+    }
+    setTimeout(() => this.#json({ type: "AgentAudioDone" }), 60 + DrippingWs.CHUNKS * 130 + 50);
+  }
+  close() { this.readyState = 3; this.#fire("close"); }
+}
+
+test("bursty agent audio is written intact, not zero-padded into silent holes (jitter buffer)", async () => {
+  const adapter = new DeepgramVoiceAgentAdapter({
+    wsFactory: () => new DrippingWs(),
+    synth: async () => Buffer.alloc(6400, 1),
+  });
+  const cap = await adapter.runConversation(makeConfig("t", "be nice"), [{ text: "tell me a long story", voice: "v" }]);
+  const rec = cap.recordingPcm;
+  assert.ok(rec, "expected a mixed recording");
+  // Assert on AUDIO, not byte identity: the recorder ramps ~5ms at each hold/resume seam to avoid
+  // clicks, so the payload is not byte-for-byte preserved. What must hold is that essentially all
+  // of the dripped audio is present, and that it is CONTIGUOUS — a zero-padded tick would split it.
+  const sentSamples = (DrippingWs.CHUNK.length * DrippingWs.CHUNKS) / 2;
+  let audible = 0, best = 0, run = 0;
+  for (let i = 0; i + 1 < rec!.length; i += 2) {
+    const v = Math.abs(rec!.readInt16LE(i));
+    if (v > 1000) { audible += 1; run += 1; if (run > best) best = run; } else run = 0;
+  }
+  assert.ok(audible >= sentSamples * 0.9, `only ${audible} of ${sentSamples} dripped audio samples reached the recording`);
+  const chunkSamples = DrippingWs.CHUNK.length / 2;
+  assert.ok(best >= chunkSamples * 4, `longest unbroken run of audio was ${best} samples — the audio is being chopped`);
+});
