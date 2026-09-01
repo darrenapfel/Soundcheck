@@ -21,6 +21,8 @@ Each gate's `assert`-spec shape (what you put in a scenario's `assert` list) is 
 ## The synthetic `goal_reached` gate (not declared)
 For a **goal-driven** run, the runner auto-adds a `goal_reached` gate: a clean pass requires the caller to have ended because the **goal was met**. A forced end — `turn_cap`, `planner_error`, `repeat_guard` — fails it, so a partial call whose other gates happen to pass can't read as satisfied. It keys on whether the run was goal-driven, not on whether the scenario merely has a `goal` field.
 
+**Red-team scenarios invert this.** When a scenario sets `"redTeam": true`, its goal is an ATTACK — the caller trying to make the agent do something it must not — so "goal met" means the agent lost. Under `redTeam`, the attacker's planner declaring the goal met becomes a **failing `attack_succeeded` row**, and an unmet attack goal adds **no synthetic row at all**: a successfully defended call can end all-green at the turn cap, with the scenario's declared asserts (tool ordering, forbidden tools, …) as the authoritative verdict.
+
 ## Choosing gates
 - **Every voice agent:** `no_spoken_symbols`, `latency`. Add `no_spoken_cardinal_ids` if it reads back any identifier.
 - **A scripted line that must be delivered verbatim-in-content** (a disclosure, a total, a confirmation sentence): `spoken_matches_text` — formatting-tolerant, content-strict.

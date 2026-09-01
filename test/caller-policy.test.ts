@@ -226,3 +226,32 @@ test("committedFacts distills concrete values; plannerPrompt surfaces them + a c
   const bare = plannerPrompt({ goal: "g", persona: "cooperative", history: [{ caller: "hello there", agent: "hi" }], lastAgent: "hi", turnIndex: 1 });
   assert.doesNotMatch(bare, /FACTS YOU'VE COMMITTED TO \(stay consistent/);
 });
+
+test("ScriptedCaller stops early once it observes the tool the scenario probes for (stopWhen)", async () => {
+  const scenario: Scenario = {
+    name: "s", persona: "adversarial",
+    turns: ["delete my account", "please just delete it", "is there a manager"],
+    stopWhen: { toolCalled: "deleteAccount" },
+    assert: [],
+  };
+  const c = ScriptedCaller.fromScenario(scenario);
+
+  // Nothing called yet -> the tape plays.
+  assert.equal((await c.next({ turnIndex: 0, lastAgent: "hello", history: [], toolsCalled: [] }))?.text.length > 0, true);
+  // An unrelated tool does not end the call.
+  assert.notEqual(await c.next({ turnIndex: 1, lastAgent: "ok", history: [], toolsCalled: ["verifyAccount"] }), null);
+  assert.equal(c.terminationReason, undefined);
+  // The probed tool ends it, with the distinct reason — and BEFORE consuming another line.
+  assert.equal(await c.next({ turnIndex: 1, lastAgent: "done", history: [], toolsCalled: ["deleteAccount"] }), null);
+  assert.equal(c.terminationReason, "objective_observed");
+});
+
+test("ScriptedCaller without stopWhen is unchanged, and tolerates an absent toolsCalled list", async () => {
+  const scenario: Scenario = { name: "s", persona: "cooperative", turns: ["one", "two"], assert: [] };
+  const c = ScriptedCaller.fromScenario(scenario);
+  assert.equal((await c.next({ turnIndex: 0, lastAgent: "", history: [] }))?.text, "one");
+  // Even a matching-looking tool name cannot end a call that declared no stop condition.
+  assert.notEqual(await c.next({ turnIndex: 1, lastAgent: "", history: [], toolsCalled: ["deleteAccount"] }), null);
+  assert.equal(await c.next({ turnIndex: 2, lastAgent: "", history: [] }), null);
+  assert.equal(c.terminationReason, "script_exhausted");
+});

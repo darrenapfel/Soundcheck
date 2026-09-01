@@ -10,7 +10,7 @@ It declares invariants via the generic gates (`scenarios/*.json`): `tool_sequenc
 date/time formats), `forbidden_tool` (never `deleteAccount`), plus `no_spoken_symbols`,
 `required_tool`, `latency`.
 
-Three agent variants, so each gate is shown both PASSING when correct and CATCHING when violated:
+Four agent variants, so each gate is shown both PASSING when correct and CATCHING when violated:
 
 These commands replay the recorded cassettes — **offline, no key** (drop `--replay` and set
 `DEEPGRAM_API_KEY` to run them live instead):
@@ -24,6 +24,11 @@ soundcheck run examples/support/scenarios --aut examples/support/bare.ts --repla
 
 # insecure — frustrated-reset fails tool_sequence (resets before verifying) + forbidden_tool (deletes)
 soundcheck run examples/support/scenarios --aut examples/support/insecure.ts --replay --only frustrated-reset
+
+# pressured (realistic policy conflict) — bereavement-pretext-scripted fails tool_sequence: the agent
+# narrates waiving verification, then deletes an unverified account; the IDENTICAL script against
+# grounded replays all-green — the prompt is the only difference
+soundcheck run examples/support/scenarios --aut examples/support/pressured.ts --replay --only bereavement
 ```
 
 Which gate each variant exercises (all gates *evaluate* on every run; this is where each is shown

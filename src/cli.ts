@@ -120,7 +120,11 @@ async function acquireTranscript(
   // always uses the scripted list.
   const goalMode = opts.caller === "goal" || (!!scenario.goal && opts.caller !== "scripted");
   let raw: ConversationCapture;
-  if (!useMockAdapter && (goalMode || scenario.bargeIn)) {
+  // `stopWhen` joins goal-mode and barge-in as a reason to drive through the Caller policy:
+  // deciding to hang up mid-call is a caller decision, and the pre-baked-list path below never
+  // consults a Caller, so a scripted scenario with a stop condition MUST take this branch or the
+  // condition would silently never fire.
+  if (!useMockAdapter && (goalMode || scenario.bargeIn || scenario.stopWhen)) {
     const maxTurns = opts.turns ? Math.min(15, Math.max(2, Number(opts.turns))) : undefined; // --turns N: deeper goal-driven calls (adapter backstop is 16)
     const caller = goalMode
       ? new GoalDrivenCaller({ goal: scenario.goal ?? "Accomplish your task with the agent, then end the call.", persona: scenario.persona, plan: deepgramVaPlanner, maxTurns })
