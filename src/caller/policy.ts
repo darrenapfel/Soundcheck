@@ -27,6 +27,10 @@ export interface CallerContext {
   turnIndex: number;
   lastAgent: string; // what the agent just said (its text reply; the greeting for turn 0)
   history: CallerExchange[];
+  /** Names of every tool the agent has called so far this call, in order. Lets a caller end
+   *  the call once it has observed the behavior it was probing for (see Scenario.stopWhen).
+   *  Optional for back-compat: a caller must treat an absent list as empty. */
+  toolsCalled?: string[];
 }
 
 /** A caller move: speak `text`, optionally barging in over the agent with `interrupt`. */
@@ -52,8 +56,10 @@ export class ScriptedCaller implements Caller {
   label = "scripted";
   terminationReason?: TerminationReason;
   #actions: CallerAction[];
-  constructor(actions: CallerAction[]) {
+  #stopWhenToolCalled?: string;
+  constructor(actions: CallerAction[], opts: { stopWhenToolCalled?: string } = {}) {
     this.#actions = actions;
+    this.#stopWhenToolCalled = opts.stopWhenToolCalled;
   }
   /** Build from a scenario (persona-styled lines + optional declarative barge-in). */
   static fromScenario(scenario: Scenario): ScriptedCaller {
@@ -62,9 +68,16 @@ export class ScriptedCaller implements Caller {
     if (b && actions[b.afterTurn]) {
       actions[b.afterTurn] = { ...actions[b.afterTurn], interrupt: { text: b.text, afterMs: b.afterMs } };
     }
-    return new ScriptedCaller(actions);
+    return new ScriptedCaller(actions, { stopWhenToolCalled: scenario.stopWhen?.toolCalled });
   }
   async next(ctx: CallerContext): Promise<CallerAction | null> {
+    // Objective observed: the agent did the thing this scenario was probing for, so the rest of
+    // the tape is moot. A scripted caller cannot react to it, and reading lines that plead for
+    // an action already taken makes the transcript incoherent — so hang up here instead.
+    if (this.#stopWhenToolCalled && (ctx.toolsCalled ?? []).includes(this.#stopWhenToolCalled)) {
+      this.terminationReason = "objective_observed";
+      return null;
+    }
     const action = this.#actions[ctx.turnIndex] ?? null;
     if (!action) this.terminationReason = "script_exhausted"; // the tape ran out — the normal scripted end
     return action;

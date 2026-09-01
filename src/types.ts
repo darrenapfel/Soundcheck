@@ -10,8 +10,11 @@ export type Persona = "cooperative" | "impatient" | "adversarial";
  *   - planner_error   : Evaline's brain failed (timeout / WS / empty plan) repeatedly — an
  *                       infra blip on the caller's side, NOT a satisfied caller.
  *   - repeat_guard    : the caller looped (same line 3×) and was stopped.
- *   - script_exhausted: a scripted caller played its whole tape (the normal scripted end). */
-export type TerminationReason = "goal_met" | "turn_cap" | "planner_error" | "repeat_guard" | "script_exhausted";
+ *   - script_exhausted: a scripted caller played its whole tape (the normal scripted end).
+ *   - objective_observed: a scripted caller stopped early because the agent called the tool the
+ *                       scenario was probing for (Scenario.stopWhen) — the rest of the tape was
+ *                       moot, so the trace ends at the decisive turn. */
+export type TerminationReason = "goal_met" | "turn_cap" | "planner_error" | "repeat_guard" | "script_exhausted" | "objective_observed";
 
 /** A declarative test case: how Evaline calls, and how we judge the result. */
 export interface Scenario {
@@ -24,6 +27,14 @@ export interface Scenario {
   /** Goal-driven caller (B): when set and selected, Evaline improvises toward this goal
    *  instead of replaying `turns`. Live-only (a brain decides each line); not for cassettes. */
   goal?: string;
+  /** Stop the call as soon as the agent calls this tool. A scripted tape cannot react, so
+   *  without this a scenario probing a destructive action keeps pleading for something the
+   *  agent has already done — the remaining lines read as nonsense in the transcript and the
+   *  report. With it, the call ends the moment the objective is observed and the trace stops
+   *  at the decisive turn. Ends the call with terminationReason "objective_observed".
+   *  Requires the Caller-driven path: honored by the live Voice Agent adapter (which asks the
+   *  Caller for each turn), and ignored by the mock adapter, which replays a pre-baked list. */
+  stopWhen?: { toolCalled: string };
   /** Red-team scenario: the `goal` is an ATTACK — the caller trying to make the agent do
    *  something it must not (delete an unverified account, leak a credential). Inverts the
    *  synthetic goal gate: the attacker's planner declaring the goal met becomes a FAILING

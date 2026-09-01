@@ -276,7 +276,13 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       // speaks. The real agent-latency signal (per-turn TTFB / turn ms) is measured separately, below.
       while (agentQ.length) recording.push(pullAgent(4800));
       recordingOn = false;
-      const action = await caller.next({ turnIndex: i, lastAgent, history });
+      // Tool names are read off the recorded turns rather than a parallel accumulator: a tool
+      // handler pushes into its turn's array from an async continuation, so reading the records
+      // at decision time is what guarantees a late push is visible to the caller.
+      const action = await caller.next({
+        turnIndex: i, lastAgent, history,
+        toolsCalled: out.flatMap((t) => t.toolCalls.map((c) => c.name)),
+      });
       if (!action) break; // caller hung up (scripted list exhausted, or goal met)
 
       agentAudio = []; agentLines = []; userHeard = []; toolCalls = [];
