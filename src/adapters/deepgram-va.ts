@@ -129,6 +129,22 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       }
       return out;
     };
+    let agentPlaying = false; // was agent audio written on the previous tick (for seam ramps)
+    /** Fade the first or last ~5ms of a 24kHz mono frame, so a hold/resume seam is not a click. */
+    const rampPcm16le = (buf: Buffer, dir: "in" | "out") => {
+      const samples = Math.min(120, buf.length >> 1); // 5ms at 24kHz
+      for (let k = 0; k < samples; k++) {
+        const g = k / samples;
+        const off = dir === "in" ? k * 2 : buf.length - (k + 1) * 2;
+        buf.writeInt16LE(Math.round(buf.readInt16LE(off) * g), off);
+      }
+    };
+    /** Bytes of agent audio still queued (across buffers, minus what has been read). */
+    const agentQueued = (): number => {
+      let total = -agentQHead;
+      for (const b of agentQ) total += b.length;
+      return Math.max(0, total);
+    };
 
     // Continuous real-time pump (phone-call model — never stop sending audio) + recorder.
     // The pump stays quiet until the Settings handshake completes: the Voice Agent protocol
@@ -144,7 +160,25 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       ws.send(callerFrame);
       if (recordingOn) {
         const caller24 = resamplePcm16le(callerFrame, 16000, 24000);
-        recording.push(mixPcm16le(caller24, pullAgent(caller24.length)));
+        // Jitter buffer. The agent's TTS arrives in bursts, so a tick can land with less than a
+        // full frame queued. Writing that short frame means zero-padding it — a silent hole punched
+        // into the middle of a word, which is what made recordings sound like they dropped out
+        // (and truncated the oracle transcript taken from them). Emit agent audio only when a
+        // whole frame is available, or when the utterance is finished and the tail is all that
+        // is left. Otherwise hold it: it plays on a later tick, intact. This shifts the agent's
+        // audio slightly later in the recording; latency is measured from arrival timestamps,
+        // not from the recording, so no metric depends on this alignment.
+        const need = caller24.length;
+        const ready = agentQueued() >= need || (audioDoneAt > 0 && agentQueued() > 0);
+        const agentFrame = ready ? pullAgent(need) : Buffer.alloc(need);
+        // Ramp the seams. Holding audio back and resuming it a tick later means the agent channel
+        // steps from digital silence straight into the middle of a waveform, which is an audible
+        // click. Fade in when playback resumes, and fade out when the queue empties mid-utterance
+        // (the next tick will be silence). ~5ms is inaudible as a fade and removes the step.
+        if (ready && !agentPlaying) rampPcm16le(agentFrame, "in");
+        if (ready && agentQueued() === 0 && audioDoneAt === 0) rampPcm16le(agentFrame, "out");
+        agentPlaying = ready;
+        recording.push(mixPcm16le(caller24, agentFrame));
       }
     }, 100);
 
@@ -163,7 +197,20 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
     ws.addEventListener("message", (event: { data: unknown }) => {
       if (event.data instanceof ArrayBuffer) {
         const buf = Buffer.from(event.data);
-        if (recordingOn) agentQ.push(buf); // feed the real-time playback queue (whole call)
+        // ALWAYS queue the agent's audio. `recordingOn` gates whether the pump WRITES the mixed
+        // recording, not whether we keep the audio: between turns the pump is paused for a live
+        // caller-TTS round-trip, and audio arriving in that window used to be dropped on the
+        // floor — which truncated the agent mid-utterance in the recording AND in the oracle
+        // transcript taken from it. The paused window is flushed into the recording on resume.
+        agentQ.push(buf); // real-time playback queue (whole call)
+        // New audio re-opens the utterance. audioDoneAt gates BOTH the jitter buffer's
+        // tail-release (a sub-frame remainder may be written once the utterance is over) and
+        // waitTurn's endpoint. A turn can carry several speech segments (tool-call-then-speak),
+        // each closed by its own AgentAudioDone — if the stamp from segment one survived into
+        // segment two, every pump tick would release partial zero-padded frames and punch the
+        // very holes the jitter buffer exists to prevent. Cleared here so the flag always means
+        // "no audio has arrived since the last done". (The barge-in path re-arms it the same way.)
+        audioDoneAt = 0;
         if (collecting) {
           const now = Date.now();
           if (firstFrameAt === 0) firstFrameAt = now;
@@ -291,6 +338,10 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
       const pcm = await this.#synth(action.text, { model: action.voice, encoding: "linear16", sampleRate: 16000, container: "none" });
       const numSpeechFrames = Math.ceil(pcm.length / FRAME);
       const turnStart = Date.now();
+      // Flush the tail of the agent's previous reply that arrived while the pump was paused.
+      // Written contiguously here (not in real time) so the utterance survives intact without
+      // re-introducing the inter-turn dead air.
+      while (agentQ.length) recording.push(pullAgent(4800));
       recordingOn = true; // resume — the caller is about to speak
       enqueueSpeech(pcm);
       for (let s = 0; s < 12; s++) audioQueue.push(SILENCE); // ~1.2s trailing silence to endpoint
