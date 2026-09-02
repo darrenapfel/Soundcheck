@@ -203,6 +203,14 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
         // floor — which truncated the agent mid-utterance in the recording AND in the oracle
         // transcript taken from it. The paused window is flushed into the recording on resume.
         agentQ.push(buf); // real-time playback queue (whole call)
+        // New audio re-opens the utterance. audioDoneAt gates BOTH the jitter buffer's
+        // tail-release (a sub-frame remainder may be written once the utterance is over) and
+        // waitTurn's endpoint. A turn can carry several speech segments (tool-call-then-speak),
+        // each closed by its own AgentAudioDone — if the stamp from segment one survived into
+        // segment two, every pump tick would release partial zero-padded frames and punch the
+        // very holes the jitter buffer exists to prevent. Cleared here so the flag always means
+        // "no audio has arrived since the last done". (The barge-in path re-arms it the same way.)
+        audioDoneAt = 0;
         if (collecting) {
           const now = Date.now();
           if (firstFrameAt === 0) firstFrameAt = now;

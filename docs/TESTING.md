@@ -12,7 +12,7 @@
 | **Calibration** | does the judge agree with ground-truth labels? (§3.2) | deterministic (labeled corpus) | CI |
 | **Live (end-to-end)** | real Deepgram VA, real audio, real stochastic model | **non-deterministic** — asserted loosely (panel/threshold), never a hard merge gate | nightly / manual |
 
-`npm run validate` = typecheck + lint + unit + replay-integration. It is the merge gate, and it is what CI runs. It must never depend on a live call. As of the current HEAD it is **243 tests, all passing — fully offline, no key, no network.** The suite lives in `test/*.test.ts`; the inventory:
+`npm run validate` = typecheck + lint + unit + replay-integration. It is the merge gate, and it is what CI runs. It must never depend on a live call. As of the current HEAD it is **246 tests, all passing — fully offline, no key, no network.** The suite lives in `test/*.test.ts`; the inventory:
 
 | Test file(s) | What it pins |
 |---|---|
