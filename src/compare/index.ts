@@ -49,15 +49,82 @@ function seqEqual(a: string[], b: string[]): boolean {
 }
 
 // Longest-common-subsequence diff over two key arrays.
+/** Above this many DP cells the exact table is abandoned for Hirschberg's linear-space
+ *  algorithm. 4 million cells is 16 MB as Int32Array — comfortable — while a 10,000-token pair
+ *  would want 400 MB and must not allocate it. */
+const MAX_DP_CELLS = 4_000_000;
+
+/** LCS lengths of `a` against every prefix of `b`, in one row. The building block of Hirschberg. */
+function lcsRow(a: readonly string[], b: readonly string[]): Int32Array {
+  let prev = new Int32Array(b.length + 1);
+  let cur = new Int32Array(b.length + 1);
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+    }
+    const swap = prev; prev = cur; cur = swap;
+    cur.fill(0);
+  }
+  return prev;
+}
+
+/** Collect the LCS as (indexInA, indexInB) pairs using O(min(n,m)) memory. */
+function lcsPairs(a: readonly string[], b: readonly string[], aOff: number, bOff: number, out: Array<[number, number]>): void {
+  if (a.length === 0 || b.length === 0) return;
+  if (a.length === 1) {
+    const j = b.indexOf(a[0]);
+    if (j >= 0) out.push([aOff, bOff + j]);
+    return;
+  }
+  const mid = a.length >> 1;
+  const left = lcsRow(a.slice(0, mid), b);
+  const right = lcsRow(a.slice(mid).reverse(), b.slice().reverse());
+  let bestK = 0;
+  let bestVal = -1;
+  for (let k = 0; k <= b.length; k++) {
+    const v = left[k] + right[b.length - k];
+    if (v > bestVal) { bestVal = v; bestK = k; }
+  }
+  lcsPairs(a.slice(0, mid), b.slice(0, bestK), aOff, bOff, out);
+  lcsPairs(a.slice(mid), b.slice(bestK), aOff + mid, bOff + bestK, out);
+}
+
+/** Turn an LCS pairing into the op stream, emitting misses before extras at every gap so the
+ *  output reads the same way the exact table's tie-break produces. */
+function opsFromPairs(expected: string[], heard: string[], pairs: Array<[number, number]>): DiffOp[] {
+  const ops: DiffOp[] = [];
+  let i = 0;
+  let j = 0;
+  for (const [pi, pj] of pairs) {
+    while (i < pi) { ops.push({ op: "missing", expected: expected[i], heard: null }); i++; }
+    while (j < pj) { ops.push({ op: "extra", expected: null, heard: heard[j] }); j++; }
+    ops.push({ op: "equal", expected: expected[i], heard: heard[j] });
+    i++; j++;
+  }
+  while (i < expected.length) { ops.push({ op: "missing", expected: expected[i], heard: null }); i++; }
+  while (j < heard.length) { ops.push({ op: "extra", expected: null, heard: heard[j] }); j++; }
+  return ops;
+}
+
 export function diffKeys(expected: string[], heard: string[]): DiffOp[] {
   const n = expected.length;
   const m = heard.length;
-  const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  // Large inputs (a 10,000-token narration against its script) get the linear-space algorithm.
+  // Same alignment problem, ~40 KB of rows instead of hundreds of megabytes of table.
+  if ((n + 1) * (m + 1) > MAX_DP_CELLS) {
+    const pairs: Array<[number, number]> = [];
+    lcsPairs(expected, heard, 0, 0, pairs);
+    return opsFromPairs(expected, heard, pairs);
+  }
+  // Exact table, flat and typed: same recurrence and same tie-break as before, a quarter of the
+  // memory a nested number[][] costs.
+  const w = m + 1;
+  const lcs = new Int32Array((n + 1) * w);
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
-      lcs[i][j] = expected[i] === heard[j]
-        ? lcs[i + 1][j + 1] + 1
-        : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+      lcs[i * w + j] = expected[i] === heard[j]
+        ? lcs[(i + 1) * w + (j + 1)] + 1
+        : Math.max(lcs[(i + 1) * w + j], lcs[i * w + (j + 1)]);
     }
   }
   const ops: DiffOp[] = [];
@@ -67,7 +134,7 @@ export function diffKeys(expected: string[], heard: string[]): DiffOp[] {
     if (expected[i] === heard[j]) {
       ops.push({ op: "equal", expected: expected[i], heard: heard[j] });
       i++; j++;
-    } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+    } else if (lcs[(i + 1) * w + j] >= lcs[i * w + (j + 1)]) {
       ops.push({ op: "missing", expected: expected[i], heard: null });
       i++;
     } else {

@@ -6,7 +6,7 @@
 // parse with parseVerdict() (tolerant). No OpenAI key — the think LLM runs on the
 // Deepgram key. This is the LIVE backend; CI/tests use the deterministic mockJudge.
 
-import { getKey, synthesize } from "../deepgram.ts";
+import { assertNetworkAllowed, getKey, synthesize } from "../deepgram.ts";
 import { parseVerdict } from "./parse.ts";
 import type { JudgeBackend, Rubric, Verdict } from "./types.ts";
 
@@ -41,6 +41,7 @@ function graderPrompt(promptTranscript: string, rubric: Rubric): string {
 
 async function graderTurn(promptTranscript: string, rubric: Rubric, model: string, backendName: string): Promise<Verdict | null> {
   const key = getKey();
+  assertNetworkAllowed("open a Voice Agent socket (judge)");
   const ws = new WebSocket(AGENT_WS, ["token", key]);
   ws.binaryType = "arraybuffer";
   const settings = {

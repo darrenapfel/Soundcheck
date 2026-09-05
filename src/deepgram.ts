@@ -46,6 +46,21 @@ export function getKey(): string {
   return key;
 }
 
+/** OFFLINE MODE. A dry run can go live by accident: the key resolves from the CWD `.env`, the
+ *  user-global `~/.config/soundcheck/.env`, or the package `.env`, so a command a developer
+ *  believes is offline may quietly reach the network and spend money. `--offline` (or
+ *  `setOfflineMode(true)`) makes every network entry point refuse instead. It is a hard refusal,
+ *  not a fallback: nothing silently degrades to a mock. */
+let offlineMode = false;
+export function setOfflineMode(on: boolean): void { offlineMode = on; }
+export function isOfflineMode(): boolean { return offlineMode; }
+/** Throw before any request leaves the process. Called by every network entry point. */
+export function assertNetworkAllowed(what: string): void {
+  if (offlineMode) {
+    throw new Error(`offline mode: refusing to ${what}. Re-run without --offline to allow network calls.`);
+  }
+}
+
 /** A 4xx other than 429 is the caller's fault (bad key/request) — not worth retrying. */
 function httpError(label: string, status: number, body: string): Error {
   const e = new Error(`${label} ${status}: ${body.slice(0, 200)}`) as Error & { retryable?: boolean };
@@ -88,6 +103,7 @@ export async function synthesize(text: string, opts: TtsOpts = {}): Promise<Buff
   const encoding = opts.encoding ?? "linear16";
   const sampleRate = opts.sampleRate ?? 24000;
   const container = opts.container ?? "none";
+  assertNetworkAllowed("synthesize speech (Deepgram text-to-speech)");
   const url = `https://api.deepgram.com/v1/speak?model=${model}&encoding=${encoding}&sample_rate=${sampleRate}&container=${container}`;
   return withRetry(async () => {
     const res = await fetchWithTimeout(url, {
@@ -121,6 +137,7 @@ interface DeepgramListenResponse {
  *  `smartFormat: true` to opt in to smart formatting for the round-trip comparison gate). */
 export async function transcribe(audio: Buffer, opts: SttOpts = {}): Promise<string> {
   if (audio.length === 0) return "";
+  assertNetworkAllowed("transcribe audio (Deepgram speech-to-text)");
   const model = opts.model ?? "nova-3";
   const params = opts.smartFormat
     ? new URLSearchParams({ model, punctuate: "true", smart_format: "true" }) // no numerals: smart formatting owns number rendering
@@ -138,6 +155,114 @@ export async function transcribe(audio: Buffer, opts: SttOpts = {}): Promise<str
     const j = (await res.json()) as DeepgramListenResponse;
     return j?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "";
   }, "Deepgram STT");
+}
+
+/** One word from Deepgram's word timeline. `punctuated_word` is present when formatting is on. */
+export interface WordTiming {
+  word: string;
+  punctuated_word?: string;
+  start: number; // seconds from the start of the file
+  end: number;
+  confidence: number;
+}
+
+/** One utterance segment (only when `utterances: true` was requested). */
+export interface TranscriptUtterance {
+  start: number;
+  end: number;
+  transcript: string;
+}
+
+/** The full transcription result — everything a downstream tool needs to check WHAT was said,
+ *  WHEN it was said, and how sure the model is. Deliberately richer than `transcribe()`, which
+ *  returns only the top alternative's text because the harness gates read nothing else. */
+export interface FileTranscript {
+  transcript: string;
+  confidence: number;
+  words: WordTiming[];
+  utterances?: TranscriptUtterance[];
+  durationSec: number;
+}
+
+export interface FileSttOpts {
+  /** Content type of the bytes. Default `audio/mp4` (m4a/AAC). Containerized audio carries its
+   *  own encoding and sample rate, so those parameters are deliberately NOT sent — Deepgram
+   *  reads them from the container, and sending them can contradict the file. */
+  mime?: string;
+  model?: string; // default nova-3
+  /** Boost domain vocabulary (nova-3 `keyterm`). Each term is sent as its own parameter. */
+  keyterms?: string[];
+  /** Ask for utterance segmentation (`results.utterances`). */
+  utterances?: boolean;
+  /** Hard cap on the request. Default 120000 — long files legitimately take minutes. */
+  timeoutMs?: number;
+  /** Formatting. Default TRUE here (unlike `transcribe()`, whose harness path wants literal
+   *  spoken words): `punctuated_word` exists only when the model is formatting, and a caller
+   *  asking for a word timeline generally wants readable text. Pass false for literal words. */
+  smartFormat?: boolean;
+}
+
+/** The slice of /v1/listen we read for a file transcription. Every field optional: a shape
+ *  change degrades to empty values rather than throwing. */
+interface DeepgramFileResponse {
+  metadata?: { duration?: number };
+  results?: {
+    channels?: Array<{ alternatives?: Array<{
+      transcript?: string;
+      confidence?: number;
+      words?: Array<{ word?: string; punctuated_word?: string; start?: number; end?: number; confidence?: number }>;
+    }> }>;
+    utterances?: Array<{ start?: number; end?: number; transcript?: string }>;
+  };
+}
+
+/**
+ * Transcribe a whole audio FILE and return the full result — transcript, confidence, the word
+ * timeline, optional utterance segments, and the media duration. This is the surface downstream
+ * tools build on (offset checks, boundary checks, phrase location); `transcribe()` stays the
+ * harness's narrow text-only path.
+ */
+export async function transcribeFile(bytes: Buffer | Uint8Array, opts: FileSttOpts = {}): Promise<FileTranscript> {
+  if (!bytes || bytes.length === 0) throw new Error("transcribeFile: empty audio (0 bytes)");
+  assertNetworkAllowed("transcribe a file (Deepgram speech-to-text)");
+  const model = opts.model ?? "nova-3";
+  const smart = opts.smartFormat ?? true;
+  const params = new URLSearchParams({ model, punctuate: "true", smart_format: String(smart) });
+  // NO encoding / sample_rate: the container declares them (see FileSttOpts.mime).
+  if (opts.utterances) params.set("utterances", "true");
+  for (const term of opts.keyterms ?? []) {
+    if (term.trim()) params.append("keyterm", term.trim());
+  }
+  const mime = opts.mime ?? "audio/mp4";
+  const timeoutMs = opts.timeoutMs ?? 120000;
+  return withRetry(async () => {
+    const res = await fetchWithTimeout(`https://api.deepgram.com/v1/listen?${params}`, {
+      method: "POST",
+      headers: { Authorization: `Token ${getKey()}`, "Content-Type": mime },
+      body: Uint8Array.from(bytes),
+    }, timeoutMs);
+    if (!res.ok) throw httpError("STT(file)", res.status, await res.text());
+    const j = (await res.json()) as DeepgramFileResponse;
+    const alt = j?.results?.channels?.[0]?.alternatives?.[0] ?? {};
+    const words: WordTiming[] = (alt.words ?? []).map((w) => ({
+      word: w.word ?? "",
+      ...(w.punctuated_word === undefined ? {} : { punctuated_word: w.punctuated_word }),
+      start: w.start ?? 0,
+      end: w.end ?? 0,
+      confidence: w.confidence ?? 0,
+    }));
+    const out: FileTranscript = {
+      transcript: alt.transcript ?? "",
+      confidence: alt.confidence ?? 0,
+      words,
+      durationSec: j?.metadata?.duration ?? 0,
+    };
+    const utts = j?.results?.utterances;
+    if (utts) {
+      out.utterances = utts.map((u) => ({ start: u.start ?? 0, end: u.end ?? 0, transcript: u.transcript ?? "" }));
+    }
+    return out;
+  }, "Deepgram STT(file)");
 }
 
 /** Resample mono 16-bit little-endian PCM via linear interpolation.

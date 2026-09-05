@@ -102,6 +102,53 @@ compare: FAIL (token error rate 20%): "time:7:30" heard as "time:7:13"
 
 ---
 
+## `stt`
+```
+soundcheck stt <file> [--json] [--keyterm "<term>"]... [--utterances] [--mime <type>] [--model <m>] [--offline]
+```
+Transcribe a whole audio **file** and return the full result, not just the text: the transcript, the model's confidence, the **word timeline** (each word with its start, end, and confidence), optional **utterance** segments, and the media duration. This is the surface downstream tools build on — offset checks, boundary checks, aligning a recording against a script. The harness's own speech-to-text path (`run`, `validate`) is unchanged and still returns text alone.
+
+| Flag | Effect |
+|---|---|
+| `--json` | Print **exactly** the result object on stdout; all human output moves to stderr. |
+| `--keyterm "<term>"` | Boost domain vocabulary. Repeatable — pass it once per term. |
+| `--utterances` | Also return utterance segments (`start`, `end`, `transcript`). |
+| `--mime <type>` | Override the content type. The default comes from the file extension (`.m4a`/`.mp4` → `audio/mp4`, `.mp3` → `audio/mpeg`, `.wav`, `.flac`, `.ogg`, `.webm`, `.aac`, `.amr`), falling back to `audio/mp4`. |
+| `--model <m>` | Recognition model. Default `nova-3`. |
+
+Containerized audio declares its own encoding and sample rate, so neither parameter is sent — Deepgram reads them from the container, and sending them can contradict the file.
+
+```jsonc
+{
+  "transcript": "Your appointment on April 10 at 09:15 will cost $40.",
+  "confidence": 0.999,
+  "words": [{ "word": "your", "punctuated_word": "Your", "start": 0, "end": 0.32, "confidence": 0.985 }],
+  "utterances": [{ "start": 0, "end": 4.4, "transcript": "Your appointment on April 10 at 09:15 will cost $40." }],
+  "durationSec": 4.4
+}
+```
+
+**A note on duration.** `durationSec` is what Deepgram measured. For WAV and m4a/AAC it matches the file exactly (verified: a 4.40 s fixture reads 4.40). MP3 can read slightly longer — the same fixture encoded as MP3 reads 4.46 s — because the format carries encoder padding that Deepgram counts and most decoders strip. If you are checking offsets to the millisecond, prefer a lossless or AAC source.
+
+**Exit codes:** 0 transcribed, 1 the API call failed, 2 the invocation was wrong (no file, missing file, empty file, no key). Library door: `transcribeFile(bytes, opts)`.
+
+---
+
+## `judge`
+```
+soundcheck judge --transcript <file.txt> [--rubric <rubric.json>] [--backend mock] [--json] [--offline]
+```
+Run a rubric against a transcript that came from **anywhere** — a file transcription, another vendor's recording, a support ticket. No scenario, no Trace, no rendering: the text is passed to the judge verbatim. `--rubric` defaults to the built-in rubric; `--backend mock` uses the deterministic offline grader instead of the live one. `--json` prints the verdict alone on stdout.
+
+**Exit codes:** 0 judged, 1 the judge call failed, 2 the invocation was wrong. Library door: `judgeText(transcript, rubric, backend?)`. The judge stays **advisory** here as everywhere — it never gates.
+
+---
+
+## `--offline` (any command)
+Refuse every network call — REST and WebSocket alike — instead of making it. The key resolves from the environment, `./.env`, `~/.config/soundcheck/.env`, or the package's own `.env`, so a command you believe is a dry run can otherwise reach the API and spend money. With `--offline` that cannot happen: the call fails loudly rather than degrading to a mock, and no key is required to run the command at all.
+
+---
+
 ## `fixtures`
 ```
 soundcheck fixtures <check|roundtrip|generate> [--json]
