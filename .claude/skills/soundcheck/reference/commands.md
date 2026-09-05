@@ -81,6 +81,21 @@ The normalization-aware comparison gate standalone — **fully offline, keyless*
 
 ---
 
+## `stt` — transcribe a file, with the word timeline
+```
+soundcheck stt <file> [--json] [--keyterm "<term>"]... [--utterances] [--mime <type>] [--model <m>]
+```
+Returns the FULL result — transcript, confidence, per-word start/end/confidence, optional utterance segments, and `durationSec` — not just text. Use it for offset and boundary checks, or to align a recording against a script. `--json` prints exactly that object on stdout (human output → stderr). `--keyterm` repeats. `--mime` defaults from the file extension; containerized audio carries its own encoding and sample rate, so neither is sent. Exit 0 ok, 1 API error, 2 usage. Library: `transcribeFile(bytes, opts)`.
+
+## `judge` — run a rubric against any transcript
+```
+soundcheck judge --transcript <file.txt> [--rubric <rubric.json>] [--backend mock] [--json]
+```
+Judges bare text — no scenario, no Trace. `--backend mock` is deterministic and offline. Advisory, never gating. Library: `judgeText(transcript, rubric, backend?)`.
+
+## `--offline` — refuse network calls (any command)
+The key resolves from several files, so a dry run can go live silently. `--offline` makes every network entry point refuse instead; no key is needed, and nothing degrades to a mock.
+
 ## `fixtures` — the committed audio round-trip corpus (needs the key)
 ```
 soundcheck fixtures <check|roundtrip|generate> [--json]

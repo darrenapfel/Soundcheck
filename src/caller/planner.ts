@@ -7,7 +7,7 @@
 // NOTE: this hand-rolls the same one-shot VA socket as judge/deepgram-va-judge.ts; a
 // shared va-call helper is a tracked follow-up.
 
-import { getKey, synthesize } from "../deepgram.ts";
+import { assertNetworkAllowed, getKey, synthesize } from "../deepgram.ts";
 import type { CallerExchange, PlanDecision, PlanFn, PlanInput } from "./policy.ts";
 
 const NUM = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve";
@@ -161,6 +161,7 @@ export function parseCallerTurn(argsJson: string): PlanDecision {
 
 async function planTurn(input: PlanInput): Promise<PlanDecision | null> {
   const key = getKey();
+  assertNetworkAllowed("open a Voice Agent socket (caller brain)");
   const ws = new WebSocket(AGENT_WS, ["token", key]);
   ws.binaryType = "arraybuffer";
   const settings = {

@@ -36,6 +36,14 @@ export {
   type CompareResult, type CompareTier, type DiffOp, type Token,
 } from "./compare/index.ts";
 
+// Similarity — a 0..1 closeness score (contraction folding, optional filler removal) on top of
+// the same canonicalization the gate uses. For "how close is this?" rather than "does it pass?".
+export { similarity, lcsLength, foldForSimilarity, type SimilarityOpts } from "./compare/similarity.ts";
+
+// Phrase location — find an expected line inside a word timeline, in a time window. Offset and
+// boundary checks ("the greeting starts within 2s", "the disclaimer ends before the transfer").
+export { findPhrase, type FindPhraseOpts, type PhraseMatch } from "./compare/phrase.ts";
+
 // Fixtures — the committed audio round-trip corpus (fixtures/audio/) + its check/roundtrip/
 // generate flows as library functions (the CLI `fixtures` command is a thin shell over these).
 export {
@@ -44,7 +52,7 @@ export {
 } from "./fixtures/index.ts";
 
 // Judge — advisory LLM scoring. Implement JudgeBackend to add a grader.
-export { judgeTranscript, mockJudge, DEFAULT_RUBRIC, aggregateVerdicts } from "./judge/index.ts";
+export { judgeTranscript, judgeText, mockJudge, DEFAULT_RUBRIC, aggregateVerdicts } from "./judge/index.ts";
 export { makeDeepgramVaJudge, deepgramVaJudge } from "./judge/deepgram-va-judge.ts";
 
 // Calibration — judge-alignment loop (trust verdict, cross-model corroboration, drift guard).
@@ -61,6 +69,13 @@ export { compareRuns, formatBakeoff } from "./bakeoff/index.ts";
 
 // Regression-from-production — freeze a discovered failure into a permanent regression scenario.
 export { promoteTrace } from "./regress/index.ts";
+
+// Deepgram REST — file transcription with the full result (word timeline, utterances, duration),
+// plus the offline switch every network entry point honors.
+export {
+  transcribeFile, setOfflineMode, isOfflineMode, assertNetworkAllowed,
+  type FileTranscript, type FileSttOpts, type WordTiming, type TranscriptUtterance,
+} from "./deepgram.ts";
 
 // Report — self-contained HTML scorecard with embedded audio.
 export { generateReport } from "./report/html.ts";

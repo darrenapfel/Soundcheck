@@ -5,6 +5,7 @@
 import type { Trace } from "../types.ts";
 import type { JudgeBackend, Rubric, Verdict } from "./types.ts";
 
+import { deepgramVaJudge } from "./deepgram-va-judge.ts";
 export { parseVerdict } from "./parse.ts";
 export type { JudgeBackend, Rubric, Verdict } from "./types.ts";
 
@@ -51,6 +52,28 @@ export const mockJudge: JudgeBackend = {
 
 export async function judgeTranscript(t: Trace, backend: JudgeBackend, rubric: Rubric = DEFAULT_RUBRIC): Promise<Verdict> {
   return backend.judge(transcriptToPrompt(t), rubric);
+}
+
+/**
+ * Judge a plain TRANSCRIPT — no Trace, no rendering.
+ *
+ * `judgeTranscript` exists for calls Soundcheck drove itself: it renders a Trace into the judge's
+ * prompt. Downstream tools usually hold text from somewhere else entirely (a file transcription,
+ * a support ticket, another vendor's recording) and want the same rubric applied to it. This is
+ * that door. The text is passed through verbatim.
+ *
+ * The backend defaults to the live Deepgram Voice Agent grader, so a caller who supplies only a
+ * transcript and a rubric gets a real verdict; pass `mockJudge` for a deterministic offline one.
+ */
+export async function judgeText(
+  transcript: string,
+  rubric: Rubric = DEFAULT_RUBRIC,
+  backend: JudgeBackend = deepgramVaJudge,
+): Promise<Verdict> {
+  if (typeof transcript !== "string" || transcript.trim() === "") {
+    throw new Error("judgeText: empty transcript");
+  }
+  return backend.judge(transcript, rubric);
 }
 
 /** Aggregate a judge panel: majority for booleans, mean for scores. */

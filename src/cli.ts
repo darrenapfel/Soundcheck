@@ -5,7 +5,7 @@ import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync, cpSync
 import { resolve, join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { homedir } from "node:os";
-import { getKey, synthesize, transcribe } from "./deepgram.ts";
+import { getKey, setOfflineMode, synthesize, transcribe, transcribeFile } from "./deepgram.ts";
 import { detectArtifacts, detectDashAsNegative } from "./normalize.ts";
 import { compare, summarize } from "./compare/index.ts";
 import { loadManifest, checkFixtures, roundtripFixtures, generateFixtures } from "./fixtures/index.ts";
@@ -18,7 +18,7 @@ import { MockAUTAdapter } from "./adapters/mock-aut.ts";
 import { buildTranscript } from "./capture/transcript.ts";
 import { saveCassette, loadCassette, safeSegment } from "./capture/cassette.ts";
 import { runGates } from "./gates/index.ts";
-import { judgeTranscript, mockJudge } from "./judge/index.ts";
+import { judgeTranscript, judgeText, mockJudge, DEFAULT_RUBRIC } from "./judge/index.ts";
 import { deepgramVaJudge, makeDeepgramVaJudge } from "./judge/deepgram-va-judge.ts";
 import { calibrate, formatReport, crossModelAlign, formatAlignment } from "./calibration/index.ts";
 import { authorSuite } from "./author/index.ts";
@@ -29,21 +29,25 @@ import { generateReport } from "./report/html.ts";
 import { buildJsonReport } from "./report/json.ts";
 import { compareRuns, formatBakeoff } from "./bakeoff/index.ts";
 import { promoteTrace } from "./regress/index.ts";
+import type { Rubric } from "./judge/types.ts";
 import type { AUTConfig, Persona, Scenario, ScenarioResult, Trace } from "./types.ts";
 import type { ConversationCapture } from "./adapters/types.ts";
 
 function parseArgs(argv: string[]) {
   const out: Record<string, string | boolean> = {};
+  // Every value a flag was given, in order, so a repeatable flag (--keyterm X --keyterm Y) keeps
+  // both. `opts` still holds the LAST value, so existing single-value callers are unchanged.
+  const repeated: Record<string, string[]> = {};
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith("--")) {
       const k = a.slice(2);
       const next = argv[i + 1];
-      if (next && !next.startsWith("--")) { out[k] = next; i++; } else out[k] = true;
+      if (next && !next.startsWith("--")) { out[k] = next; (repeated[k] ??= []).push(next); i++; } else out[k] = true;
     } else positional.push(a);
   }
-  return { positional, opts: out };
+  return { positional, opts: out, repeated };
 }
 
 /** The shipped package version (for the --json contract). Module-relative so it resolves the same
@@ -565,6 +569,20 @@ function help() {
       Exit 0 only when the comparison passes and no artifacts are detected.
   soundcheck validate --stt <file.wav>   Transcribe an audio file.
 
+  soundcheck stt <file> [--json] [--keyterm "<term>"]... [--utterances] [--mime <type>] [--model <m>]
+      Transcribe a whole audio FILE and print the full result: transcript, confidence, the word
+      timeline (start/end/confidence per word), optional utterance segments, and the media
+      duration. --json prints exactly that object on stdout, human text on stderr.
+      --keyterm repeats to boost domain vocabulary. --mime defaults from the file extension
+      (m4a/mp4, mp3, wav, flac, ogg, webm…), falling back to audio/mp4; containerized audio
+      carries its own encoding and sample rate, so neither is sent.
+      Exit 0 transcribed, 1 the API call failed, 2 the invocation was wrong.
+
+  soundcheck judge --transcript <file.txt> [--rubric <rubric.json>] [--backend mock] [--json]
+      Run a rubric against a transcript from anywhere — no scenario, no Trace, no rendering.
+      Defaults to the built-in rubric and the live grader; --backend mock is deterministic and
+      offline. --json prints the verdict on stdout, human text on stderr.
+
   soundcheck compare --expected "<text>" --heard "<text>" [--json]
       The normalization-aware comparison gate, standalone — fully OFFLINE, no key. Decides
       whether two surface forms carry the same content: formatting equivalences (times, money,
@@ -601,6 +619,12 @@ function help() {
       gates. Live (two real prompts/models/voices) or --replay (each config's cassettes, offline).
       --judge also diffs the advisory judge dimensions (mock = offline; never changes the gate-decided winner).
 
+  --offline (any command)
+      Refuse every network call — REST and WebSocket alike — instead of making it. The key
+      resolves from the environment, ./.env, ~/.config/soundcheck/.env, or the package .env, so a
+      command you believe is a dry run can otherwise reach the API and spend money. With
+      --offline that cannot happen: the call fails loudly rather than degrading to a mock.
+
   soundcheck install-skill [--all] [--claude-only] [--codex] [--gemini] [--link]
       Install the bundled Soundcheck skill (.claude/skills/soundcheck) into your user-global skills dir.
       By default installs for Claude Code (~/.claude/skills) AND any other agent already on this machine
@@ -612,12 +636,120 @@ function help() {
 Requires only DEEPGRAM_API_KEY (env or .env).`);
 }
 
-const { positional, opts } = parseArgs(process.argv.slice(2));
+const { positional, opts, repeated } = parseArgs(process.argv.slice(2));
+// `stt <file>` — transcribe a whole audio FILE and print the full result: transcript, confidence,
+// the word timeline, optional utterance segments, and the media duration. The surface downstream
+// tools read; the harness's own STT path stays inside run/validate.
+//
+// Exit codes are the contract: 0 transcribed, 1 the API call failed, 2 the invocation was wrong.
+async function cmdStt(positional: string[], opts: Record<string, string | boolean>, repeated: Record<string, string[]>) {
+  const file = positional[0];
+  if (!file) {
+    console.error('usage: soundcheck stt <file> [--json] [--keyterm "<term>"]... [--utterances] [--mime <type>] [--model <m>] [--offline]');
+    process.exit(2);
+  }
+  const path = resolve(process.cwd(), file);
+  if (!existsSync(path)) { console.error(`✖ no such file: ${path}`); process.exit(2); }
+  let bytes: Buffer;
+  try { bytes = readFileSync(path); } catch (e) { console.error(`✖ cannot read ${path}: ${(e as Error).message}`); process.exit(2); return; }
+  if (bytes.length === 0) { console.error(`✖ empty file: ${path}`); process.exit(2); }
+  // Key resolution up front (the same door every live command uses), skipped when offline —
+  // there is no call to authenticate, and the network guard refuses before any request.
+  if (opts.offline !== true) {
+    try { getKey(); } catch (e) { console.error(`✖ ${(e as Error).message}`); process.exit(2); }
+  }
+
+  const jsonStdout = opts.json === true;
+  const say = jsonStdout ? (...a: unknown[]) => console.error(...a) : (...a: unknown[]) => console.log(...a);
+  const mime = typeof opts.mime === "string" ? opts.mime : mimeForFile(path);
+  const keyterms = repeated.keyterm ?? [];
+  try {
+    const result = await transcribeFile(bytes, {
+      mime,
+      ...(typeof opts.model === "string" ? { model: opts.model } : {}),
+      ...(keyterms.length ? { keyterms } : {}),
+      ...(opts.utterances === true ? { utterances: true } : {}),
+    });
+    say(`stt: ${result.words.length} words, ${result.durationSec.toFixed(2)}s, confidence ${result.confidence.toFixed(3)} (${mime})`);
+    if (!jsonStdout) say(result.transcript);
+    else process.stdout.write(JSON.stringify(result, null, 2) + "\n"); // the ONLY thing on stdout
+    process.exit(0);
+  } catch (e) {
+    console.error(`✖ ${(e as Error).message}`);
+    process.exit(1);
+  }
+}
+
+/** Content type from the file extension. Containerized audio declares its own encoding and sample
+ *  rate, so the type is all Deepgram needs; unknown extensions fall back to the documented
+ *  audio/mp4 default, and --mime overrides everything. */
+function mimeForFile(path: string): string {
+  const ext = path.toLowerCase().split(".").pop() ?? "";
+  const known: Record<string, string> = {
+    m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac", mp3: "audio/mpeg", wav: "audio/wav",
+    flac: "audio/flac", ogg: "audio/ogg", opus: "audio/ogg", webm: "audio/webm", amr: "audio/amr",
+  };
+  return known[ext] ?? "audio/mp4";
+}
+
+// `judge --transcript <file.txt>` — run the rubric against a transcript that came from anywhere,
+// with no Trace and no rendering. The library door is judgeText().
+async function cmdJudge(opts: Record<string, string | boolean>) {
+  const transcriptPath = typeof opts.transcript === "string" ? opts.transcript : undefined;
+  if (!transcriptPath) {
+    console.error('usage: soundcheck judge --transcript <file.txt> [--rubric <rubric.json>] [--backend mock] [--json] [--offline]');
+    process.exit(2);
+  }
+  const tPath = resolve(process.cwd(), transcriptPath);
+  if (!existsSync(tPath)) { console.error(`✖ no such transcript: ${tPath}`); process.exit(2); }
+  const transcript = readFileSync(tPath, "utf8");
+  if (!transcript.trim()) { console.error(`✖ empty transcript: ${tPath}`); process.exit(2); }
+
+  let rubric: Rubric = DEFAULT_RUBRIC;
+  if (typeof opts.rubric === "string") {
+    const rPath = resolve(process.cwd(), opts.rubric);
+    if (!existsSync(rPath)) { console.error(`✖ no such rubric: ${rPath}`); process.exit(2); }
+    try {
+      const parsed = JSON.parse(readFileSync(rPath, "utf8")) as Rubric;
+      if (!parsed || !Array.isArray(parsed.dimensions) || parsed.dimensions.length === 0) {
+        throw new Error("a rubric needs a non-empty `dimensions` array");
+      }
+      rubric = parsed;
+    } catch (e) { console.error(`✖ bad rubric ${rPath}: ${(e as Error).message}`); process.exit(2); }
+  }
+  const useMock = opts.backend === "mock";
+  if (!useMock && opts.offline !== true) {
+    try { getKey(); } catch (e) { console.error(`✖ ${(e as Error).message}`); process.exit(2); }
+  }
+
+  const jsonStdout = opts.json === true;
+  const say = jsonStdout ? (...a: unknown[]) => console.error(...a) : (...a: unknown[]) => console.log(...a);
+  try {
+    const verdict = useMock
+      ? await judgeText(transcript, rubric, mockJudge)
+      : await judgeText(transcript, rubric);
+    say(`judge (${verdict.backend}):`);
+    for (const d of verdict.dimensions) say(`  ${d.key}: ${d.value}${d.why ? ` — ${d.why}` : ""}`);
+    for (const f of verdict.findings) say(`  🚩 ${f}`);
+    if (jsonStdout) process.stdout.write(JSON.stringify(verdict, null, 2) + "\n"); // the ONLY thing on stdout
+    process.exit(0);
+  } catch (e) {
+    console.error(`✖ ${(e as Error).message}`);
+    process.exit(1);
+  }
+}
+
 const cmd = positional.shift();
+// --offline is a HARD refusal, checked at every network entry point (REST and WebSocket alike).
+// The key resolves from several files, so a command a developer believes is a dry run can reach
+// the network and spend money; this makes that impossible rather than unlikely.
+if (opts.offline === true) setOfflineMode(true);
 try {
   if (cmd === "run") await cmdRun(positional, opts);
   else if (cmd === "validate") await cmdValidate(opts);
   else if (cmd === "compare") cmdCompare(opts);
+  else if (cmd === "stt") await cmdStt(positional, opts, repeated);
+  else if (cmd === "judge") await cmdJudge(opts);
   else if (cmd === "fixtures") await cmdFixtures(positional, opts);
   else if (cmd === "calibrate") await cmdCalibrate(opts);
   else if (cmd === "author") await cmdAuthor(opts);

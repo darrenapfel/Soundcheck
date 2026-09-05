@@ -10,7 +10,7 @@
 // endpoint speaking the same protocol (a backend bridge, a staging host) with its
 // own subprotocol auth — see AUTConfig.endpoint in ../types.ts.
 
-import { getKey, synthesize, resamplePcm16le } from "../deepgram.ts";
+import { assertNetworkAllowed, getKey, synthesize, resamplePcm16le } from "../deepgram.ts";
 import type { AUTConfig, ToolCall } from "../types.ts";
 import type { AUTAdapter, CallerTurn, RawTurn, ConversationCapture } from "./types.ts";
 import { ScriptedCaller, type Caller, type CallerExchange } from "../caller/policy.ts";
@@ -75,7 +75,10 @@ export class DeepgramVoiceAgentAdapter implements AUTAdapter {
   // AUT supplies its own subprotocols (endpoint override), the key is not read for the
   // socket at all — custom-auth bridges don't hold a Deepgram key client-side.
   constructor(opts: { wsFactory?: WsFactory; synth?: SynthFn; setupTimeoutMs?: number } = {}) {
-    this.#wsFactory = opts.wsFactory ?? ((url, protocols) => new WebSocket(url, protocols ?? ["token", getKey()]) as unknown as WsLike);
+    this.#wsFactory = opts.wsFactory ?? ((url, protocols) => {
+      assertNetworkAllowed("open a Voice Agent socket (agent under test)");
+      return new WebSocket(url, protocols ?? ["token", getKey()]) as unknown as WsLike;
+    });
     this.#synth = opts.synth ?? ((text, o) => synthesize(text, o));
     this.#setupTimeoutMs = opts.setupTimeoutMs ?? 15000;
   }
