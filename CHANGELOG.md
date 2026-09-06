@@ -2,7 +2,7 @@
 
 All notable changes to Soundcheck. Format loosely follows [Keep a Changelog]; versioning is [SemVer].
 
-## [Unreleased]
+## [2.5.0] - 2026-09-05
 
 ### Fixed
 - **The comparison diff no longer allocates a quadratic table.** `diffKeys` built an `(n+1)×(m+1)` array of numbers, which is fine for a sentence and fatal for a transcript: a 10,000-token pair would have wanted hundreds of megabytes. Small inputs now use the same recurrence and the same tie-break in a flat `Int32Array` (a quarter of the memory), and inputs above four million cells switch to Hirschberg's linear-space algorithm — same alignment problem, tens of kilobytes of rows. Measured on a 10,000-token pair: 577 ms and a 4 MB heap delta, pinned by a test that fails above 200 MB. Every existing diff test passes unchanged, so the output for ordinary inputs is byte-identical.
